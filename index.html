@@ -26,6 +26,8 @@ const net = {
   slots: [],         // lobby: [{ ship }] per player
   sendT: 0, events: [], rewarded: false, leaveArm: 0,
   hostW: 0, hostH: 0, vs: 1, vx: 0, vy: 0, // guests draw the host's world scaled to fit their screen
+  soff: undefined, lastTs: 0, ptr: [], etr: new Map(), btr: new Map(), // guests: smoothing timelines
+  snapN: 0, bossSent: new WeakSet(), bossStatic: new Map(), // bosses' fixed details: host sends them rarely, guests remember them
 };
 // host: record a visual/sound event so guests can replay it
 function netRec(ev) { if (net.role === 'host' && net.playing) net.events.push(ev); }
@@ -467,7 +469,7 @@ function toggleRunType() {
 }
 
 // best scores are kept per player count and per run type
-const bestKey = (m, endless) => ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] + (endless ? 'Endless' : '');
+const bestKey = (m, endless) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m) + (endless ? 'Endless' : '');
 const best = {};
 function bestOf(m, endless) {
   const k = bestKey(m, endless);
@@ -568,7 +570,8 @@ function shuffle(a) {
 
 const stars = Array.from({ length: 160 }, () => ({ x: Math.random(), y: Math.random(), z: Math.random() * 0.8 + 0.2 }));
 
-const P_COLORS = ['#7df9ff', '#9dff5d', '#ff9a3d', '#c08dff'];
+// players 1-4 (local and online), 5-8 (online only)
+const P_COLORS = ['#7df9ff', '#9dff5d', '#ff9a3d', '#c08dff', '#ff6fd8', '#ffe93d', '#3d8dff', '#e8e8ff'];
 
 // ---------- ship classes ----------
 // mod: multipliers/bonuses layered on top of the shared upgrade stats (run.s) for that one player
@@ -663,7 +666,7 @@ function start(m, ships) {
   score = 0; time = 0; levelT = 0; spawnT = 0; shake = 0; combo = 1; comboT = 0; level = 1;
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
   popups = []; hurtFlash = 0;
-  hint = { text: CONTROL_HINTS[m], life: 5 };
+  hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically' : CONTROL_HINTS[m], life: 5 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   fxText('SECTOR 1', W / 2, H * 0.4, '#7df9ff', 30, 1.4);
@@ -811,13 +814,14 @@ function spawnEnemy() {
   }
 }
 
+let enemyIdSeq = 0; // online guests match enemies between snapshots by id
 function makeEnemy(type, x, y) {
   const t = TYPES[type];
   const speed = (80 + Math.min(level, 12) * 15 + Math.random() * 60) * (1 + 0.25 * mut('swift'));
   // enemies toughen each sector to keep pace with your upgrades; a bit more in co-op
   const hp = Math.ceil(t.hp * (1 + (level - 1) * 0.3) * (1 + 0.5 * mut('armored'))) + (t.hp > 1 ? mode - 1 : 0);
   const e = { type, x, y, r: t.r, hp, maxHp: hp, color: t.color, pts: t.pts, vx: 0, vy: speed,
-    t: Math.random() * 10, spin: 0, fire: 1 + Math.random() * 2, flash: 0, state: 'enter', timer: 0, aimA: Math.PI / 2 };
+    t: Math.random() * 10, spin: 0, fire: 1 + Math.random() * 2, flash: 0, state: 'enter', timer: 0, aimA: Math.PI / 2, id: ++enemyIdSeq };
   switch (type) {
     case 'tank':     e.vy = speed * 0.4; break;
     case 'swarmer':  e.vy = speed * 1.5; break;
@@ -842,6 +846,9 @@ const enemyFireScale = () => Math.max(0.6, 1 - (level - 1) * 0.03);
 
 const GUARD_RANGE = 140;
 const orbiterBall = (e, k) => { const a = e.t * 3 + k * Math.PI * 2 / 3; return { x: e.x + Math.cos(a) * 36, y: e.y + Math.sin(a) * 36 }; };
+
+// height of each player's line in the HUD's top-right list (compact for 5-8 online players)
+const hudRowH = () => players.length > 4 ? 20 : 48;
 
 const turnToward = (a, want, max) => {
   const d = ((want - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -1713,7 +1720,7 @@ function controlsFor(p) {
   let dx = 0, dy = 0;
   // online: remote players' ships are moved by their own computers; the local player gets every control
   if (net.role && p.remote) return { dx: 0, dy: 0, usePointer: false };
-  const scheme = net.role ? ['wasd', 'arrows', 'mouse'] : CONTROLS[mode][p.id];
+  const scheme = net.role ? ['wasd', 'arrows', 'mouse'] : CONTROLS[mode]?.[p.id] || ['wasd', 'arrows', 'mouse'];
   if (scheme.includes('wasd')) { if (keys.KeyA) dx--; if (keys.KeyD) dx++; if (keys.KeyW) dy--; if (keys.KeyS) dy++; }
   if (scheme.includes('arrows')) { if (keys.ArrowLeft) dx--; if (keys.ArrowRight) dx++; if (keys.ArrowUp) dy--; if (keys.ArrowDown) dy++; }
   if (scheme.includes('ijkl')) {
@@ -1868,7 +1875,7 @@ function update(dt) {
   spawnT -= dt;
   if (spawnT <= 0 && !bossActive) {
     spawnEnemy();
-    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45][mode] / (1 + 0.3 * mut('frenzy'));
+    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'));
   }
 
   for (const b of bullets) {
@@ -2792,11 +2799,13 @@ function drawHUD() {
   if (muts.length) { ctx.fillStyle = '#ff9a3d'; ctx.font = 'bold 11px system-ui'; ctx.fillText(muts.join(' · '), 16, combo > 1 ? 84 : 64); }
 
   ctx.textAlign = 'right';
+  const compactHud = players.length > 4; // online 5-8 players: one short line each
   players.forEach((p, i) => {
-    const y = 14 + i * 48;
-    ctx.font = '20px system-ui'; ctx.fillStyle = p.alive ? p.color : '#556';
+    const y = 14 + i * hudRowH();
+    ctx.font = compactHud ? '15px system-ui' : '20px system-ui'; ctx.fillStyle = p.alive ? p.color : '#556';
     const label = mode > 1 ? `P${p.id + 1} ` : '';
     ctx.fillText(p.alive ? label + '♥'.repeat(p.lives) + '♡'.repeat(Math.max(0, maxLivesOf(p) - p.lives)) : label + 'DOWN', W - 16, y);
+    if (compactHud) return;
     ctx.font = 'bold 12px system-ui';
     if (p.alive && p.power > 0) { ctx.fillStyle = '#ffe93d'; ctx.fillText(`SPREAD ${p.power.toFixed(1)}s`, W - 16, y + 26); }
     else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText('fly to the wreck to revive', W - 16, y + 26); }
@@ -2826,7 +2835,7 @@ function drawHUD() {
   // (with 3+ bosses, the bars go into a compact 2-column grid so they don't cover the fight)
   const narrow = W < 640, compact = bosses.length >= 3;
   const full = narrow ? W - 32 : Math.min(compact ? 560 : 460, W - 360), bw = compact ? (full - 10) / 2 : full;
-  const top = narrow ? 14 + players.length * 48 + 8 : 18;
+  const top = narrow ? 14 + players.length * hudRowH() + 8 : 18;
   bosses.forEach((bo, i) => {
     const bx = compact ? (W - full) / 2 + (i % 2) * (bw + 10) : (W - bw) / 2;
     const by = compact ? top + Math.floor(i / 2) * 28 : top + i * 34, cx = bx + bw / 2;
@@ -3378,6 +3387,7 @@ async function iceConfig() {
   return { iceServers };
 }
 const SNAP_RATE = 0.05, INPUT_RATE = 0.033;
+const MAX_ONLINE = 8; // players in an online room (local co-op stays at 4)
 const TYPE_LIST = Object.keys(TYPES);
 
 function loadPeer() {
@@ -3415,7 +3425,7 @@ async function hostGame() {
     });
     peer.on('connection', conn => {
       conn.on('open', () => {
-        if (net.playing || net.conns.length >= 3) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
+        if (net.playing || net.conns.length >= MAX_ONLINE - 1) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
         conn.slot = net.slots.length;
         net.conns.push(conn); net.slots.push({ ship: 'striker' });
         beep(660, 0.2, 'triangle', 0.06, 330);
@@ -3434,9 +3444,19 @@ function onHostData(conn, d) {
   if (d.ship && !net.playing && net.slots[conn.slot]) { net.slots[conn.slot].ship = d.ship; broadcastLobby(); }
   if (!net.playing || !run) return;
   const p = players[conn.slot];
-  if (d.in && p && p.alive && state === 'play') { [p.x, p.y, p.tilt, p.thrust] = d.in; }
+  if (d.in && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
+    p.toff = clockOffset(p.toff, d.in[4]); (p.track ||= newTrack()); trackPush(p.track, d.in[4], d.in.slice(0, 4));
+  }
   if (d.pick !== undefined && state === 'upgrade' && offer) pickUpgrade(d.pick);
   if (d.reroll && state === 'upgrade') reroll();
+}
+// host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
+function smoothRemotePlayers() {
+  for (const p of players) {
+    if (!p.remote || !p.alive || !p.track || state !== 'play') continue;
+    const v = trackAt(p.track, performance.now() - p.toff - HOST_INTERP_DELAY);
+    if (v) [p.x, p.y, p.tilt, p.thrust] = v;
+  }
 }
 function onGuestLeft(conn) {
   const i = net.conns.indexOf(conn);
@@ -3471,6 +3491,7 @@ const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
 function packSnap() {
   const s = run.s;
   return {
+    ts: Math.round(performance.now()), // host clock, so guests can place every update on a timeline
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
     rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed },
@@ -3479,12 +3500,11 @@ function packSnap() {
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
-      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r]),
-    eb: eBullets.map(b => [Math.round(b.x), Math.round(b.y), Math.round(b.vx * s.chrono), Math.round(b.vy * s.chrono), b.r || 5, b.color || '', b.fuse !== undefined ? r2(b.fuse) : -1]),
-    bu: bullets.map(b => [Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), b.color, (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0)]),
+      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id]),
+    ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color]),
-    bo: bosses.map(b => { const o = { ...b }; if (b.drain) o.drain = { ...b.drain, target: b.drain.target.id }; return o; }),
+    bo: bosses.map(packBoss),
     ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether } : null,
     of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
@@ -3492,9 +3512,34 @@ function packSnap() {
     ev: net.events.splice(0),
   };
 }
+// bosses are sent whole (drawing uses lots of their fields), but with numbers rounded — full-precision
+// floats roughly doubled the snapshot size — and without the long hint text
+const roundDeep = v => typeof v === 'number' ? r2(v) : Array.isArray(v) ? v.map(roundDeep)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, roundDeep(x)])) : v;
+// the parts of a boss that change during a fight; everything else (name, color, shape, attack list...)
+// is only sent when a boss first appears and then once a second, and guests remember it
+const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
+  'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
+  'faceA', 'bigAtk', 'cracks', 'healT', 'regen'];
+function packBoss(b) {
+  const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
+  if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain') o[k] = roundDeep(b[k]); }
+  else for (const k of BOSS_DYNAMIC) if (b[k] !== undefined) o[k] = roundDeep(b[k]);
+  if (b.drain) o.drain = { ...roundDeep({ ...b.drain, target: 0 }), target: b.drain.target.id };
+  return o;
+}
+// bullets are the bulk of a snapshot (8 players fire a lot), so they go as flat number lists
+// with colors replaced by an index into a small per-snapshot color table
+function packBullets(s) {
+  const colors = [], ci = c => { let i = colors.indexOf(c); if (i < 0) { i = colors.length; colors.push(c); } return i; };
+  const bu = [], eb = [];
+  for (const b of bullets) bu.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), ci(b.color), (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0));
+  for (const b of eBullets) eb.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx * s.chrono), Math.round(b.vy * s.chrono), b.r || 5, ci(b.color || '#ff4d4d'), b.fuse !== undefined ? r2(b.fuse) : -1);
+  return { bu, eb, cl: colors };
+}
 function hostTick(dt) {
   if ((net.sendT -= dt) > 0) return;
-  net.sendT = SNAP_RATE;
+  net.sendT = SNAP_RATE; net.snapN++;
   const snap = { snap: packSnap() };
   for (const c of net.conns) if (c.open) c.send(snap);
 }
@@ -3526,13 +3571,50 @@ function onGuestData(d) {
   if (d.start) {
     runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
     net.playing = true; net.rewarded = false; resize();
+    Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
     start(d.start.n, d.start.ships);
     players.forEach((p, i) => p.remote = i !== net.myId);
   }
   if (d.snap && net.playing && run) applySnap(d.snap);
 }
+// ---------- smoothing: timelines of positions from another computer ----------
+// Positions arrive ~20-30 times a second. Instead of jumping to each one, other ships/enemies/bosses
+// are drawn slightly in the past, gliding between the two updates on either side of that moment.
+const INTERP_DELAY = 100;     // guests: how far in the past other entities are drawn (ms)
+const HOST_INTERP_DELAY = 70; // host: same, for guests' ships
+const newTrack = () => ({ pts: [] });
+function trackPush(tr, ts, v) {
+  const last = tr.pts[tr.pts.length - 1];
+  if (last && ts <= last[0]) return; // out of order or duplicate
+  tr.pts.push([ts, ...v]);
+  if (tr.pts.length > 24) tr.pts.shift();
+}
+function trackAt(tr, rt) {
+  const pts = tr && tr.pts;
+  if (!pts || !pts.length) return null;
+  if (rt <= pts[0][0]) return pts[0].slice(1);
+  const last = pts[pts.length - 1];
+  if (rt > last[0]) {
+    // the next update is late: keep coasting in the same direction for up to 100ms instead of freezing
+    if (pts.length < 2) return last.slice(1);
+    const prev = pts[pts.length - 2], span = Math.max(1, last[0] - prev[0]), k = Math.min(rt - last[0], 100) / span;
+    return last.slice(1).map((v, j) => v + (v - prev[j + 1]) * k);
+  }
+  for (let i = pts.length - 1; i > 0; i--) {
+    const a = pts[i - 1], b = pts[i];
+    if (rt >= a[0]) { const k = (rt - a[0]) / Math.max(1, b[0] - a[0]); return a.slice(1).map((v, j) => v + (b[j + 1] - v) * k); }
+  }
+  return pts[0].slice(1);
+}
+// estimate (other clock) -> (my clock): the smallest (arrival - send time) seen, relaxing slowly
+function clockOffset(prev, ts) {
+  const o = performance.now() - ts;
+  return prev === undefined || o < prev ? o : prev + 0.25;
+}
+
 function applySnap(s) {
   if (s.w !== net.hostW || s.h !== net.hostH) { net.hostW = s.w; net.hostH = s.h; resize(); }
+  net.soff = clockOffset(net.soff, s.ts); net.lastTs = s.ts;
   if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over') sel = 0; state = s.st; }
   paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t;
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
@@ -3541,22 +3623,47 @@ function applySnap(s) {
   s.pl.forEach((a, i) => {
     const p = players[i]; if (!p) return;
     const mine = i === net.myId, wasAlive = p.alive;
-    if (!mine || !p.alive || !a[3]) { p.x = a[0]; p.y = a[1]; p.tilt = a[7]; p.thrust = a[8]; } // my own ship stays where I steer it
+    if (!mine) { (net.ptr[i] ||= newTrack()); trackPush(net.ptr[i], s.ts, [a[0], a[1], a[7], a[8]]); } // others glide (see guestFrame)
+    else if (!p.alive || !a[3]) { p.x = a[0]; p.y = a[1]; p.tilt = a[7]; p.thrust = a[8]; } // my own ship stays where I steer it
     if (mine && !wasAlive && a[3]) { p.x = a[0]; p.y = a[1]; } // just revived: take the host's spot
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
     p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11];
   });
+  // enemies keep their identity between snapshots (by id) so they can glide along a timeline
+  const byId = new Map(enemies.map(e => [e.id, e])), seen = new Set();
   enemies = s.en.map(a => {
-    const type = TYPE_LIST[a[0]];
-    return { type, x: a[1], y: a[2], vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9], spin: a[10], aimA: a[11],
-      state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17], dest: a[18] ? { x: a[18][0], y: a[18][1] } : null,
-      guardedT: a[19], r: a[20], color: TYPES[type].color };
+    const type = TYPE_LIST[a[0]], id = a[21], old = byId.get(id);
+    const e = Object.assign(old || { x: a[1], y: a[2] }, { type, vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9],
+      spin: a[10], aimA: a[11], state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17],
+      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id });
+    let tr = net.etr.get(id); if (!tr) net.etr.set(id, tr = newTrack());
+    trackPush(tr, s.ts, [a[1], a[2]]); seen.add(id);
+    return e;
   });
-  eBullets = s.eb.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3], r: a[4], color: a[5] || undefined, ...(a[6] >= 0 ? { fuse: a[6] } : {}) }));
-  bullets = s.bu.map(a => ({ x: a[0], y: a[1], vx: a[2], vy: a[3], color: a[4], crit: !!(a[5] & 1), rail: !!(a[5] & 2), missile: !!(a[5] & 4) }));
-  pickups = s.pk.map(a => ({ x: a[0], y: a[1], kind: a[2], t: a[3] }));
+  for (const id of net.etr.keys()) if (!seen.has(id)) net.etr.delete(id);
+  // bullets fly in straight lines, so they're redrawn from where they were at snapshot time (see guestFrame)
+  const cl = s.cl;
+  bullets = [];
+  for (let i = 0; i < s.bu.length; i += 6) { const a = s.bu; bullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, color: cl[a[i + 4]], crit: !!(a[i + 5] & 1), rail: !!(a[i + 5] & 2), missile: !!(a[i + 5] & 4) }); }
+  eBullets = [];
+  for (let i = 0; i < s.eb.length; i += 7) { const a = s.eb; eBullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, r: a[i + 4], color: cl[a[i + 5]], ...(a[i + 6] >= 0 ? { fuse: a[i + 6] } : {}) }); }
+  pickups = s.pk.map(a => ({ x: a[0], y: a[1], y0: a[1], t0: s.ts, kind: a[2], t: a[3] }));
   lasers = s.lz.map(a => ({ x: a[0], warn: a[1], fire: a[2], w: a[3], color: a[4] }));
-  bosses = s.bo.map(o => { if (o.drain) o.drain.target = players[o.drain.target]; return o; });
+  // bosses: take the fresh state, but keep gliding their positions
+  const oldB = new Map(bosses.map(b => [b.name, b]));
+  bosses = s.bo.map(o => {
+    // fold in the boss's fixed details (sent in full only now and then)
+    if (o.style !== undefined) net.bossStatic.set(o.name, o);
+    const st = net.bossStatic.get(o.name);
+    if (!st) return null; // haven't received its details yet: skip it for a moment
+    o = Object.assign({}, st, o);
+    if (o.drain) o.drain.target = players[o.drain.target];
+    let tr = net.btr.get(o.name); if (!tr) net.btr.set(o.name, tr = newTrack());
+    trackPush(tr, s.ts, [o.x, o.y]);
+    const prev = oldB.get(o.name); if (prev) { o.x = prev.x; o.y = prev.y; }
+    return o;
+  }).filter(Boolean);
+  for (const name of net.btr.keys()) if (!bosses.some(b => b.name === name)) net.btr.delete(name);
   encounter = s.ec;
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
@@ -3587,11 +3694,25 @@ function guestFrame(dt) {
   updateBackground(dt); updateAchBanner(dt); updateMusicFilter();
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   for (const s of stars) { s.y += s.z * dt * (state === 'play' && !paused ? 0.25 : 0.08); if (s.y > 1) { s.y = 0; s.x = Math.random(); } }
+  if (net.soff !== undefined) {
+    // "now" and "a moment ago" on the host's clock
+    const hostNow = performance.now() - net.soff, rt = hostNow - INTERP_DELAY;
+    // enemies, bosses and other players glide between updates
+    for (const e of enemies) { const v = trackAt(net.etr.get(e.id), rt); if (v) { e.x = v[0]; e.y = v[1]; } }
+    for (const b of bosses) { const v = trackAt(net.btr.get(b.name), rt); if (v) { b.x = v[0]; b.y = v[1]; } }
+    players.forEach((p, i) => {
+      if (i === net.myId || !p.alive) return;
+      const v = trackAt(net.ptr[i], rt); if (v) [p.x, p.y, p.tilt, p.thrust] = v;
+    });
+    // bullets move in straight lines: draw them where they are right now (fair dodging), capped if updates stall
+    const since = t0 => Math.min(0.25, Math.max(0, (hostNow - t0) / 1000));
+    for (const b of bullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
+    for (const b of eBullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
+    for (const k of pickups) k.y = k.y0 + 90 * since(k.t0);
+  }
   if (state === 'play' && !paused) {
     time += dt;
-    for (const e of enemies) { e.x += e.vx * dt; e.y += e.vy * dt; e.t += dt; e.spin += dt * 2; }
-    for (const b of bullets) { b.x += b.vx * dt; b.y += b.vy * dt; }
-    for (const b of eBullets) { b.x += b.vx * dt; b.y += b.vy * dt; }
+    for (const e of enemies) { e.t += dt; e.spin += dt * 2; }
     for (const b of bosses) b.t += dt;
     for (const pp of popups) { pp.life -= dt; pp.y -= 45 * dt; }
     if (hint) hint.life -= dt;
@@ -3602,7 +3723,7 @@ function guestFrame(dt) {
   if ((net.sendT -= dt) <= 0 && net.host?.open) {
     net.sendT = INPUT_RATE;
     const p = players[net.myId];
-    if (p && p.alive && state === 'play') net.host.send({ in: [Math.round(p.x), Math.round(p.y), r2(p.tilt || 0), r2(p.thrust || 0)] });
+    if (p && p.alive && state === 'play') net.host.send({ in: [Math.round(p.x), Math.round(p.y), r2(p.tilt || 0), r2(p.thrust || 0), Math.round(performance.now())] });
   }
 }
 function guestMove(dt) {
@@ -3704,18 +3825,20 @@ function drawLobby() {
     fitText('ROOM CODE', 128, 13, '#9dff5d', 'bold');
     glow('#9dff5d', 20); fitText(net.code.split('').join(' '), 166, 44, '#ffffff', '900'); ctx.shadowBlur = 0;
   }
-  const rw = Math.min(460, W - 32), rx = (W - rw) / 2, top = host ? 204 : 128;
-  for (let i = 0; i < 4; i++) {
-    const s = net.slots[i], y = top + i * 62, c = P_COLORS[i];
-    panel(rx, y, rw, 54, s ? c : '#334', i === me);
+  // 8 slots in two columns of 4
+  const gap = 10, full = Math.min(760, W - 32), cw = (full - gap) / 2, x0 = (W - full) / 2, top = host ? 204 : 128, rh = 48;
+  for (let i = 0; i < MAX_ONLINE; i++) {
+    const s = net.slots[i], c = P_COLORS[i];
+    const rx = x0 + Math.floor(i / 4) * (cw + gap), y = top + (i % 4) * (rh + 8);
+    panel(rx, y, cw, rh, s ? c : '#334', i === me);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = s ? c : '#556'; ctx.font = 'bold 16px system-ui';
-    ctx.fillText(`P${i + 1}${i === 0 ? '  (host)' : ''}${i === me ? '  — you' : ''}`, rx + 70, y + 18);
-    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '13px system-ui';
-    ctx.fillText(s ? shipById(s.ship).name + (i === me ? '   ‹ A / D or ← / → to change ›' : '') : 'waiting for a player…', rx + 70, y + 37);
-    if (s) { ctx.save(); ctx.translate(rx + 34, y + 27); ctx.scale(0.8, 0.8); drawHull(shipById(s.ship).shape, c); ctx.restore(); }
+    ctx.fillStyle = s ? c : '#556'; ctx.font = 'bold 14px system-ui';
+    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${i === me ? ' — you' : ''}`, rx + 50, y + 16);
+    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '12px system-ui';
+    ctx.fillText(s ? shipById(s.ship).name + (i === me ? '  ‹ A/D ›' : '') : 'open slot…', rx + 50, y + 33);
+    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c); ctx.restore(); }
   }
-  const by = top + 4 * 62 + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+  const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   fitText(`Run: ${runType === 'endless' ? 'ENDLESS ∞' : 'STANDARD'}${host ? '  [E] to change' : ''}`, by + 4, 13, runType === 'endless' ? '#ff9a3d' : '#9ab', 'bold');
   if (host) {
     const n = net.slots.length;
@@ -3730,6 +3853,7 @@ function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (net.role === 'guest' && net.playing) guestFrame(dt);
   else {
+    if (net.role === 'host' && net.playing && run) smoothRemotePlayers();
     update(dt);
     if (net.role === 'host' && net.playing && run) hostTick(dt);
   }
