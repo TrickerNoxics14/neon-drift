@@ -3359,6 +3359,24 @@ function draw() {
 // to fit their window.
 // ======================================================================================
 const PEER_PREFIX = 'neondrift-v1-';
+
+// Relay (TURN) servers: used automatically when two players' networks block a direct connection
+// (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
+// METERED_APP is the part before ".metered.live", METERED_KEY is the app's API key.
+const METERED_APP = '';
+const METERED_KEY = '';
+let relayOn = false;
+async function iceConfig() {
+  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+  relayOn = false;
+  if (METERED_APP && METERED_KEY) {
+    try {
+      const r = await fetch(`https://${METERED_APP}.metered.live/api/v1/turn/credentials?apiKey=${METERED_KEY}`);
+      if (r.ok) { const list = await r.json(); if (list.length) { iceServers.push(...list); relayOn = true; } }
+    } catch (e) {} // no relay this time: direct connections still work on most networks
+  }
+  return { iceServers };
+}
 const SNAP_RATE = 0.05, INPUT_RATE = 0.033;
 const TYPE_LIST = Object.keys(TYPES);
 
@@ -3386,8 +3404,9 @@ async function hostGame() {
   Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0] }], status: 'Connecting to the matchmaking server…', code: '' });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
+  const config = await iceConfig();
   const open = () => {
-    const code = randomCode(), peer = new Peer(PEER_PREFIX + code);
+    const code = randomCode(), peer = new Peer(PEER_PREFIX + code, { config });
     net.peer = peer;
     peer.on('open', () => { net.code = code; net.status = 'Share the room code with your friends'; });
     peer.on('error', err => {
@@ -3485,7 +3504,8 @@ async function joinGame(code) {
   Object.assign(net, { role: 'guest', status: 'Connecting…', slots: [], myId: 0 });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
-  const peer = new Peer();
+  const config = await iceConfig();
+  const peer = new Peer({ config });
   net.peer = peer;
   peer.on('open', () => {
     const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
@@ -3678,7 +3698,7 @@ function drawJoin() {
 function drawLobby() {
   const host = net.role === 'host', me = host ? 0 : net.myId;
   title('ONLINE LOBBY', 56, '#9dff5d', 44);
-  fitText(net.status, 96, 14, '#9ab');
+  fitText(net.status + (net.peer ? (relayOn ? '  ·  relay ON' : '  ·  direct only') : ''), 96, 14, '#9ab');
   if (host && net.code) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     fitText('ROOM CODE', 128, 13, '#9dff5d', 'bold');
