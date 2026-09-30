@@ -227,7 +227,7 @@ const ACHIEVEMENTS = [
   { id: 'phoenix',     cat: 'build', name: 'Rise from the Ashes', reward: 50,  desc: 'Get saved by Phoenix Core.' },
   { id: 'arsenal',     cat: 'build', name: 'Arsenal',             reward: 100, desc: 'Hold 12 different upgrades in one run.' },
   { id: 'epic3',       cat: 'build', name: 'Epic Taste',          reward: 100, desc: 'Hold 3 different Epic upgrades in one run.' },
-  { id: 'fleet',       cat: 'ship', name: 'Fleet Admiral',        reward: 100, desc: 'Unlock every ship.', progress: () => [SHIPS.filter(shipUnlocked).length, SHIPS.length] },
+  { id: 'fleet',       cat: 'ship', name: 'Fleet Admiral',        reward: 100, desc: 'Own the MK II of every ship.', progress: () => [SHIPS.filter(mk2Owned).length, SHIPS.length] },
   { id: 'versatile',   cat: 'ship', name: 'Versatile',            reward: 150, desc: 'Defeat bosses with 4 different ships (all-time).', progress: () => [Object.keys(meta.stats.bossShips).length, 4] },
 ];
 const achCount = () => ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
@@ -406,6 +406,7 @@ addEventListener('keydown', e => {
   } else if (state === 'ships') {
     if (num >= 1 && num <= SHIPS.length) { sel = num - 1; buttons[sel]?.action(); }
     if (e.code === 'Escape') shipSelectBack();
+    if (e.code === 'KeyV') toggleVariant(SHIPS[shipPick.view ?? 0]);
   }
 });
 // pause automatically if you switch tabs or windows mid-run
@@ -432,7 +433,7 @@ cv.addEventListener('pointermove', e => {
 // paste a room code
 document.addEventListener('paste', e => {
   if (state !== 'joinCode') return;
-  const t = (e.clipboardData?.getData('text') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+  const t = (e.clipboardData?.getData('text') || '').replace(/[^0-9]/g, '').slice(0, CODE_LEN);
   if (t) net.typed = t;
 });
 cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') pointer = null; });
@@ -574,38 +575,69 @@ const stars = Array.from({ length: 160 }, () => ({ x: Math.random(), y: Math.ran
 const P_COLORS = ['#7df9ff', '#9dff5d', '#ff9a3d', '#c08dff', '#ff6fd8', '#ffe93d', '#3d8dff', '#e8e8ff'];
 
 // ---------- ship classes ----------
+// Every ship is free to fly. Each also has a MK II: a stronger version with an upgraded model, bought
+// once with shards. (Ships bought before MK IIs existed count as owning their MK II.)
 // mod: multipliers/bonuses layered on top of the shared upgrade stats (run.s) for that one player
 const SHIPS = [
   { id: 'striker', name: 'STRIKER', tag: 'All-rounder', shape: 'striker',
-    stats: { speed: 3, power: 3, armor: 3 }, trait: 'No weaknesses. A solid pick for any team.', mod: {} },
+    stats: { speed: 3, power: 3, armor: 3 }, trait: 'A balanced starter with no special tricks.', mod: { dmg: 0.95 },
+    mk2: { cost: 150, stats: { speed: 4, power: 4, armor: 3 }, trait: '+15% damage, fires faster and moves a bit quicker.',
+      mod: { dmg: 1.15, fireRate: 0.92, speed: 1.05 } } },
   { id: 'interceptor', name: 'INTERCEPTOR', tag: 'Fast and fragile', shape: 'dart',
-    stats: { speed: 5, power: 3, armor: 1 }, trait: '+35% speed, fires 15% faster and has a tiny hitbox, but 1 less life.',
-    mod: { speed: 1.35, fireRate: 0.85, lives: -1, hitbox: 0.7 } },
+    stats: { speed: 5, power: 3, armor: 1 }, trait: '+30% speed, fires 10% faster and has a small hitbox, but 1 less life.',
+    mod: { speed: 1.3, fireRate: 0.9, lives: -1, hitbox: 0.75 },
+    mk2: { cost: 200, stats: { speed: 5, power: 4, armor: 2 }, trait: '+42% speed, fires 20% faster and has a tiny hitbox. 1 less life.',
+      mod: { speed: 1.42, fireRate: 0.8, lives: -1, hitbox: 0.62 } } },
   { id: 'juggernaut', name: 'JUGGERNAUT', tag: 'Heavy armor', shape: 'tank',
-    stats: { speed: 1, power: 3, armor: 5 }, trait: '+2 lives and a shield that recharges every 30s. Slow, and fires a bit slower.',
-    mod: { speed: 0.78, lives: 2, fireRate: 1.1, aegis: 30 } },
-  { id: 'scatter', name: 'SCATTER', tag: 'Bullet storm', shape: 'fan', cost: 200,
-    stats: { speed: 3, power: 3, armor: 3 }, trait: '+3 bullets per volley in a fan that shreds crowds. Each bullet hits a bit softer.',
-    mod: { shots: 3, spread: 1.7, dmg: 0.65 } },
-  { id: 'piercer', name: 'PIERCER', tag: 'Precision rail', shape: 'needle', cost: 300,
-    stats: { speed: 3, power: 5, armor: 2 }, trait: 'One slow, heavy barrel: huge damage, fast bullets that pierce 2 enemies.',
-    mod: { shots: -1, dmg: 3.4, fireRate: 1.4, pierce: 2, bulletSpeed: 1.4 } },
-  { id: 'medic', name: 'MEDIC', tag: 'Team support', shape: 'medic', cost: 400,
-    stats: { speed: 3, power: 2, armor: 3 }, trait: 'Revives teammates 3x faster, heals the most hurt ally every 30s and pulls in pickups. Weaker guns.',
-    mod: { dmg: 0.8, reviveSpeed: 3, heal: 30, magnet: 1 } },
-  { id: 'wraith', name: 'WRAITH', tag: 'Phase dodger', shape: 'wraith', cost: 350,
-    stats: { speed: 4, power: 3, armor: 2 }, trait: 'Every 7s it phases out for a moment — bullets and enemies pass right through. 1 less life.',
-    mod: { speed: 1.12, lives: -1, phase: 7, phaseDur: 1.3 } },
-  { id: 'carrier', name: 'CARRIER', tag: 'Drone commander', shape: 'carrier', cost: 450,
-    stats: { speed: 2, power: 3, armor: 4 }, trait: 'Launches with 2 wing drones (more with Wing Drone upgrades) and +1 life, but its own guns are weak.',
-    mod: { speed: 0.9, lives: 1, dmg: 0.7, drones: 2 } },
-  { id: 'berserker', name: 'BERSERKER', tag: 'Glass fury', shape: 'berserker', cost: 500,
-    stats: { speed: 4, power: 4, armor: 2 }, trait: 'Gets stronger as it gets hurt: +40% damage for every life it is missing.',
-    mod: { speed: 1.1, rage: 0.4 } },
+    stats: { speed: 1, power: 2, armor: 5 }, trait: '+2 lives and a shield that recharges every 36s. Slow, and fires slower.',
+    mod: { speed: 0.75, lives: 2, fireRate: 1.15, aegis: 36 },
+    mk2: { cost: 250, stats: { speed: 2, power: 3, armor: 5 }, trait: '+2 lives, a shield every 22s and +10% damage. Still slow, but less so.',
+      mod: { speed: 0.82, lives: 2, fireRate: 1.05, aegis: 22, dmg: 1.1 } } },
+  { id: 'scatter', name: 'SCATTER', tag: 'Bullet storm', shape: 'fan',
+    stats: { speed: 3, power: 2, armor: 3 }, trait: '+3 bullets per volley in a wide fan that shreds crowds. Each bullet hits softer.',
+    mod: { shots: 3, spread: 1.8, dmg: 0.58 },
+    mk2: { cost: 250, stats: { speed: 3, power: 4, armor: 3 }, trait: '+4 bullets per volley in a tighter fan, and each one hits harder.',
+      mod: { shots: 4, spread: 1.6, dmg: 0.65 } } },
+  { id: 'piercer', name: 'PIERCER', tag: 'Precision rail', shape: 'needle',
+    stats: { speed: 3, power: 4, armor: 2 }, trait: 'One slow, heavy barrel: big damage, fast bullets that pierce 1 enemy.',
+    mod: { shots: -1, dmg: 3.0, fireRate: 1.5, pierce: 1, bulletSpeed: 1.35 },
+    mk2: { cost: 300, stats: { speed: 3, power: 5, armor: 2 }, trait: 'Huge damage, faster reload, and rail bullets that pierce 3 enemies.',
+      mod: { shots: -1, dmg: 3.7, fireRate: 1.35, pierce: 3, bulletSpeed: 1.5 } } },
+  { id: 'medic', name: 'MEDIC', tag: 'Team support', shape: 'medic',
+    stats: { speed: 3, power: 2, armor: 3 }, trait: 'Revives teammates 2x faster and heals the most hurt ally every 40s. Weaker guns.',
+    mod: { dmg: 0.75, reviveSpeed: 2, heal: 40, magnet: 1 },
+    mk2: { cost: 350, stats: { speed: 3, power: 2, armor: 4 }, trait: 'Heals EVERY hurt ally every 20s, revives 4x faster, +1 life and a strong pickup magnet.',
+      mod: { dmg: 0.9, reviveSpeed: 4, heal: 20, healAll: true, lives: 1, magnet: 2 } } },
+  { id: 'wraith', name: 'WRAITH', tag: 'Phase dodger', shape: 'wraith',
+    stats: { speed: 4, power: 3, armor: 2 }, trait: 'Every 8.5s it phases out for a moment — bullets pass right through. 1 less life.',
+    mod: { speed: 1.1, lives: -1, phase: 8.5, phaseDur: 1.1 },
+    mk2: { cost: 350, stats: { speed: 4, power: 3, armor: 3 }, trait: 'Phases out every 5.5s, for longer, and moves faster. 1 less life.',
+      mod: { speed: 1.16, lives: -1, phase: 5.5, phaseDur: 1.5 } } },
+  { id: 'carrier', name: 'CARRIER', tag: 'Drone commander', shape: 'carrier',
+    stats: { speed: 2, power: 3, armor: 4 }, trait: 'Launches with 2 wing drones and +1 life, but its own guns are weak.',
+    mod: { speed: 0.88, lives: 1, dmg: 0.65, drones: 2 },
+    mk2: { cost: 400, stats: { speed: 2, power: 4, armor: 4 }, trait: 'Launches with 3 wing drones and +1 life, and its guns hit harder.',
+      mod: { speed: 0.95, lives: 1, dmg: 0.75, drones: 3 } } },
+  { id: 'berserker', name: 'BERSERKER', tag: 'Glass fury', shape: 'berserker',
+    stats: { speed: 4, power: 3, armor: 2 }, trait: 'Gets stronger as it gets hurt: +30% damage for every life it is missing.',
+    mod: { speed: 1.08, rage: 0.3 },
+    mk2: { cost: 400, stats: { speed: 4, power: 5, armor: 2 }, trait: '+50% damage for every life it is missing, and moves faster.',
+      mod: { speed: 1.15, rage: 0.5 } } },
 ];
-const shipById = id => SHIPS.find(s => s.id === id) || SHIPS[0];
-const dronesOf = p => run.s.drones + (p.ship.mod.drones || 0); // Wing Drone upgrades + the Carrier's built-in pair
-const shipUnlocked = s => !s.cost || !!meta.ships[s.id];
+// a ship id is the base id ("medic") or the MK II ("medic2")
+const mk2Cache = {};
+function shipById(id) {
+  const base = SHIPS.find(s => s.id === id);
+  if (base) return base;
+  const b2 = typeof id === 'string' && id.endsWith('2') && SHIPS.find(s => s.id === id.slice(0, -1));
+  if (!b2) return SHIPS[0];
+  return mk2Cache[id] ||= { ...b2, id, base: b2.id, name: b2.name + ' MK II', mod: b2.mk2.mod, stats: b2.mk2.stats, trait: b2.mk2.trait, mk2: true };
+}
+const mk2Owned = base => !!meta.ships[base.id];
+const dronesOf = p => run.s.drones + (p.ship.mod.drones || 0); // Wing Drone upgrades + the Carrier's built-in drones
+const shipUnlocked = s => s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
+// every ship (and every owned MK II) — what the online lobby's quick-cycle goes through
+const flyableShips = () => SHIPS.flatMap(b => mk2Owned(b) ? [b, shipById(b.id + '2')] : [b]);
 const maxLivesOf = p => Math.max(1, run.s.maxLives + (p.ship.mod.lives || 0));
 let lastShips = ['striker', 'striker', 'striker', 'striker'];
 try { const l = JSON.parse(localStorage.getItem('neonDriftShips')); if (Array.isArray(l)) lastShips = l.concat(lastShips).slice(0, 4); } catch (e) {}
@@ -620,35 +652,48 @@ function makePlayer(id, x, shipId) {
 
 // ship select: each player picks in turn, then the run starts
 let shipPick = null;
-function openShipSelect(m) {
-  shipPick = { mode: m, player: 0, picks: [] };
+const baseIndex = id => Math.max(0, SHIPS.findIndex(s => s.id === shipById(id).id || s.id === shipById(id).base));
+// online: the same screen, opened from the lobby, picks just your own ship and returns there
+function openShipSelect(m, online = false) {
+  shipPick = { mode: m, player: 0, picks: [], online, mk2: {} };
+  const cur = online ? (net.slots[net.role === 'host' ? 0 : net.myId]?.ship || lastShips[0]) : lastShips[0];
+  rememberVariant(cur);
   go('ships');
-  sel = Math.max(0, SHIPS.findIndex(s => s.id === lastShips[0]));
+  sel = baseIndex(cur);
 }
+function rememberVariant(id) { const s = shipById(id); if (s.mk2 === true) shipPick.mk2[s.base] = true; }
+// which version of a ship is chosen on the select screen: MK II if picked (or owned and not switched off)
+const wantsMk2 = base => shipPick.mk2[base.id] ?? mk2Owned(base);
+function toggleVariant(base, on) { shipPick.mk2[base.id] = on ?? !wantsMk2(base); beep(600, 0.06, 'triangle', 0.04); }
 function pickShip(i) {
-  const ship = SHIPS[i];
-  if (!ship) return;
+  const base = SHIPS[i];
+  if (!base) return;
   shipPick.view = i;
-  if (!shipUnlocked(ship)) {
-    if (meta.shards >= ship.cost) {
-      meta.shards -= ship.cost; meta.ships[ship.id] = true; saveMeta();
-      showToast(`${ship.name} UNLOCKED!`); beep(660, 0.3, 'triangle', 0.08, 660);
-      if (SHIPS.every(shipUnlocked)) unlockAch('fleet');
-    } else { showToast(`Need ◆ ${ship.cost} — earn shards by playing runs`); beep(110, 0.15, 'square', 0.05); }
+  if (wantsMk2(base) && !mk2Owned(base)) { // buying the MK II
+    const cost = base.mk2.cost;
+    if (meta.shards >= cost) {
+      meta.shards -= cost; meta.ships[base.id] = true; saveMeta();
+      showToast(`${base.name} MK II UNLOCKED!`); beep(660, 0.3, 'triangle', 0.08, 660);
+      if (SHIPS.every(mk2Owned)) unlockAch('fleet');
+    } else { showToast(`Need ◆ ${cost} for the MK II — or fly the free MK I`); beep(110, 0.15, 'square', 0.05); }
     return;
   }
-  shipPick.picks[shipPick.player] = ship.id;
-  lastShips[shipPick.player] = ship.id;
+  const id = wantsMk2(base) ? base.id + '2' : base.id;
+  lastShips[shipPick.player] = id;
   try { localStorage.setItem('neonDriftShips', JSON.stringify(lastShips)); } catch (e) {}
   beep(520 + shipPick.player * 80, 0.12, 'triangle', 0.06, 200);
+  if (shipPick.online) { setMyOnlineShip(id); go('lobby'); return; }
+  shipPick.picks[shipPick.player] = id;
   shipPick.player++;
   if (shipPick.player >= shipPick.mode) { start(shipPick.mode, shipPick.picks); return; }
-  sel = Math.max(0, SHIPS.findIndex(s => s.id === lastShips[shipPick.player]));
+  rememberVariant(lastShips[shipPick.player]);
+  sel = baseIndex(lastShips[shipPick.player]);
 }
 function shipSelectBack() {
+  if (shipPick.online) { go('lobby'); return; }
   if (shipPick.player > 0) {
     shipPick.player--;
-    sel = Math.max(0, SHIPS.findIndex(s => s.id === shipPick.picks[shipPick.player]));
+    sel = baseIndex(shipPick.picks[shipPick.player]);
     shipPick.picks.length = shipPick.player; // forget the pick being redone, so its "P1" tag disappears
   }
   else go('menu');
@@ -673,7 +718,7 @@ function start(m, ships) {
   if (m === 4) unlockAch('squad');
   // catch up on progress-based trophies earned before they existed (or by other means)
   if (meta.shards >= 1000) unlockAch('hoarder');
-  if (SHIPS.every(shipUnlocked)) unlockAch('fleet');
+  if (SHIPS.every(mk2Owned)) unlockAch('fleet');
   beep(440, 0.1, 'triangle', 0.08, 440);
 }
 
@@ -1823,15 +1868,20 @@ function update(dt) {
         for (let k = 0; k < dronesOf(p); k++) { const d = dronePos(p, k); fire(d.x, d.y - 6, -Math.PI / 2, '#ffffff', undefined, p); }
       }
     }
-    if (m.heal) { // Medic: patch up whoever is most hurt (including yourself)
+    if (m.heal) { // Medic: patch up whoever is most hurt (MK II: everyone who's hurt), including yourself
       p.healT += dt;
       if (p.healT >= m.heal) {
-        const q = living().filter(o => o.lives < maxLivesOf(o)).sort((a, b) => a.lives - b.lives)[0];
-        if (q) {
-          p.healT = 0; q.lives++;
-          fxRing(p.x, p.y, 10, 90, 0.5, '#5dff7a', 3);
-          for (let i = 0; i < 16; i++) particles.push({ x: p.x, y: p.y, vx: (q.x - p.x) * 2.2 + (Math.random() - 0.5) * 60, vy: (q.y - p.y) * 2.2 + (Math.random() - 0.5) * 60, life: 0.45, max: 0.45, color: '#5dff7a', size: 3 });
-          popups.push({ x: q.x, y: q.y - 34, text: '+♥', life: 1.2, color: '#5dff7a' });
+        const hurt = living().filter(o => o.lives < maxLivesOf(o)).sort((a, b) => a.lives - b.lives);
+        const targets = m.healAll ? hurt : hurt.slice(0, 1);
+        if (targets.length) {
+          p.healT = 0;
+          fxRing(p.x, p.y, 10, m.healAll ? 160 : 90, 0.5, '#5dff7a', 3);
+          for (const q of targets) {
+            q.lives++;
+            for (let i = 0; i < 16; i++) particles.push({ x: p.x, y: p.y, vx: (q.x - p.x) * 2.2 + (Math.random() - 0.5) * 60, vy: (q.y - p.y) * 2.2 + (Math.random() - 0.5) * 60, life: 0.45, max: 0.45, color: '#5dff7a', size: 3 });
+            burst(q.x, q.y, '#5dff7a', 14, 120); // (also shows the heal on online guests' screens)
+            popups.push({ x: q.x, y: q.y - 34, text: '+♥', life: 1.2, color: '#5dff7a' });
+          }
           beep(760, 0.25, 'triangle', 0.06, 380);
         }
       }
@@ -2110,18 +2160,36 @@ const HULLS = {
   carrier: { pts: [[-7, -16], [7, -16], [11, -8], [19, -6], [19, 10], [11, 14], [-11, 14], [-19, 10], [-19, -6], [-11, -8]], flames: [[-12, 13, 4], [0, 13, 4], [12, 13, 4]], cockpit: [[-4, -10], [4, -10], [4, -3], [-4, -3]] },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
 };
-function drawHull(shape, color, thrust = 0) {
-  const h = HULLS[shape] || HULLS.striker;
+// mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
+function drawHull(shape, color, thrust = 0, mk2 = false) {
+  const h = HULLS[shape] || HULLS.striker, GOLD = '#ffe93d';
   ctx.save();
+  if (mk2) ctx.scale(1.12, 1.12);
   glow('#ff9d3d', 20); ctx.fillStyle = '#ff9d3d';
   for (const [fx, fy, w] of h.flames) {
-    const f = 10 + Math.random() * 8 + thrust * 12;
+    const f = 10 + Math.random() * 8 + thrust * 12 + (mk2 ? 6 : 0);
     ctx.beginPath(); ctx.moveTo(fx - w, fy); ctx.lineTo(fx, fy + f); ctx.lineTo(fx + w, fy); ctx.fill();
+    if (mk2) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(fx - w * 0.4, fy); ctx.lineTo(fx, fy + f * 0.55); ctx.lineTo(fx + w * 0.4, fy); ctx.fill(); ctx.fillStyle = '#ff9d3d'; }
   }
-  glow(color, 25); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.fillStyle = '#0a1a2a';
+  if (mk2) { // glowing pods on the wingtips
+    const tip = h.pts.reduce((a, b) => Math.abs(b[0]) > Math.abs(a[0]) ? b : a);
+    glow(GOLD, 14); ctx.fillStyle = GOLD;
+    for (const sx of [-1, 1]) {
+      const x = Math.abs(tip[0]) * sx, y = tip[1] - 2;
+      ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.fill();
+    }
+  }
+  glow(color, mk2 ? 32 : 25); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.fillStyle = '#0a1a2a';
   ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  if (mk2) { // gold inner trim line
+    ctx.shadowBlur = 0; ctx.strokeStyle = hexA(GOLD, 0.75); ctx.lineWidth = 1.3;
+    ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * 0.62, y * 0.62 + 1); ctx.closePath(); ctx.stroke();
+  }
   ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.globalAlpha *= 0.7;
-  if (h.cross) { ctx.fillRect(-1.8, -6, 3.6, 12); ctx.fillRect(-6, -1.8, 12, 3.6); }
+  if (h.cross) {
+    if (mk2) { ctx.globalAlpha /= 0.7; ctx.fillStyle = '#fff'; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillRect(-1.8, -6, 3.6, 12); ctx.fillRect(-6, -1.8, 12, 3.6);
+  }
   else { ctx.beginPath(); for (const [x, y] of h.cockpit) ctx.lineTo(x, y); ctx.closePath(); ctx.fill(); }
   ctx.restore();
 }
@@ -2141,7 +2209,7 @@ function drawShip(p) {
     ctx.save(); glow('#ff3050', 20 + rageLv * 30); ctx.strokeStyle = hexA('#ff3050', 0.3 + rageLv * 0.5); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, 20 + Math.sin(time * 12) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  drawHull(p.ship.shape, p.color, p.thrust || 0);
+  drawHull(p.ship.shape, p.color, p.thrust || 0, p.ship.mk2 === true);
   ctx.restore();
   if (p.phaseOn > 0) { ctx.save(); ctx.strokeStyle = hexA(p.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.lineDashOffset = time * 40; ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   if (p.shield) { glow(p.color, 20); ctx.strokeStyle = 'rgba(125,249,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, Math.PI * 2); ctx.stroke(); }
@@ -3008,13 +3076,14 @@ function drawAchBanner() {
 const CONTROL_NAMES = { wasd: 'WASD', arrows: 'Arrow keys', mouse: 'Mouse', ijkl: 'IJKL' };
 
 function drawShips() {
-  const sp = shipPick, pl = sp.player, pc = P_COLORS[pl];
+  const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? (net.role === 'host' ? 0 : net.myId) : pl];
   if (sel < SHIPS.length) sp.view = sel;
-  const view = SHIPS[sp.view ?? 0];
+  const base = SHIPS[sp.view ?? 0], two = wantsMk2(base), owned2 = mk2Owned(base);
+  const view = two ? shipById(base.id + '2') : base; // the version being looked at
 
   title(sp.mode > 1 ? `P${pl + 1} — CHOOSE YOUR SHIP` : 'CHOOSE YOUR SHIP', 52, sp.mode > 1 ? pc : '#7df9ff', 40);
-  const ctrl = CONTROLS[sp.mode][pl].map(k => CONTROL_NAMES[k]).join(' / ');
-  fitText(`${runType === 'endless' ? 'ENDLESS RUN  ·  ' : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, 88, 13, runType === 'endless' ? '#ff9a3d' : '#9ab');
+  const ctrl = sp.online ? 'Mouse / WASD / Arrow keys' : CONTROLS[sp.mode][pl].map(k => CONTROL_NAMES[k]).join(' / ');
+  fitText(`${sp.online ? 'ONLINE  ·  ' : runType === 'endless' ? 'ENDLESS RUN  ·  ' : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, 88, 13, runType === 'endless' ? '#ff9a3d' : '#9ab');
 
   // ship icons: 6 across on wide screens, 3x2 on narrow ones
   const cols = W < 560 ? 3 : 6, gap = 10;
@@ -3023,48 +3092,54 @@ function drawShips() {
   SHIPS.forEach((s, i) => {
     // center a partly-filled last row
     const row = Math.floor(i / cols), inRow = Math.min(cols, SHIPS.length - row * cols), rowX = gx + (cols - inRow) * (iw + gap) / 2;
-    const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), open = shipUnlocked(s);
-    buttons.push({ x, y, w: iw, h: ih, action: () => { if (open) pickShip(i); else { sp.view = i; showToast('Unlock it with the button below'); } } });
-    panel(x, y, iw, ih, open ? pc : '#556', sel === i);
+    const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), has2 = mk2Owned(s), showing2 = wantsMk2(s) && has2;
+    buttons.push({ x, y, w: iw, h: ih, action: () => pickShip(i) });
+    panel(x, y, iw, ih, showing2 ? '#ffe93d' : pc, sel === i);
     ctx.save(); ctx.translate(x + iw / 2, y + ih * 0.42); ctx.scale(iw / 70, iw / 70);
-    if (!open) ctx.globalAlpha = 0.35;
-    drawHull(s.shape, open ? pc : '#889');
+    drawHull(s.shape, pc, 0, showing2);
     ctx.restore();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = open ? '#dfe8ff' : '#778';
-    ctx.fillText(open ? s.name : `🔒 ◆${s.cost}`, x + iw / 2, y + ih - 11);
+    ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = '#dfe8ff';
+    ctx.fillText(s.name, x + iw / 2, y + ih - 11);
+    if (has2) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#ffe93d'; ctx.textAlign = 'right'; ctx.fillText('MK II', x + iw - 6, y + 10); ctx.textAlign = 'center'; }
     // which earlier players already took this ship
-    const takers = sp.picks.map((id, j) => id === s.id ? `P${j + 1}` : null).filter(Boolean);
-    if (takers.length) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#ffe93d'; ctx.fillText(takers.join(' '), x + iw / 2, y + 9); }
+    const takers = sp.picks.map((id, j) => shipById(id) && (id === s.id || id === s.id + '2') ? `P${j + 1}` : null).filter(Boolean);
+    if (takers.length) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#ffe93d'; ctx.textAlign = 'left'; ctx.fillText(takers.join(' '), x + 6, y + 10); }
   });
 
-  // details for the highlighted ship
+  // details for the highlighted ship (in the version currently chosen)
   const rows = Math.ceil(SHIPS.length / cols), py = gy + rows * (ih + gap) + 6;
-  const pw = Math.min(560, W - 32), px = (W - pw) / 2, ph = 176, open = shipUnlocked(view);
-  panel(px, py, pw, ph, open ? pc : '#556', false);
+  const pw = Math.min(560, W - 32), px = (W - pw) / 2, ph = 160, locked = two && !owned2, accent = two ? '#ffe93d' : pc;
+  panel(px, py, pw, ph, accent, false);
   const art = Math.min(110, pw * 0.3);
   ctx.save(); ctx.translate(px + art / 2 + 10, py + ph / 2); ctx.scale(art / 45, art / 45);
-  if (!open) ctx.globalAlpha = 0.4;
-  drawHull(view.shape, open ? pc : '#889', 0.5);
+  if (locked) ctx.globalAlpha = 0.55;
+  drawHull(view.shape, pc, 0.5, two);
   ctx.restore();
   const tx = px + art + 22, tw = pw - art - 34;
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#fff'; ctx.font = '900 20px system-ui'; ctx.fillText(view.name, tx, py + 14);
-  ctx.fillStyle = open ? pc : '#889'; ctx.font = 'bold 12px system-ui'; ctx.fillText(view.tag.toUpperCase(), tx, py + 38);
+  ctx.fillStyle = '#fff'; ctx.font = '900 20px system-ui'; ctx.fillText(view.name, tx, py + 12);
+  ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui';
+  ctx.fillText(view.tag.toUpperCase() + (two ? (owned2 ? '  ·  OWNED' : `  ·  ◆ ${base.mk2.cost}`) : '  ·  FREE'), tx, py + 36);
   [['SPEED', view.stats.speed], ['POWER', view.stats.power], ['ARMOR', view.stats.armor]].forEach(([label, v], j) => {
-    const y = py + 60 + j * 16;
+    const y = py + 56 + j * 15;
     ctx.fillStyle = '#9ab'; ctx.font = 'bold 10px system-ui'; ctx.fillText(label, tx, y);
-    for (let k = 0; k < 5; k++) { ctx.fillStyle = k < v ? (open ? pc : '#889') : 'rgba(255,255,255,0.12)'; ctx.fillRect(tx + 50 + k * 14, y + 1, 11, 8); }
+    for (let k = 0; k < 5; k++) { ctx.fillStyle = k < v ? accent : 'rgba(255,255,255,0.12)'; ctx.fillRect(tx + 50 + k * 14, y + 1, 11, 8); }
   });
   ctx.fillStyle = '#cde'; ctx.font = '12px system-ui';
-  wrap(view.trait, tw).slice(0, 4).forEach((l, j) => ctx.fillText(l, tx, py + 112 + j * 15));
+  wrap(view.trait, tw).slice(0, 3).forEach((l, j) => ctx.fillText(l, tx, py + 104 + j * 15));
 
-  // confirm / unlock, and back
-  const bw = Math.min(280, W - 32), bx = (W - bw) / 2, by = py + ph + 14;
-  const label = !open ? (meta.shards >= view.cost ? `UNLOCK  ◆ ${view.cost}` : `LOCKED — NEED ◆ ${view.cost}`)
-    : pl < sp.mode - 1 ? `PICK ${view.name}  ›  P${pl + 2}` : `LAUNCH AS ${view.name}`;
-  button(label, bx, by, bw, 44, open ? pc : meta.shards >= view.cost ? '#ffe93d' : '#667', () => pickShip(sp.view ?? 0));
-  button(pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + 52, bw, 38, '#9ab', shipSelectBack);
+  // MK I / MK II switch
+  const bw = Math.min(280, W - 32), bx = (W - bw) / 2, hw = (bw - 8) / 2, ty = py + ph + 10;
+  button(`${two ? '' : '● '}MK I · FREE`, bx, ty, hw, 34, two ? '#667' : pc, () => toggleVariant(base, false));
+  button(`${two ? '● ' : ''}MK II${owned2 ? '' : ` · ◆${base.mk2.cost}`}  [V]`, bx + hw + 8, ty, hw, 34, two ? '#ffe93d' : '#8a7a3d', () => toggleVariant(base, true));
+
+  // confirm / buy, and back
+  const by = ty + 44;
+  const label = locked ? (meta.shards >= base.mk2.cost ? `BUY MK II  ◆ ${base.mk2.cost}` : `MK II — NEED ◆ ${base.mk2.cost}`)
+    : sp.online ? `FLY THE ${view.name}` : pl < sp.mode - 1 ? `PICK ${view.name}  ›  P${pl + 2}` : `LAUNCH AS ${view.name}`;
+  button(label, bx, by, bw, 44, locked ? (meta.shards >= base.mk2.cost ? '#ffe93d' : '#667') : accent, () => pickShip(sp.view ?? 0));
+  button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + 52, bw, 38, '#9ab', shipSelectBack);
 }
 
 function drawUpgrade() {
@@ -3367,7 +3442,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const PEER_PREFIX = 'neondrift-v1-';
+const PEER_PREFIX = 'neondrift-v2-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
 // (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
@@ -3399,7 +3474,9 @@ function loadPeer() {
     document.head.appendChild(s);
   });
 }
-const randomCode = () => Array.from({ length: 5 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+// room codes are 4 digits: quick to type (or say out loud) at lunch
+const CODE_LEN = 4;
+const randomCode = () => String(Math.floor(Math.random() * 10 ** CODE_LEN)).padStart(CODE_LEN, '0');
 const unlockedShips = () => SHIPS.filter(shipUnlocked);
 
 function leaveOnline(msg) {
@@ -3565,8 +3642,8 @@ function onGuestData(d) {
   if (d.full) { leaveOnline('That game is full or already running'); return; }
   if (d.lobby) {
     net.slots = d.lobby.slots; net.myId = d.you; runType = d.lobby.runType;
-    if (net.playing) { net.playing = false; resize(); }
-    if (state !== 'lobby') go('lobby');
+    if (net.playing) { net.playing = false; resize(); go('lobby'); }
+    else if (state !== 'lobby' && !(state === 'ships' && shipPick?.online)) go('lobby'); // don't yank me out of the ship picker
   }
   if (d.start) {
     runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
@@ -3746,15 +3823,20 @@ function guestMove(dt) {
 }
 
 // ----- lobby: pick ships -----
+// quick-cycle through every ship you can fly (A/D in the lobby); CHANGE SHIP opens the full picker
 function cycleShip(d) {
-  const list = unlockedShips(), me = net.role === 'host' ? 0 : net.myId, slot = net.slots[me];
+  const list = flyableShips(), me = net.role === 'host' ? 0 : net.myId, slot = net.slots[me];
   if (!slot) return;
   const i = list.findIndex(s => s.id === slot.ship);
-  slot.ship = list[(i + d + list.length) % list.length].id;
-  lastShips[0] = slot.ship;
-  try { localStorage.setItem('neonDriftShips', JSON.stringify(lastShips)); } catch (e) {}
+  setMyOnlineShip(list[(i + d + list.length) % list.length].id);
   beep(520, 0.08, 'triangle', 0.05);
-  if (net.role === 'host') broadcastLobby(); else net.host?.send({ ship: slot.ship });
+}
+function setMyOnlineShip(id) {
+  const slot = net.slots[net.role === 'host' ? 0 : net.myId];
+  if (!slot) return;
+  slot.ship = id; lastShips[0] = id;
+  try { localStorage.setItem('neonDriftShips', JSON.stringify(lastShips)); } catch (e) {}
+  if (net.role === 'host') broadcastLobby(); else net.host?.send({ ship: id });
 }
 
 // ----- keys for the online screens -----
@@ -3762,9 +3844,8 @@ function onlineKey(e) {
   if (state === 'joinCode') {
     if (e.code === 'Escape') { go('online'); return true; }
     if (e.code === 'Backspace') { net.typed = net.typed.slice(0, -1); return true; }
-    if (e.code === 'Enter') { if (net.typed.length === 5) joinGame(net.typed); return true; }
-    const ch = e.key.length === 1 ? e.key.toUpperCase() : '';
-    if (/^[A-Z0-9]$/.test(ch) && net.typed.length < 5) net.typed += ch;
+    if (e.code === 'Enter') { if (net.typed.length === CODE_LEN) joinGame(net.typed); return true; }
+    if (/^[0-9]$/.test(e.key)) typeCodeDigit(e.key); // number row or numpad
     return true;
   }
   if (state === 'online') {
@@ -3775,6 +3856,7 @@ function onlineKey(e) {
     if (e.code === 'Escape') { leaveOnline(); return true; }
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') { cycleShip(-1); return true; }
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { cycleShip(1); return true; }
+    if (e.code === 'KeyC') { openShipSelect(1, true); return true; }
     if (net.role === 'host' && e.code === 'KeyE') { toggleRunType(); broadcastLobby(); return true; }
     if (net.role === 'host' && e.code === 'Enter') { startOnline(); return true; }
     return true;
@@ -3800,21 +3882,32 @@ function drawOnline() {
   button('JOIN A GAME', bx, cy + 56, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
   button('BACK  [Esc]', bx, cy + 112, bw, 40, '#9ab', () => go('menu'));
   ctx.font = '13px system-ui';
-  wrap('Everyone needs an internet connection and this same version of the game. The host runs the game; friends join with a 5-letter room code. Some strict networks (like school or work) can block the connection.', Math.min(460, W - 40))
+  wrap('Everyone needs an internet connection and this same version of the game. The host runs the game; friends join with a 4-digit room code. Some strict networks (like school or work) can block the connection.', Math.min(460, W - 40))
     .forEach((l, i) => fitText(l, cy + 180 + i * 18, 13, '#789'));
 }
+// typing the last digit joins straight away
+function typeCodeDigit(d) {
+  if (net.typed.length >= CODE_LEN) return;
+  net.typed += d; beep(700 + net.typed.length * 60, 0.05, 'triangle', 0.04);
+  if (net.typed.length === CODE_LEN) joinGame(net.typed);
+}
 function drawJoin() {
-  const cy = Math.max(170, H / 2 - 100), bw = Math.min(300, W - 32), bx = (W - bw) / 2;
-  title('JOIN A GAME', cy - 80, '#7df9ff', 44);
-  fitText('Type the room code your host sees (or paste it)', cy - 36, 14, '#9ab');
-  const boxW = Math.min(300, W - 32), boxX = (W - boxW) / 2;
+  const top = Math.max(120, H / 2 - 230), bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+  title('JOIN A GAME', top, '#7df9ff', 44);
+  fitText('Type the 4-digit room code — it joins as soon as you finish', top + 40, 14, '#9ab');
+  const boxW = Math.min(300, W - 32), boxX = (W - boxW) / 2, cy = top + 64;
   panel(boxX, cy, boxW, 64, '#7df9ff', true);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.font = '900 34px system-ui';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.font = '900 38px system-ui';
   const blink = Math.floor(performance.now() / 500) % 2 ? '_' : ' ';
-  ctx.fillText((net.typed + (net.typed.length < 5 ? blink : '')).split('').join(' '), W / 2, cy + 33);
-  button(net.typed.length === 5 ? 'CONNECT  [Enter]' : 'CONNECT', bx, cy + 84, bw, 44, net.typed.length === 5 ? '#9dff5d' : '#667',
-    () => { if (net.typed.length === 5) joinGame(net.typed); });
-  button('BACK  [Esc]', bx, cy + 138, bw, 40, '#9ab', () => go('online'));
+  ctx.fillText((net.typed + (net.typed.length < CODE_LEN ? blink : '')).padEnd(CODE_LEN, ' ').split('').join('  '), W / 2, cy + 34);
+  // on-screen number pad (for mouse or touchscreen)
+  const kw = Math.min(90, (bw - 16) / 3), kh = 46, kx = (W - (kw * 3 + 16)) / 2, ky = cy + 80;
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'C'].forEach((k, i) => {
+    const x = kx + (i % 3) * (kw + 8), y = ky + Math.floor(i / 3) * (kh + 8);
+    const act = k === '⌫' ? () => { net.typed = net.typed.slice(0, -1); } : k === 'C' ? () => { net.typed = ''; } : () => typeCodeDigit(k);
+    button(k, x, y, kw, kh, /\d/.test(k) ? '#7df9ff' : '#9ab', act);
+  });
+  button('BACK  [Esc]', bx, ky + 4 * (kh + 8) + 6, bw, 40, '#9ab', () => go('online'));
 }
 function drawLobby() {
   const host = net.role === 'host', me = host ? 0 : net.myId;
@@ -3835,16 +3928,18 @@ function drawLobby() {
     ctx.fillStyle = s ? c : '#556'; ctx.font = 'bold 14px system-ui';
     ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${i === me ? ' — you' : ''}`, rx + 50, y + 16);
     ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '12px system-ui';
-    ctx.fillText(s ? shipById(s.ship).name + (i === me ? '  ‹ A/D ›' : '') : 'open slot…', rx + 50, y + 33);
-    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c); ctx.restore(); }
+    ctx.fillText(s ? shipById(s.ship).name + (i === me ? '  · click to change' : '') : 'open slot…', rx + 50, y + 33);
+    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c, 0, shipById(s.ship).mk2 === true); ctx.restore(); }
+    if (i === me && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   fitText(`Run: ${runType === 'endless' ? 'ENDLESS ∞' : 'STANDARD'}${host ? '  [E] to change' : ''}`, by + 4, 13, runType === 'endless' ? '#ff9a3d' : '#9ab', 'bold');
+  button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
-    button(n > 1 ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 20, bw, 44, n > 1 ? '#9dff5d' : '#667', startOnline);
+    button(n > 1 ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, n > 1 ? '#9dff5d' : '#667', startOnline);
   }
-  button('LEAVE  [Esc]', bx, by + (host ? 72 : 20), bw, 40, '#ff5a70', () => leaveOnline());
+  button('LEAVE  [Esc]', bx, by + (host ? 120 : 68), bw, 40, '#ff5a70', () => leaveOnline());
 }
 
 let last = performance.now();

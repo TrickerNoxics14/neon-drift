@@ -7,9 +7,9 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 ## Playing online with friends
 
 1. Everyone opens the link above.
-2. One player clicks **ONLINE CO-OP → HOST A GAME** and shares the 5-letter room code.
-3. Everyone else clicks **ONLINE CO-OP → JOIN A GAME** and types the code.
-4. Pick your ships in the lobby — the host presses **START**.
+2. One player clicks **ONLINE CO-OP → HOST A GAME** and shares the 4-digit room code.
+3. Everyone else clicks **ONLINE CO-OP → JOIN A GAME** and types the code — it joins as soon as the last digit is in.
+4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**.
 
 ## Controls
 
@@ -19,7 +19,7 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 ## Features
 
-9 ship classes · 33 upgrades · 16 enemy types · 12 boss fights including team bosses ·
+9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 16 enemy types · 12 boss fights including team bosses ·
 Standard & Endless modes · Hangar unlocks · 32 achievements · procedural music
 
 The whole game is a single file: `index.html`.
