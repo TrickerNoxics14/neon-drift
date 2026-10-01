@@ -337,7 +337,7 @@ const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
 };
 const BATTLE_DRUMS = { space: 'groove', half: 'rock', groove: 'drive', rock: 'drive', march: 'drive', taiko: 'taiko', drive: 'drive' };
 const BASS_STYLE = { space: 'half', half: 'half', groove: 'walk', rock: 'eighth', drive: 'drive', march: 'eighth', taiko: 'eighth' };
-const music = { song: null, pos: 0, next: 0, timer: 0, cutoff: 18000, prevLead: 0 };
+const music = { song: null, pos: 0, next: 0, timer: 0, cutoff: 18000, prevLead: 0, rage: false, jbMode: 0 }; // (jbMode: the Music Room's CALM / BATTLE / RAGE switch)
 
 function startMusic() {
   if (music.timer) return;
@@ -363,7 +363,13 @@ function wantedSong() {
   if ((encounter && encounter.kind !== 'single') || warn?.team) return 'rival';
   return zoneSong(run.zone);
 }
-const musicBattle = () => state === 'jukebox' ? !!music.jbBattle : inRun() && (bosses.length > 0 || bossWarn > 0);
+const musicBattle = () => state === 'jukebox' ? music.jbMode >= 1 : inRun() && (bosses.length > 0 || bossWarn > 0);
+// once a boss is ENRAGED, its battle song turns into a heavy metal remake: faster, darker, much heavier
+const musicRage = () => state === 'jukebox' ? music.jbMode === 2 : inRun() && bosses.some(b => b.wasEnraged);
+const RAGE_SCALE = { major: 'minor', dorian: 'minor' }; // (happy songs go minor in the remake: same tune, evil version)
+function rageView(song) {
+  return song._rage ||= { ...song, scale: RAGE_SCALE[song.scale] || song.scale, bpm: Math.min(196, Math.max(160, Math.round(song.bpm * 1.3))) };
+}
 // who plays what: the calm arrangement as written, or the battle one
 function arrangement(sec, battle) {
   if (!battle) return { dr: sec.dr, gt: sec.gt, lead: sec.ins, double: null, arp: !!sec.arp, taiko: false };
@@ -385,22 +391,27 @@ function chordRoot(song, c) { // the chord's root in the guitar's low octave (C2
   while (m > 47) m -= 12;
   return m;
 }
+const echoTime = (s, t) => musicMix().del.delayTime.setValueAtTime(60 / s.bpm / 4 * 3, t); // (the echo lands on a dotted 8th, in time)
 function startSong(id, t) {
   music.song = id; music.pos = 0; music.prevLead = 0;
-  const mx = musicMix(), sd = 60 / SONGS[id].bpm / 4;
-  mx.del.delayTime.setValueAtTime(sd * 3, t); // the echo lands on a dotted 8th, in time with the song
+  echoTime(music.rage ? rageView(SONGS[id]) : SONGS[id], t);
 }
 // plays one 16th-note step of the current song at time t; returns how long a step lasts
 function musicStep(t) {
   const want = wantedSong();
   if (want !== music.song && music.pos % 4 === 0) startSong(want, t); // (switch on the next beat)
-  const song = SONGS[music.song], sd = 60 / song.bpm / 4;
-  const step = music.pos % 16, bar = Math.floor(music.pos / 16), barIn = bar % 8;
-  const sec = song.parts[song.form[Math.floor(bar / 8) % song.form.length]];
-  const battle = song.battle || musicBattle(), arr = arrangement(sec, battle);
+  const base = SONGS[music.song], battle = base.battle || musicBattle();
+  if (music.pos % 4 === 0) { // the metal remake kicks in (or calms back down) on a beat
+    const rage = battle && musicRage();
+    if (rage !== music.rage) { music.rage = rage; echoTime(rage ? rageView(base) : base, t); if (rage) rageHit(t); }
+  }
+  const song = music.rage ? rageView(base) : base, sd = 60 / song.bpm / 4;
+  const step = music.pos % 16, bar = Math.floor(music.pos / 16), barIn = bar % 8, secIdx = Math.floor(bar / 8) % song.form.length;
+  const sec = song.parts[song.form[secIdx]], arr = arrangement(sec, battle);
   const toks = sec.chordList[barIn], c = toks[step >= 8 && toks.length > 1 ? 1 : 0], chordStart = step === 0 || (step === 8 && toks.length > 1);
   const chordLen = (toks.length > 1 ? 8 : 16) * sd, root = chordRoot(song, c);
   music.pos++;
+  if (music.rage) { metalStep(t, song, sec, secIdx % 2 === 1, step, barIn, c, root, sd, chordStart, chordLen); return sd; }
 
   // drums (with a fill at the end of every 8 bars, and a crash at the top)
   const dp = DRUMS[arr.dr], fill = barIn === 7 && arr.dr !== 'space' && step >= 12, v = dp.v;
@@ -452,8 +463,55 @@ function playLead(ins, t, m, len, v) {
   else if (ins === 'bell') mBell(t, m, len, v * 1.8); // (bells carrying the tune ring out louder than sparkles)
   else mSynth(t, m, len, v);
 }
+// one step of a song's heavy metal remake: double-kick drums, two low galloping guitars (one in each ear),
+// and twin lead guitars playing the tune in harmony. B sections switch to a fast kick-snare "skank" beat.
+const GALLOP = 'x.xxx.xxx.xxx.xx';
+function metalStep(t, song, sec, B, step, barIn, c, root, sd, chordStart, chordLen) {
+  const fill = (barIn === 3 || barIn === 7) && step >= 12;
+  // drums
+  if (step === 0) { mCrash(t, barIn === 0 ? 1.1 : 0.7); mTaiko(t, 0.8); }
+  if (fill) { mKick(t, 0.8); if (step < 14) mSnare(t, 0.8 + (step - 12) * 0.15); else mTom(t, step === 14 ? 130 : 85, 1); }
+  else if (!B) {
+    mKick(t, step % 2 ? 0.55 : 0.8); // double bass drum on every 16th
+    if (step === 4 || step === 12) mSnare(t, 1.15);
+    if (step % 2 === 0) mHat(t, 0.9);
+  } else {
+    if (step % 2 === 0) { if (step % 4 === 0) mKick(t, 0.95); else mSnare(t, 0.9); } // kick, snare, kick, snare... on 8ths
+    else mKick(t, 0.45);
+    if (step % 4 === 0 && step) mCrash(t, 0.3);
+  }
+  // bass: low and driving
+  if (step % 2 === 0) mBass(t, root >= 40 ? root - 12 : root, sd * 1.3, step % 4 ? 0.85 : 1);
+  // rhythm guitars: low power chords, galloping (A) or chugging every 16th (B), with an open chord on the downbeat
+  const open = step === 0 || (B && step === 8);
+  if (fill) { if (step === 12) mRiff(t, root, sd * 4, true); }
+  else if (B || GALLOP[step] === 'x') mRiff(t, root, open ? sd * 3.5 : sd, open);
+  if (chordStart) mPad(t, chordNotes(song, c, 52, 72), chordLen, 0.35); // (still a little space in the background)
+  // twin lead guitars: the tune, and a harmony a third above it
+  const note = sec.notes[barIn][step];
+  if (note) {
+    const sc = SCALES[song.scale], m = song.lead + sc[note.deg - 1] + 12 * note.oct, len = note.len * sd;
+    const pcs = chordNotes(song, c, 0, 200).map(x => x % 12), up = k => song.lead + sc[(note.deg - 1 + k) % 7] + 12 * (note.oct + Math.floor((note.deg - 1 + k) / 7));
+    let hm = up(2); // a third above the tune...
+    if (c.maj && !pcs.includes(hm % 12) && pcs.includes((hm + 1) % 12)) hm++; // (matching the chord's raised third)
+    else if (!pcs.includes(hm % 12) && pcs.includes(up(3) % 12)) hm = up(3); // ...or a fourth, when that lands on the chord (like twin guitars do)
+    mLead(t, m, len, 1, music.prevLead, 'shred'); music.prevLead = m;
+    mLead(t + 0.004, hm, len, 0.6, 0, 'shred');
+  }
+}
+// the moment a boss goes into a rage: a big crash, taiko and kick as the remake slams in
+function rageHit(t) { mCrash(t, 1.4); mTaiko(t, 1.2); mKick(t, 1.2); mTom(t, 55, 1.2); }
+// two distorted guitars, panned left and right (each through the metal amp on its own side), playing a low power chord
+function mRiff(t, m, dur, open) {
+  const mix = musicMix();
+  for (const [pan, det, dt] of [[-0.9, -7, 0], [0.9, 7, 0.007]]) {
+    const p = ac.createStereoPanner(); p.pan.value = pan; p.connect(mix.metal);
+    const g = vca(t + dt, 0.002, 0.09, open ? 0.75 : 0.05, open ? 0.5 : 0.035, open ? dur : 0.04, open ? 0.08 : 0.02, p), end = t + dt + dur + 0.3;
+    mOsc('sawtooth', mtof(m), t + dt, end, g, det); mOsc('sawtooth', mtof(m + 7), t + dt, end, g, det); mOsc('sawtooth', mtof(m + 12), t + dt, end, g, det + 4);
+  }
+}
 
-// ----- the band's sound: mixer, reverb, echo, and two guitar amps -----
+// ----- the band's sound: mixer, reverb, echo, and the guitar amps -----
 let mx = null;
 function driveCurve(k) { const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(k * x) / Math.tanh(k); } return c; }
 function musicMix() {
@@ -483,7 +541,19 @@ function musicMix() {
   return mx = { ctx: ac, del,
     drums: bus(1, 0.12, 0), bass: bus(1, 0, 0), pad: bus(0.7, 0.9, 0), clean: bus(0.9, 0.35, 0.18),
     flute: bus(0.9, 0.5, 0.22), koto: bus(1, 0.4, 0.12), bell: bus(0.7, 0.45, 0.4), synth: bus(0.8, 0.35, 0.35),
-    gtr: amp(2.2, 2700, 0.8, 0.12, 0), lead: amp(5, 3200, 0.4, 0.3, 0.3) };
+    gtr: amp(2.2, 2700, 0.8, 0.12, 0), lead: amp(5, 3200, 0.4, 0.3, 0.3), shred: amp(9, 3600, 0.34, 0.25, 0.3), metal: metalAmp() };
+  // the metal amp: tightened lows, a lot of gain, scooped mids and a bright bite (heavy, for the rage remakes)
+  function metalAmp() {
+    const inp = g(1), tight = ac.createBiquadFilter(), pre = g(2.5), sh = ac.createWaveShaper(), hp = ac.createBiquadFilter();
+    const low = ac.createBiquadFilter(), scoop = ac.createBiquadFilter(), bite = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
+    tight.type = 'highpass'; tight.frequency.value = 140; sh.curve = driveCurve(12); sh.oversample = '4x';
+    hp.type = 'highpass'; hp.frequency.value = 75; low.type = 'lowshelf'; low.frequency.value = 160; low.gain.value = 5;
+    scoop.type = 'peaking'; scoop.frequency.value = 750; scoop.gain.value = -6; scoop.Q.value = 1;
+    bite.type = 'peaking'; bite.frequency.value = 2800; bite.gain.value = 4; bite.Q.value = 1; lp.type = 'lowpass'; lp.frequency.value = 5500;
+    inp.connect(tight); tight.connect(pre); pre.connect(sh); sh.connect(hp); hp.connect(low); low.connect(scoop); scoop.connect(bite); bite.connect(lp);
+    lp.connect(bus(0.32, 0.06, 0));
+    return inp;
+  }
 }
 // a gain envelope: up to `peak` in `atk`, easing toward `sus`·peak, then fading out after `dur`
 function vca(t, atk, peak, sus, decay, dur, rel, dest) {
@@ -548,8 +618,8 @@ function mClean(t, m, dur, v = 1) {
   mOsc('triangle', mtof(m), t, t + dur + 0.6, f); mOsc('sawtooth', mtof(m), t, t + dur + 0.6, mFilter('lowpass', 1800, 0, g), 5);
 }
 // lead guitar: sings with sustain, slides into notes close to the last one, and wobbles on long notes
-function mLead(t, m, dur, v = 1, prev = 0) {
-  const g = vca(t, 0.008, 0.11 * v, 0.85, 0.5, dur, 0.06, musicMix().lead), end = t + dur + 0.35, f = mtof(m);
+function mLead(t, m, dur, v = 1, prev = 0, amp = 'lead') {
+  const g = vca(t, 0.008, 0.11 * v, 0.85, 0.5, dur, 0.06, musicMix()[amp]), end = t + dur + 0.35, f = mtof(m);
   for (const det of [-5, 5]) {
     const o = mOsc('sawtooth', f, t, end, g, det);
     if (prev && Math.abs(prev - m) <= 5 && prev !== m) { o.frequency.setValueAtTime(mtof(prev), t); o.frequency.exponentialRampToValueAtTime(f, t + 0.05); }
@@ -1032,7 +1102,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyJ') go('jukebox');
   } else if (state === 'jukebox') {
     if (e.code === 'Escape' || e.code === 'KeyJ') go('settings');
-    if (e.code === 'KeyB') music.jbBattle = !music.jbBattle;
+    if (e.code === 'KeyB') music.jbMode = (music.jbMode + 1) % 3;
   } else if (state === 'achievements') {
     if (e.code === 'Escape' || e.code === 'KeyT') go('menu');
   } else if (state === 'ships') {
@@ -5491,7 +5561,7 @@ function drawSettings() {
 function drawJukebox() {
   title('MUSIC ROOM', 46, '#c08dff', 42);
   const now = SONGS[music.song];
-  fitText(now ? `♪  Now playing: ${now.name}${musicBattle() ? '  (battle version)' : ''}` : 'Pick a song to play it', 82, 14, '#e0d0ff', 'bold');
+  fitText(now ? `♪  Now playing: ${now.name}${music.rage ? '  (RAGE remake)' : musicBattle() ? '  (battle version)' : ''}` : 'Pick a song to play it', 82, 14, '#e0d0ff', 'bold');
   const cols = W >= 900 ? 3 : 2, gap = 6, bw = Math.min(290, (W - 32 - gap * (cols - 1)) / cols), bh = H < 760 ? 30 : 36;
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 102;
   SONG_LIST.forEach(([id, where], i) => {
@@ -5507,7 +5577,8 @@ function drawJukebox() {
     ctx.fillText((on ? '♪ ' : '') + (locked ? '???' : SONGS[id].name), x + 8, y + bh / 2, bw - lw - 24);
   });
   const by = y0 + Math.ceil(SONG_LIST.length / cols) * (bh + gap) + 6, hw = Math.min(220, (W - 40) / 2);
-  button(`BATTLE VERSION [B]: ${music.jbBattle ? 'ON' : 'OFF'}`, W / 2 - hw - 4, by, hw, 38, music.jbBattle ? '#ff5a70' : '#778', () => { music.jbBattle = !music.jbBattle; });
+  const MODES = [['CALM', '#778'], ['BATTLE', '#ffb13d'], ['RAGE', '#ff3d4d']], [mode, mc] = MODES[music.jbMode];
+  button(`VERSION [B]: ${mode}`, W / 2 - hw - 4, by, hw, 38, mc, () => { music.jbMode = (music.jbMode + 1) % 3; });
   button('BACK  [Esc]', W / 2 + 4, by, hw, 38, '#9ab', () => go('settings'));
 }
 

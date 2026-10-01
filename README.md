@@ -27,9 +27,9 @@ Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 
 
 25 original songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, the secret boss, victory and game over each have their own song too.
 
-The style is soft rock in space: crunchy guitars, bass and drums, a bamboo flute, a koto and taiko drums, and spacey pads with lots of echo. When a boss shows up, the song switches to a battle version with driving drums, power chords and a lead guitar.
+The style is soft rock in space: crunchy guitars, bass and drums, a bamboo flute, a koto and taiko drums, and spacey pads with lots of echo. When a boss shows up, the song switches to a battle version with driving drums, power chords and a lead guitar. When the boss gets **enraged**, it turns into a heavy metal remake: much faster (160–196 BPM), darker, with double bass drums, galloping guitars and twin lead guitars.
 
-Listen to any song in the **Music Room** (Settings, or press **J** on the menu). All the music is played live by the browser from notes written in the code, so there are no audio files.
+Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its calm, battle and rage versions. All the music is played live by the browser from notes written in the code, so there are no audio files.
 
 ### Zones
 
