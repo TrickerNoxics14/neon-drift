@@ -109,12 +109,12 @@ function beep(freq, dur, type = 'square', vol = 0.05, slide = 0) {
   } catch (e) {}
 }
 
-// ---------- music: a soft-rock band out in space ----------
+// ---------- music: a rock band out in space ----------
 // Every zone has its own song (and so do the menus and THE ABYSS). Songs are written below as chord
-// progressions and melodies, and played live by a small synthesized band: drums and taiko, bass, a crunchy
-// (not heavy) rhythm guitar, a singing lead guitar, a bamboo flute, a koto, bells, and spacey pads, all
-// sent through a long reverb and an echo. When a boss shows up the same song switches to its battle
-// arrangement: driving drums, chugging power chords, taiko hits and the lead guitar on the melody.
+// progressions and melodies, and played live by a small synthesized band: drums and taiko, bass, distorted
+// rhythm guitars, a singing lead guitar, a bamboo flute, a koto, bells, and spacey pads, all sent through a
+// long reverb and an echo. Outside boss fights every song is heavy rock; when a boss shows up the same song
+// turns into metal, and when the boss is ENRAGED, into an even faster, darker, heavier metal remake.
 //
 // How a song is written: `chords` is one chord per bar, as a degree of the song's scale ('1' = the home
 // chord, '5^' = that chord made major, '4/5' = two chords in one bar). Each melody bar has 16 steps
@@ -327,17 +327,13 @@ const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep',
   ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
-  space:  { k: 'x.......x.......', s: '............x...', h: '..x...x...x...x.', v: 0.55 },
-  half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.75 },
-  groove: { k: 'x.....x...x.....', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', v: 0.85 },
-  rock:   { k: 'x.....x.x.....x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', v: 1 },
+  half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.9 },
+  rock:  { k: 'x.....x.x.....x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', v: 1 },
   drive:  { k: 'x.x...x.x.x...x.', s: '....x.......x...', h: 'xxxxxxxxxxxxxxxx', v: 1 },
   march:  { k: 'x.......x.......', s: 'x..x..x.x.xx.x..', h: '....x.......x...', v: 0.8 },
   taiko:  { k: 'x.......x.......', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', t: 'x..x..x...x.x...', v: 0.9 },
 };
-const BATTLE_DRUMS = { space: 'groove', half: 'rock', groove: 'drive', rock: 'drive', march: 'drive', taiko: 'taiko', drive: 'drive' };
-const BASS_STYLE = { space: 'half', half: 'half', groove: 'walk', rock: 'eighth', drive: 'drive', march: 'eighth', taiko: 'eighth' };
-const music = { song: null, pos: 0, next: 0, timer: 0, cutoff: 18000, prevLead: 0, rage: false, jbMode: 0 }; // (jbMode: the Music Room's CALM / BATTLE / RAGE switch)
+const music = { song: null, pos: 0, next: 0, timer: 0, cutoff: 18000, prevLead: 0, rage: false, jbMode: 0 }; // (jbMode: the Music Room's ROCK / METAL / RAGE switch)
 
 function startMusic() {
   if (music.timer) return;
@@ -365,15 +361,17 @@ function wantedSong() {
 }
 const musicBattle = () => state === 'jukebox' ? music.jbMode >= 1 : inRun() && (bosses.length > 0 || bossWarn > 0);
 // once a boss is ENRAGED, its battle song turns into a heavy metal remake: faster, darker, much heavier
-const musicRage = () => state === 'jukebox' ? music.jbMode === 2 : inRun() && bosses.some(b => b.wasEnraged);
+const musicRage = () => state === 'jukebox' ? music.jbMode === 2 : inRun() && bosses.some(b => b.final ? b.phase >= 2 : b.wasEnraged); // (THE ABYSS: once the lights go out)
 const RAGE_SCALE = { major: 'minor', dorian: 'minor' }; // (happy songs go minor in the remake: same tune, evil version)
 function rageView(song) {
   return song._rage ||= { ...song, scale: RAGE_SCALE[song.scale] || song.scale, bpm: Math.min(196, Math.max(160, Math.round(song.bpm * 1.3))) };
 }
-// who plays what: the calm arrangement as written, or the battle one
-function arrangement(sec, battle) {
-  if (!battle) return { dr: sec.dr, gt: sec.gt, lead: sec.ins, double: null, arp: !!sec.arp, taiko: false };
-  return { dr: BATTLE_DRUMS[sec.dr], gt: sec.gt === 'strum' ? 'strum' : 'chug', lead: 'guitar', double: sec.ins === 'guitar' ? null : sec.ins, arp: false, taiko: true };
+// outside boss fights every song is heavy rock: a rock beat (a section's `dr` is its feel, played harder here),
+// low distorted power chords in both ears, the bass pumping 8ths, and the lead guitar on the tune with the song's
+// own instrument (flute, koto, bells...) an octave above it. Clean-guitar sections keep their picking over the top.
+const ROCK_DRUMS = { space: 'half', half: 'rock', groove: 'rock', rock: 'rock', drive: 'drive', march: 'march', taiko: 'taiko' };
+function arrangement(sec) {
+  return { dr: ROCK_DRUMS[sec.dr], gt: sec.gt === 'chug' ? 'chug' : 'strum', clean: sec.gt === 'clean', double: sec.ins === 'guitar' ? null : sec.ins, arp: !!sec.arp };
 }
 // the notes of a chord (as MIDI numbers), starting from `base`, folded into [lo, hi)
 function chordNotes(song, c, lo, hi) {
@@ -403,55 +401,55 @@ function musicStep(t) {
   const base = SONGS[music.song], battle = base.battle || musicBattle();
   if (music.pos % 4 === 0) { // the metal remake kicks in (or calms back down) on a beat
     const rage = battle && musicRage();
-    if (rage !== music.rage) { music.rage = rage; echoTime(rage ? rageView(base) : base, t); if (rage) rageHit(t); }
+    if (rage !== music.rage) { music.rage = rage; echoTime(rage ? rageView(base) : base, t); if (rage) rageHit(t, rageView(base)); }
   }
   const song = music.rage ? rageView(base) : base, sd = 60 / song.bpm / 4;
   const step = music.pos % 16, bar = Math.floor(music.pos / 16), barIn = bar % 8, secIdx = Math.floor(bar / 8) % song.form.length;
-  const sec = song.parts[song.form[secIdx]], arr = arrangement(sec, battle);
+  const sec = song.parts[song.form[secIdx]], arr = arrangement(sec);
   const toks = sec.chordList[barIn], c = toks[step >= 8 && toks.length > 1 ? 1 : 0], chordStart = step === 0 || (step === 8 && toks.length > 1);
   const chordLen = (toks.length > 1 ? 8 : 16) * sd, root = chordRoot(song, c);
   music.pos++;
-  if (music.rage) { metalStep(t, song, sec, secIdx % 2 === 1, step, barIn, c, root, sd, chordStart, chordLen); return sd; }
+  if (battle) { metalStep(t, song, sec, secIdx % 2 === 1, step, barIn, c, root, sd, chordStart, chordLen, music.rage); return sd; }
 
   // drums (with a fill at the end of every 8 bars, and a crash at the top)
-  const dp = DRUMS[arr.dr], fill = barIn === 7 && arr.dr !== 'space' && step >= 12, v = dp.v;
-  if (barIn === 0 && step === 0 && (battle || arr.dr !== 'space' && arr.dr !== 'half')) mCrash(t, 0.9);
+  const dp = DRUMS[arr.dr], fill = barIn === 7 && step >= 12, v = dp.v;
+  if (barIn === 0 && step === 0) mCrash(t, 0.9);
   if (fill) {
-    if (arr.dr === 'taiko' || arr.taiko) mTaiko(t, step === 12 ? 1 : 0.7);
+    if (arr.dr === 'taiko') mTaiko(t, step === 12 ? 1 : 0.7);
     else if (step < 14) mSnare(t, 0.55 + (step - 12) * 0.15); else mTom(t, step === 14 ? 140 : 95, 0.9);
   } else {
     if (dp.k[step] === 'x') mKick(t, v);
     if (dp.s[step] === 'x') mSnare(t, (arr.dr === 'march' && step % 4 !== 0 ? 0.45 : 1) * v);
     if (dp.h[step] === 'x') mHat(t, (step % 2 ? 0.5 : 1) * v, arr.dr === 'half' && step === 12);
     if (dp.t?.[step] === 'x') mTaiko(t, 0.8);
-    if (arr.taiko && step === 0 && !dp.t) mTaiko(t, 0.75); // (battle: a taiko hit on every downbeat)
   }
 
-  // bass
-  const bassRoot = root >= 40 ? root - 12 : root, bs = battle ? 'drive' : BASS_STYLE[arr.dr];
-  if (bs === 'half' && (step === 0 || step === 8)) mBass(t, bassRoot, sd * 7.5, 0.9);
-  else if (bs === 'walk') { const w = { 0: [0, 6], 6: [7, 2], 8: [12, 4], 12: [7, 4] }[step]; if (w) mBass(t, bassRoot + w[0], sd * w[1] * 0.95, 0.9); }
-  else if ((bs === 'eighth' || bs === 'drive') && step % 2 === 0) mBass(t, bassRoot + (bs === 'drive' && step === 14 ? 12 : 0), sd * (bs === 'drive' ? 1.4 : 1.9), step % 4 ? 0.75 : 0.95);
+  // bass: pumping 8ths, with an octave jump at the end of the bar when the beat drives
+  const bassRoot = root >= 40 ? root - 12 : root, drive = arr.dr === 'drive';
+  if (step % 2 === 0) mBass(t, bassRoot + (drive && step === 14 ? 12 : 0), sd * (drive ? 1.4 : 1.9), step % 4 ? 0.75 : 0.95);
 
-  // rhythm guitar
+  // rhythm guitars: low power chords, chugging or strummed; clean sections keep their picked chords on top
   if (arr.gt === 'chug' && step % 2 === 0) {
     const open = step === 0 || step === 6 || step === 8 || step === 14;
-    mPower(t, root + 12, open ? sd * 1.8 : sd * 0.7, open ? 1 : 0.7, !open);
-  } else if (arr.gt === 'strum' && [0, 6, 8, 14].includes(step)) mPower(t, root + 12, sd * (step % 8 === 0 ? 5.5 : 1.8), step % 8 === 0 ? 1 : 0.8, false);
-  else if (arr.gt === 'clean' && step % 2 === 0) {
-    const n = chordNotes(song, c, 47, 67), order = [n[0], n[2], n[1] + 12, n[2], n[0] + 12, n[2], n[1] + 12, n[2]];
-    mClean(t, order[step / 2], sd * 3, step === 0 ? 1 : 0.75);
+    mPower(t, root, open ? sd * 1.8 : sd * 0.7, open ? 1 : 0.7, !open);
+  } else if (arr.gt === 'strum' && [0, 3, 6, 8, 11, 14].includes(step)) {
+    const open = step % 8 === 0; // (ringing chords on the beat, palm-muted pushes between them)
+    mPower(t, root, open ? sd * 2.8 : sd * 0.7, open ? 1 : 0.75, !open);
+  }
+  if (arr.clean && step % 2 === 0) {
+    const n = chordNotes(song, c, 52, 72), order = [n[0], n[2], n[1] + 12, n[2], n[0] + 12, n[2], n[1] + 12, n[2]];
+    mClean(t, order[step / 2], sd * 3, step === 0 ? 0.7 : 0.5);
   }
 
   // space pads hold every chord; bells or synth sparkle over the top in some sections
-  if (chordStart) mPad(t, chordNotes(song, c, 52, 72), chordLen, battle ? 0.6 : 1);
-  if (arr.arp) { const n = chordNotes(song, c, 72, 84), o = [n[0], n[1], n[2], n[0] + 12, n[2], n[1], n[0] + 12, n[1] + 12]; if (step % 2 === 0) mBell(t, o[(step / 2) % 8], sd * 2, 0.5); }
+  if (chordStart) mPad(t, chordNotes(song, c, 52, 72), chordLen, 0.6);
+  if (arr.arp) { const n = chordNotes(song, c, 72, 84), o = [n[0], n[1], n[2], n[0] + 12, n[2], n[1], n[0] + 12, n[1] + 12]; if (step % 2 === 0) mBell(t, o[(step / 2) % 8], sd * 2, 0.4); }
 
-  // the melody
+  // the melody: the lead guitar, and the song's own instrument an octave above it
   const note = sec.notes[barIn][step];
   if (note) {
     const m = song.lead + SCALES[song.scale][note.deg - 1] + 12 * note.oct, len = note.len * sd;
-    playLead(arr.lead, t, m, len, 1);
+    playLead('guitar', t, m, len, 1);
     if (arr.double) playLead(arr.double, t, m + 12, len, 0.55);
   }
   return sd;
@@ -463,33 +461,46 @@ function playLead(ins, t, m, len, v) {
   else if (ins === 'bell') mBell(t, m, len, v * 1.8); // (bells carrying the tune ring out louder than sparkles)
   else mSynth(t, m, len, v);
 }
-// one step of a song's heavy metal remake: double-kick drums, two low galloping guitars (one in each ear),
-// and twin lead guitars playing the tune in harmony. B sections switch to a fast kick-snare "skank" beat.
-const GALLOP = 'x.xxx.xxx.xxx.xx';
-function metalStep(t, song, sec, B, step, barIn, c, root, sd, chordStart, chordLen) {
-  const fill = (barIn === 3 || barIn === 7) && step >= 12;
+// boss fights play every song as metal: low power chords through a high-gain amp (two guitars in each ear), a
+// distorted bass hitting with them, double bass drums and taiko. A sections gallop with the kick; B sections chug
+// every 16th over a double bass drum. The lead guitar takes the tune, with the song's own instrument above it.
+// Once a boss is ENRAGED it gets heavier still: faster and darker (see rageView), drop-tuned, twin lead guitars in
+// harmony, the double bass under the gallop too, and B sections blast for four bars, then fall into a breakdown.
+const GALLOP = 'x.xxx.xxx.xxx.xx', BREAKDOWN = 'x..x..x...x.x..x';
+function metalStep(t, song, sec, B, step, barIn, c, root, sd, chordStart, chordLen, rage) {
+  const breakdown = rage && B && barIn >= 4, blast = rage && B && !breakdown, fill = (barIn === 3 || barIn === 7) && step >= 12;
+  const low = rage && root >= 43 ? root - 12 : root; // (enraged, the guitars drop-tune: the riff sits between G1 and F#2)
   // drums
   if (step === 0) { mCrash(t, barIn === 0 ? 1.1 : 0.7); mTaiko(t, 0.8); }
-  if (fill) { mKick(t, 0.8); if (step < 14) mSnare(t, 0.8 + (step - 12) * 0.15); else mTom(t, step === 14 ? 130 : 85, 1); }
-  else if (!B) {
-    mKick(t, step % 2 ? 0.55 : 0.8); // double bass drum on every 16th
-    if (step === 4 || step === 12) mSnare(t, 1.15);
-    if (step % 2 === 0) mHat(t, 0.9);
+  if (breakdown && barIn === 4 && step === 0) mSub(t, 0.8); // (the floor drops out as the breakdown hits)
+  if (fill) { mKick(t, 0.85, true); if (step < 14) mSnare(t, 0.85 + (step - 12) * 0.15, true); else mTom(t, step === 14 ? 120 : 80, 1.1); }
+  else if (breakdown) {
+    if (BREAKDOWN[step] === 'x') mKick(t, 1, true); // (the kick lands with every chug)
+    if (step === 8) mSnare(t, 1.3, true); // half time: one huge snare per bar
+    if (step % 4 === 0) mChina(t, step ? 0.6 : 0.9);
+  } else if (blast) {
+    mKick(t, step % 2 ? 0.6 : 0.85, true); // blast beat: the kick on every 16th, the snare on every other one
+    if (step % 2) mSnare(t, 0.7, true);
+    if (step % 4 === 0 && step) mChina(t, 0.5);
   } else {
-    if (step % 2 === 0) { if (step % 4 === 0) mKick(t, 0.95); else mSnare(t, 0.9); } // kick, snare, kick, snare... on 8ths
-    else mKick(t, 0.45);
-    if (step % 4 === 0 && step) mCrash(t, 0.3);
+    if (B || rage) mKick(t, step % 2 ? 0.6 : 0.85, true); // double bass drum on every 16th
+    else if (GALLOP[step] === 'x') mKick(t, step % 4 ? 0.65 : 0.9, true); // (or galloping along with the riff)
+    if (step === 4 || step === 12) mSnare(t, 1.2, true);
+    if (step % 2 === 0) mHat(t, 0.9);
   }
-  // bass: low and driving
-  if (step % 2 === 0) mBass(t, root >= 40 ? root - 12 : root, sd * 1.3, step % 4 ? 0.85 : 1);
-  // rhythm guitars: low power chords, galloping (A) or chugging every 16th (B), with an open chord on the downbeat
-  const open = step === 0 || (B && step === 8);
-  if (fill) { if (step === 12) mRiff(t, root, sd * 4, true); }
-  else if (B || GALLOP[step] === 'x') mRiff(t, root, open ? sd * 3.5 : sd, open);
-  if (chordStart) mPad(t, chordNotes(song, c, 52, 72), chordLen, 0.35); // (still a little space in the background)
-  // twin lead guitars: the tune, and a harmony a third above it
+  // the riff: galloping (A), chugging or tremolo-picked on every 16th (B), or chugging with the kick (breakdown);
+  // an open chord rings on the downbeat, and the bass plays every hit
+  const pat = breakdown ? BREAKDOWN : B ? null : GALLOP, open = step === 0 || (!pat && step === 8);
+  const hit = (len, o) => { mRiff(t, low, len, o); mBassMetal(t, low >= 40 ? low - 12 : low, len); };
+  if (fill) { if (step === 12) hit(sd * 4, true); }
+  else if (!pat || pat[step] === 'x') hit(open ? sd * (breakdown ? 2.6 : 3.5) : sd * 0.9, open);
+  if (chordStart) mPad(t, chordNotes(song, c, 52, 72), chordLen, breakdown ? 0.2 : 0.35); // (still a little space in the background)
   const note = sec.notes[barIn][step];
-  if (note) {
+  if (note && !rage) { // the lead guitar on the tune, and the song's own instrument an octave above it
+    const m = song.lead + SCALES[song.scale][note.deg - 1] + 12 * note.oct, len = note.len * sd;
+    playLead('guitar', t, m, len, 1);
+    if (sec.ins !== 'guitar') playLead(sec.ins, t, m + 12, len, 0.55);
+  } else if (note) { // enraged: twin lead guitars, the tune and a harmony a third above it
     const sc = SCALES[song.scale], m = song.lead + sc[note.deg - 1] + 12 * note.oct, len = note.len * sd;
     const pcs = chordNotes(song, c, 0, 200).map(x => x % 12), up = k => song.lead + sc[(note.deg - 1 + k) % 7] + 12 * (note.oct + Math.floor((note.deg - 1 + k) / 7));
     let hm = up(2); // a third above the tune...
@@ -499,16 +510,44 @@ function metalStep(t, song, sec, B, step, barIn, c, root, sd, chordStart, chordL
     mLead(t + 0.004, hm, len, 0.6, 0, 'shred');
   }
 }
-// the moment a boss goes into a rage: a big crash, taiko and kick as the remake slams in
-function rageHit(t) { mCrash(t, 1.4); mTaiko(t, 1.2); mKick(t, 1.2); mTom(t, 55, 1.2); }
-// two distorted guitars, panned left and right (each through the metal amp on its own side), playing a low power chord
+// the moment a boss goes into a rage: a pinch-harmonic squeal, a sub drop, and every drum at once
+function rageHit(t, song) {
+  mCrash(t, 1.4); mChina(t, 1); mTaiko(t, 1.2); mKick(t, 1.2, true); mTom(t, 55, 1.2); mSub(t, 1);
+  let m = song.lead + 17; if (m > 84) m -= 12;
+  mSqueal(t, m);
+}
+// the rhythm guitars, hard left and hard right (each side through the metal amp on its own). Palm-muted chugs are
+// short and dark, root and fifth, one take a side; open chords ring out with the octave on top, two takes a side.
 function mRiff(t, m, dur, open) {
-  const mix = musicMix();
-  for (const [pan, det, dt] of [[-0.9, -7, 0], [0.9, 7, 0.007]]) {
+  const mix = musicMix(), end = t + dur + (open ? 0.3 : 0.1), notes = open ? [0, 7, 12] : [0, 7];
+  for (const [pan, takes] of [[-1, [[-8, 0], [5, 0.009]]], [1, [[8, 0.005], [-5, 0.013]]]]) {
     const p = ac.createStereoPanner(); p.pan.value = pan; p.connect(mix.metal);
-    const g = vca(t + dt, 0.002, 0.09, open ? 0.75 : 0.05, open ? 0.5 : 0.035, open ? dur : 0.04, open ? 0.08 : 0.02, p), end = t + dt + dur + 0.3;
-    mOsc('sawtooth', mtof(m), t + dt, end, g, det); mOsc('sawtooth', mtof(m + 7), t + dt, end, g, det); mOsc('sawtooth', mtof(m + 12), t + dt, end, g, det + 4);
+    const tone = open ? p : mFilter('lowpass', 1100, 0.7, p); // (palm muting: the picking hand dulls the strings)
+    for (const [det, dt] of open ? takes : takes.slice(0, 1)) {
+      const g = vca(t + dt, 0.002, 0.09, open ? 0.75 : 0.06, open ? 0.5 : 0.04, open ? dur : 0.045, open ? 0.08 : 0.025, tone);
+      for (const n of notes) mOsc('sawtooth', mtof(m + n), t + dt, end, g, det + (n === 12 ? 4 : 0));
+    }
   }
+}
+// distorted bass for the remakes: a growl that hits with every chug, and a clean low end under it
+function mBassMetal(t, m, dur) {
+  const mix = musicMix(), end = t + dur + 0.12;
+  mOsc('sawtooth', mtof(m), t, end, vca(t, 0.003, 0.5, 0.6, 0.15, dur, 0.04, mix.dbass));
+  mOsc('sine', mtof(m), t, end, vca(t, 0.003, 0.2, 0.7, 0.2, dur, 0.04, mix.bass));
+}
+// a pinch harmonic: a screaming high note, bent up a whole step and shaken hard
+function mSqueal(t, m) {
+  const g = vca(t, 0.005, 0.12, 0.8, 0.4, 0.9, 0.15, musicMix().shred), f = mtof(m), to = mtof(m + 2);
+  for (const det of [-6, 6]) {
+    const o = mOsc('sawtooth', f, t, t + 1.4, g, det);
+    o.frequency.setValueAtTime(f, t + 0.06); o.frequency.exponentialRampToValueAtTime(to, t + 0.3);
+    vibrato(o, t, to, 0.03, 0.35).stop(t + 1.4);
+  }
+}
+// a sub drop: a deep boom sliding down, felt more than heard
+function mSub(t, v = 1) {
+  const o = mOsc('sine', 70, t, t + 1.6, vca(t, 0.005, 0.6 * v, 0.6, 0.6, 0.6, 0.5, musicMix().bass));
+  o.frequency.exponentialRampToValueAtTime(30, t + 1.2);
 }
 
 // ----- the band's sound: mixer, reverb, echo, and the guitar amps -----
@@ -528,7 +567,7 @@ function musicMix() {
   const del = ac.createDelay(2), fb = g(0.33), dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
   del.connect(dlp); dlp.connect(fb); fb.connect(del); const delOut = g(0.5); dlp.connect(delOut); delOut.connect(comp);
   const bus = (dry, wet, echo) => { const b = g(1); if (dry) { const d = g(dry); b.connect(d); d.connect(comp); } if (wet) { const w = g(wet); b.connect(w); w.connect(verb); } if (echo) { const e = g(echo); b.connect(e); e.connect(del); } return b; };
-  // a guitar amp: soft clipping (crunchy, not heavy), then a speaker-like filter
+  // a lead guitar amp: soft clipping that sings, then a speaker-like filter
   const amp = (drive, cutoff, out, wet, echo) => {
     const inp = g(1), sh = ac.createWaveShaper(), hp = ac.createBiquadFilter(), lp = ac.createBiquadFilter(), mid = ac.createBiquadFilter();
     sh.curve = driveCurve(drive); sh.oversample = '2x';
@@ -541,19 +580,23 @@ function musicMix() {
   return mx = { ctx: ac, del,
     drums: bus(1, 0.12, 0), bass: bus(1, 0, 0), pad: bus(0.7, 0.9, 0), clean: bus(0.9, 0.35, 0.18),
     flute: bus(0.9, 0.5, 0.22), koto: bus(1, 0.4, 0.12), bell: bus(0.7, 0.45, 0.4), synth: bus(0.8, 0.35, 0.35),
-    gtr: amp(2.2, 2700, 0.8, 0.12, 0), lead: amp(5, 3200, 0.4, 0.3, 0.3), shred: amp(9, 3600, 0.34, 0.25, 0.3), metal: metalAmp() };
-  // the metal amp: tightened lows, a lot of gain, scooped mids and a bright bite (heavy, for the rage remakes)
-  function metalAmp() {
-    const inp = g(1), tight = ac.createBiquadFilter(), pre = g(2.5), sh = ac.createWaveShaper(), hp = ac.createBiquadFilter();
-    const low = ac.createBiquadFilter(), scoop = ac.createBiquadFilter(), bite = ac.createBiquadFilter(), lp = ac.createBiquadFilter();
-    tight.type = 'highpass'; tight.frequency.value = 140; sh.curve = driveCurve(12); sh.oversample = '4x';
-    hp.type = 'highpass'; hp.frequency.value = 75; low.type = 'lowshelf'; low.frequency.value = 160; low.gain.value = 5;
-    scoop.type = 'peaking'; scoop.frequency.value = 750; scoop.gain.value = -6; scoop.Q.value = 1;
-    bite.type = 'peaking'; bite.frequency.value = 2800; bite.gain.value = 4; bite.Q.value = 1; lp.type = 'lowpass'; lp.frequency.value = 5500;
-    inp.connect(tight); tight.connect(pre); pre.connect(sh); sh.connect(hp); hp.connect(low); low.connect(scoop); scoop.connect(bite); bite.connect(lp);
-    lp.connect(bus(0.32, 0.06, 0));
-    return inp;
+    gtr: rockAmp(), lead: amp(7, 3400, 0.36, 0.3, 0.3), shred: amp(9, 3600, 0.34, 0.25, 0.3), metal: metalAmp(), dbass: bassAmp() };
+  function bq(type, f, gain = 0, q = 0.7) { const n = ac.createBiquadFilter(); n.type = type; n.frequency.value = f; n.gain.value = gain; n.Q.value = q; return n; }
+  function chain(...nodes) { for (let i = 1; i < nodes.length; i++) nodes[i - 1].connect(nodes[i]); return nodes[0]; }
+  function shaper(k) { const sh = ac.createWaveShaper(); sh.curve = driveCurve(k); sh.oversample = '4x'; return sh; }
+  // the rock amp (the rhythm guitars outside boss fights): plenty of gain, a solid low end and forward mids
+  function rockAmp() {
+    return chain(g(1), bq('highpass', 90), g(3), shaper(8), bq('highpass', 65), bq('lowshelf', 150, 4), bq('peaking', 900, 2, 0.9),
+      bq('peaking', 2400, 3, 1), bq('lowpass', 4500), bq('lowpass', 7000), bus(0.4, 0.1, 0));
   }
+  // the metal amp (boss fights): an overdrive pedal tightening the lows and pushing the mids into
+  // two high-gain stages, then scooped mids, a big low end, a bright bite, and a speaker cabinet rolling off the fizz
+  function metalAmp() {
+    return chain(g(1), bq('highpass', 120), bq('peaking', 900, 6, 0.7), g(5), shaper(22), bq('highpass', 70), g(2), shaper(3),
+      bq('lowshelf', 140, 6), bq('peaking', 700, -7, 1), bq('peaking', 2600, 5, 1), bq('lowpass', 5200), bq('lowpass', 7000), bus(0.32, 0.06, 0));
+  }
+  // the distorted bass: a growl with its top end rounded off
+  function bassAmp() { return chain(g(1), shaper(4), bq('lowpass', 1800), bq('peaking', 600, 3, 1), bus(0.22, 0, 0)); }
 }
 // a gain envelope: up to `peak` in `atk`, easing toward `sus`·peak, then fading out after `dur`
 function vca(t, atk, peak, sus, decay, dur, rel, dest) {
@@ -575,15 +618,25 @@ function vibrato(o, t, f, depth, from) { // a gentle wobble in pitch that starts
 }
 
 // drums
-function mKick(t, v = 1) {
-  const g = vca(t, 0.003, 0.9 * v, 0.001, 0.09, 0.05, 0.1, musicMix().drums), o = mOsc('sine', 160, t, t + 0.45, g);
+// (`hard`: the metal kit, where the kick's beater clicks and the snare cracks so they cut through the guitars)
+function mKick(t, v = 1, hard = false) {
+  const m = musicMix(), g = vca(t, 0.003, 0.9 * v, 0.001, 0.09, 0.05, 0.1, m.drums), o = mOsc('sine', 160, t, t + 0.45, g);
   o.frequency.exponentialRampToValueAtTime(46, t + 0.09);
+  if (hard) mNoiseSrc(t, t + 0.03, mFilter('bandpass', 3200, 1.2, vca(t, 0.001, 0.9 * v, 0.001, 0.008, 0.005, 0.01, m.drums)));
 }
-function mSnare(t, v = 1) {
+function mSnare(t, v = 1, hard = false) {
   const m = musicMix();
   mNoiseSrc(t, t + 0.25, mFilter('bandpass', 1900, 0.8, vca(t, 0.002, 0.55 * v, 0.001, 0.06, 0.02, 0.05, m.drums)));
   const o = mOsc('triangle', 210, t, t + 0.15, vca(t, 0.002, 0.3 * v, 0.001, 0.035, 0.02, 0.03, m.drums));
   o.frequency.exponentialRampToValueAtTime(150, t + 0.08);
+  if (hard) mNoiseSrc(t, t + 0.18, mFilter('highpass', 3500, 0, vca(t, 0.001, 0.35 * v, 0.001, 0.045, 0.02, 0.05, m.drums)));
+}
+// china cymbal: a trashy, clanging crash (the metal one)
+function mChina(t, v = 1) {
+  const m = musicMix(), hp = mFilter('highpass', 2800, 0, vca(t, 0.002, 0.2 * v, 0.001, 0.28, 0.05, 0.25, m.drums)), ring = ac.createGain();
+  mNoiseSrc(t, t + 1.2, mFilter('bandpass', 5500, 0.7, hp));
+  ring.gain.value = 0.06; ring.connect(hp);
+  for (const f of [587, 845, 1253, 1709]) mOsc('square', f, t, t + 1.2, ring);
 }
 function mHat(t, v = 1, open = false) {
   mNoiseSrc(t, t + (open ? 0.4 : 0.08), mFilter('highpass', 7800, 0, vca(t, 0.001, 0.13 * v, 0.001, open ? 0.12 : 0.016, 0.01, 0.02, musicMix().drums)));
@@ -600,17 +653,23 @@ function mTaiko(t, v = 1) { // a big, deep drum that booms through the hall
   o.frequency.exponentialRampToValueAtTime(52, t + 0.3);
   mNoiseSrc(t, t + 0.12, mFilter('lowpass', 600, 0, vca(t, 0.001, 0.35 * v, 0.001, 0.03, 0.02, 0.02, m.drums)));
 }
-// bass guitar: a round, plucked low end
+// bass guitar: a round, plucked low end, with some growl from the bass amp
 function mBass(t, m, dur, v = 1) {
-  const g = vca(t, 0.005, 0.16 * v, 0.7, 0.25, dur, 0.04, musicMix().bass), f = mFilter('lowpass', 1100, 1.5, g);
+  const mix = musicMix(), g = vca(t, 0.005, 0.16 * v, 0.7, 0.25, dur, 0.04, mix.bass), f = mFilter('lowpass', 1100, 1.5, g), end = t + dur + 0.2;
   f.frequency.setTargetAtTime(380, t, 0.08);
-  mOsc('sawtooth', mtof(m), t, t + dur + 0.2, f); mOsc('sine', mtof(m), t, t + dur + 0.2, g);
+  mOsc('sawtooth', mtof(m), t, end, f); mOsc('sine', mtof(m), t, end, g);
+  mOsc('sawtooth', mtof(m), t, end, vca(t, 0.005, 0.15 * v, 0.6, 0.2, dur, 0.04, mix.dbass));
 }
-// rhythm guitar: a power chord (root, fifth, octave) through the crunchy amp; muted = a short chug
+// rhythm guitars: a power chord (root, fifth, octave) double-tracked, one take in each ear, through the rock amp;
+// muted = a short, dark palm-muted chug of just the root and fifth
 function mPower(t, m, dur, v = 1, muted = false) {
-  const g = vca(t, 0.004, 0.075 * v, muted ? 0.05 : 0.7, muted ? 0.05 : 0.4, muted ? 0.06 : dur, muted ? 0.03 : 0.06, musicMix().gtr), end = t + dur + 0.25;
-  mOsc('sawtooth', mtof(m), t, end, g, -7); mOsc('sawtooth', mtof(m), t, end, g, 7);
-  mOsc('sawtooth', mtof(m + 7), t, end, g); mOsc('sawtooth', mtof(m + 12), t, end, g, 4);
+  const mix = musicMix(), end = t + dur + (muted ? 0.1 : 0.25);
+  for (const [pan, det, dt] of [[-0.8, -6, 0], [0.8, 6, 0.008]]) {
+    const p = ac.createStereoPanner(); p.pan.value = pan; p.connect(mix.gtr);
+    const g = vca(t + dt, 0.004, 0.075 * v, muted ? 0.05 : 0.7, muted ? 0.05 : 0.4, muted ? 0.06 : dur, muted ? 0.03 : 0.06, muted ? mFilter('lowpass', 1400, 0.7, p) : p);
+    mOsc('sawtooth', mtof(m), t + dt, end, g, det); mOsc('sawtooth', mtof(m + 7), t + dt, end, g, det);
+    if (!muted) mOsc('sawtooth', mtof(m + 12), t + dt, end, g, det + 4);
+  }
 }
 // clean electric guitar, picked one note at a time
 function mClean(t, m, dur, v = 1) {
@@ -1195,33 +1254,33 @@ const BOSS_ATTACK_SLOWDOWN = 1.3; // >1 = bosses attack less often
 const BOSS_BULLET_SPEED = 0.85;  // <1 = slower boss bullets
 const BOSSES = [
   // every solo boss has a gimmick (see GIMMICKS) that changes how you have to fight it
-  { name: 'THE WARDEN',  style: 'warden',  color: '#ff3df2', sides: 5, gimmick: 'pylons', patterns: ['ring', 'fan', 'summon'],
+  { name: 'THE WARDEN',  style: 'warden',  color: '#ff3df2', sides: 5, gimmick: 'pylons', rageMove: 'chains', rageTitle: 'UNCHAINED', patterns: ['ring', 'fan', 'summon'],
     hint: 'THE WARDEN is chained to shield pylons — destroy them to break its shield, before it raises new ones!' },
-  { name: 'HEXCORE',     style: 'hexcore', color: '#ffb13d', sides: 6, gimmick: 'overheat', patterns: ['spiral', 'mines', 'ring'],
+  { name: 'HEXCORE',     style: 'hexcore', color: '#ffb13d', sides: 6, gimmick: 'overheat', rageMove: 'magma', rageTitle: 'MELTDOWN', patterns: ['spiral', 'mines', 'ring'],
     hint: 'HEXCORE fires faster as it heats up — survive until it OVERHEATS, then unload: double damage!' },
-  { name: 'NULL SERAPH', style: 'seraph',  color: '#3dfff2', sides: 8, gimmick: 'halo', patterns: ['spiral', 'fan', 'blink'],
+  { name: 'NULL SERAPH', style: 'seraph',  color: '#3dfff2', sides: 8, gimmick: 'halo', rageMove: 'cross', rageTitle: 'ASCENDED', patterns: ['spiral', 'fan', 'blink'],
     hint: 'NULL SERAPH raises a mirror halo that bounces your shots back at you — dodge your own bullets!' },
-  { name: 'VOID LANCER', style: 'lancer',  color: '#ff4d4d', sides: 3, gimmick: 'stun', patterns: ['charge', 'laser', 'charge', 'fan'],
+  { name: 'VOID LANCER', style: 'lancer',  color: '#ff4d4d', sides: 3, gimmick: 'stun', rageMove: 'rush', rageTitle: 'BERSERK', patterns: ['charge', 'laser', 'charge', 'fan'],
     hint: 'VOID LANCER rams until it hits a wall — dodge it and it\'s STUNNED (double damage). Its trail leaves a burning rift!' },
-  { name: 'STORMCALLER', style: 'storm',   color: '#5d8dff', sides: 7, gimmick: 'storm', patterns: ['rain', 'wave', 'ring'],
+  { name: 'STORMCALLER', style: 'storm',   color: '#5d8dff', sides: 7, gimmick: 'storm', rageMove: 'tempest', rageTitle: 'TEMPEST', patterns: ['rain', 'wave', 'ring'],
     hint: 'STORMCALLER calls lightning down on you — keep moving, and stay out of the crackling static!' },
-  { name: 'THE HIVE',    style: 'hive',    color: '#d4ff3d', sides: 4, gimmick: 'brood', patterns: ['eggs', 'fan', 'swarm', 'eggs'],
+  { name: 'THE HIVE',    style: 'hive',    color: '#d4ff3d', sides: 4, gimmick: 'brood', rageMove: 'stingers', rageTitle: 'QUEEN\'S WRATH', patterns: ['eggs', 'fan', 'swarm', 'eggs'],
     hint: 'THE HIVE lays eggs — smash them before they hatch, or they swarm you and feed the queen!' },
-  { name: 'PHANTOM',     style: 'phantom', color: '#e0b0ff', sides: 9, gimmick: 'decoys', patterns: ['blink', 'laser', 'spiral'],
+  { name: 'PHANTOM',     style: 'phantom', color: '#e0b0ff', sides: 9, gimmick: 'decoys', rageMove: 'haunt', rageTitle: 'POSSESSED', patterns: ['blink', 'laser', 'spiral'],
     hint: 'PHANTOM splits into copies — only the real one leaves an afterimage trail. Popping a fake makes it burst!' },
-  { name: 'ECHO',        style: 'echo',    color: '#9dffea', sides: 6, gimmick: 'echo', patterns: ['fan', 'ring', 'wave', 'blink'],
+  { name: 'ECHO',        style: 'echo',    color: '#9dffea', sides: 6, gimmick: 'echo', rageMove: 'mirror', rageTitle: 'FEEDBACK', patterns: ['fan', 'ring', 'wave', 'blink'],
     hint: 'ECHO copies your past: its ghosts replay where you flew 3 seconds ago. Keep moving!' },
-  { name: 'CHRONOS',     style: 'chronos', color: '#ffd9a0', sides: 12, gimmick: 'timestop', patterns: ['ring', 'clock', 'spiral', 'fan'],
+  { name: 'CHRONOS',     style: 'chronos', color: '#ffd9a0', sides: 12, gimmick: 'timestop', rageMove: 'rewind', rageTitle: 'TIME UNBOUND', patterns: ['ring', 'clock', 'spiral', 'fan'],
     hint: 'CHRONOS stops time: its bullets freeze in the air, then all move at once. Find the gaps before time resumes!' },
-  { name: 'THE WYRM',    style: 'wyrm',    color: '#ff9d3d', sides: 5, r: 40, hpMult: 1, gimmick: 'wyrm', patterns: ['volley', 'fan', 'charge', 'volley'],
+  { name: 'THE WYRM',    style: 'wyrm',    color: '#ff9d3d', sides: 5, r: 40, hpMult: 1, gimmick: 'wyrm', rageMove: 'breath', rageTitle: 'INFERNO', patterns: ['volley', 'fan', 'charge', 'volley'],
     hint: 'THE WYRM: hit the HEAD for bonus damage (its armored body only takes 60%). Watch out for the sideways volleys!' },
-  { name: 'THE ARCHITECT', style: 'architect', color: '#9db4ff', sides: 4, gimmick: 'walls', patterns: ['fan', 'ring', 'laser'],
+  { name: 'THE ARCHITECT', style: 'architect', color: '#9db4ff', sides: 4, gimmick: 'walls', rageMove: 'crusher', rageTitle: 'DEMOLITION', patterns: ['fan', 'ring', 'laser'],
     hint: 'THE ARCHITECT builds walls with a gap: fly through it, or blast your own way through the bricks!' },
-  { name: 'THE ORACLE',  style: 'oracle',  color: '#ff8dff', sides: 8, gimmick: 'judgment', patterns: ['foresight', 'spiral', 'foresight', 'fan'],
+  { name: 'THE ORACLE',  style: 'oracle',  color: '#ff8dff', sides: 8, gimmick: 'judgment', rageMove: 'gaze', rageTitle: 'ALL-SEEING', patterns: ['foresight', 'spiral', 'foresight', 'fan'],
     hint: 'THE ORACLE sees where you are going, so change direction! When it calls JUDGMENT, get inside a safe circle.' },
-  { name: 'THE SINGULARITY', style: 'singularity', color: '#c0c8ff', sides: 16, r: 46, gimmick: 'gravity', patterns: ['orbit', 'ring', 'orbit', 'fan'],
+  { name: 'THE SINGULARITY', style: 'singularity', color: '#c0c8ff', sides: 16, r: 46, gimmick: 'gravity', rageMove: 'crunch', rageTitle: 'COLLAPSE', patterns: ['orbit', 'ring', 'orbit', 'fan'],
     hint: 'THE SINGULARITY pulls your shots in, but every hit charges its SUPERNOVA. Its bullets orbit it before flinging out!' },
-  { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true,
+  { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true, rageMove: 'bloodmoon', rageTitle: 'BLOODLUST',
     hint: 'THE LEECH heals by draining you — shoot the blood orbs before they reach it, and outrun its drain beam!',
     patterns: ['drain', 'fan', 'drain', 'ring'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
@@ -1230,7 +1289,7 @@ const BOSSES = [
     patterns: ['lash', 'ink', 'eruption', 'lash', 'maw', 'spiral', 'lash', 'eruption'] },
 ];
 // the secret boss: only in Endless, right after THE ABYSS falls (once you've beaten THE ABYSS at least once)
-const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero',
+const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero', rageMove: 'wipe', rageTitle: 'FATAL ERROR',
   hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
   patterns: ['grid', 'spiral', 'blink', 'grid', 'ring', 'fan', 'grid', 'mines'] };
 const SECRET_MIN_SECS = 55;
@@ -2134,6 +2193,9 @@ const ENEMY_AI = {
   block(e, dt) { // a wall brick: slides down, hurts if you fly into it (shoot it to break through)
     const b = e.owner;
     if (!b || !bosses.includes(b)) { e.vy = Math.max(e.vy, 160); } // its builder is gone: the wall just falls away
+    // DEMOLITION's bricks slide in from the side, stop at the corridor, then crumble
+    if (e.stopX !== undefined && e.vx && (e.vx > 0 ? e.x >= e.stopX : e.x <= e.stopX)) { e.x = e.stopX; e.vx = 0; shake = Math.max(shake, 4); }
+    if (e.crumble !== undefined && (e.crumble -= dt) <= 0) { e.dead = true; burst(e.x, e.y, e.color, 8, 140); return; }
     for (const p of living()) if (Math.abs(p.x - e.x) < 20 + p.r * 0.5 && Math.abs(p.y - e.y) < 14 + p.r * 0.5) hurt(p);
   },
   echo(e, dt) { // replays a player's recorded path; fades in for half a second before it can hurt
@@ -2923,16 +2985,18 @@ const GIMMICKS = {
   storm: {
     update(b, dt, enraged) {
       b.strikes ||= [];
-      for (const s of b.strikes) {
+      for (const s of b.strikes) { // [x, y, age, quick] (quick: TEMPEST's strikes, which leave no static; they start at a negative age to wait their turn)
         const before = s[2]; s[2] += dt;
         if (before < STRIKE_WARN && s[2] >= STRIKE_WARN) { // the bolt lands
-          burst(s[0], s[1], '#d8f4ff', 25, 260); shake = Math.max(shake, 7); beep(90, 0.3, 'sawtooth', 0.06, -40);
-          fxRing(s[0], s[1], 8, STRIKE_R * 1.3, 0.3, '#d8f4ff', 3);
+          shake = Math.max(shake, 7); beep(90, 0.3, 'sawtooth', 0.06, -40);
+          if (s[3]) burst(s[0], s[1], '#d8f4ff', 6, 200);
+          else { burst(s[0], s[1], '#d8f4ff', 25, 260); fxRing(s[0], s[1], 8, STRIKE_R * 1.3, 0.3, '#d8f4ff', 3); }
         }
-        const r = s[2] < STRIKE_WARN ? 0 : s[2] < STRIKE_WARN + STRIKE_BOLT ? STRIKE_R : STATIC_R;
+        const r = s[2] < STRIKE_WARN ? 0 : s[2] < STRIKE_WARN + STRIKE_BOLT ? STRIKE_R : s[3] ? 0 : STATIC_R;
         if (r) for (const p of living()) if (Math.hypot(p.x - s[0], p.y - s[1]) < r + p.r * 0.4) hurt(p);
       }
-      b.strikes = b.strikes.filter(s => s[2] < STRIKE_END);
+      b.strikes = b.strikes.filter(s => s[2] < (s[3] ? STRIKE_WARN + STRIKE_BOLT : STRIKE_END));
+      if (b.special) return; // (no regular bolts during its rage move)
       b.boltT = (b.boltT ?? 2) - dt;
       if (b.boltT > 0) return;
       b.boltT = enraged ? 2.6 : 3.4;
@@ -2945,7 +3009,7 @@ const GIMMICKS = {
   brood: {}, // all in the 'eggs' attack and the egg AI
   walls: { // rows of bricks slide down the screen, each with a gap to fly through
     update(b, dt, enraged) {
-      if ((b.wallT = (b.wallT ?? 3) - dt) > 0) return;
+      if (b.special || (b.wallT = (b.wallT ?? 3) - dt) > 0) return; // (no falling walls during DEMOLITION)
       b.wallT = enraged ? 4.5 : 6;
       const gapW = Math.min(150, W * 0.32), gapX = gapW / 2 + 10 + Math.random() * (W - gapW - 20), bw = 40;
       for (let x = bw / 2; x < W + bw / 2; x += bw) {
@@ -2973,7 +3037,7 @@ const GIMMICKS = {
         if (j.t > JUDGE_WARN + 0.4) b.judge = null;
         return 'quiet';
       }
-      if ((b.judgeT = (b.judgeT ?? 8) - dt) <= 0) {
+      if (!b.special && (b.judgeT = (b.judgeT ?? 8) - dt) <= 0) { // (never during its rage move)
         b.judgeT = enraged ? 7 : 10;
         const n = Math.min(3, Math.max(2, living().length));
         b.judge = { t: 0, zones: Array.from({ length: n }, () => [Math.round(JUDGE_R + Math.random() * (W - JUDGE_R * 2)), Math.round(H * 0.4 + Math.random() * (H * 0.55 - JUDGE_R))]) };
@@ -2981,18 +3045,8 @@ const GIMMICKS = {
       }
     },
   },
-  gravity: { // spins its orbiting bullets, and every hit you land charges its supernova
-    update(b, dt, enraged) {
-      for (const e of eBullets) {
-        const o = e.orb; if (!o || e.src !== b) continue;
-        o.t += dt; o.a += o.w * dt; o.r += 45 * dt;
-        const x = b.x + Math.cos(o.a) * o.r, y = b.y + Math.sin(o.a) * o.r;
-        e.vx = (x - e.x) / Math.max(dt, 0.001); e.vy = (y - e.y) / Math.max(dt, 0.001); e.x = x; e.y = y;
-        if (o.t > (enraged ? 1.6 : 2.1)) { // fling off along the circle (with a little extra speed)
-          const s = Math.abs(o.w) * o.r * 1.1, ta = o.a + Math.sign(o.w) * Math.PI / 2;
-          e.vx = Math.cos(ta) * s; e.vy = Math.sin(ta) * s; e.orb = null;
-        }
-      }
+  gravity: { // its bullets orbit it (see updateOrbiters), and every hit you land charges its supernova
+    update(b) {
       if ((b.nova || 0) >= 1) { // SUPERNOVA: three rings, each with a gap
         b.nova = 0;
         for (let w = 0; w < 3; w++) setTimeout(() => { if (!bosses.includes(b)) return; const gap = Math.random() * Math.PI * 2;
@@ -3032,7 +3086,7 @@ const GIMMICKS = {
         if (b.stopW <= 0) { b.stopW = 0; b.stop = 2.6; fxText('TIME STOP!', W / 2, H * 0.4, '#ffffff', 34, 1.6); beep(600, 0.6, 'sine', 0.06, -500); }
         return;
       }
-      if ((b.stopT = (b.stopT ?? 6) - dt) <= 0) { b.stopW = 0.8; for (let i = 0; i < 3; i++) setTimeout(() => beep(1200, 0.05, 'square', 0.04), i * 250); }
+      if (!b.special && (b.stopT = (b.stopT ?? 6) - dt) <= 0) { b.stopW = 0.8; for (let i = 0; i < 3; i++) setTimeout(() => beep(1200, 0.05, 'square', 0.04), i * 250); }
     },
     rate: b => b.stop > 0 ? 0.35 : 1, // fills the air while time is stopped
   },
@@ -3129,7 +3183,7 @@ const GIMMICKS = {
         return 'quiet';
       }
       b.splitCd = (b.splitCd ?? 6) - dt;
-      if (b.splitCd > 0 || b.charge) return;
+      if (b.splitCd > 0 || b.charge || b.special) return;
       // three across on wide screens; a triangle on narrow ones so the copies don't overlap
       const hoverY = Math.min(170, H * 0.22), slots = shuffle(W >= 640 ? [[W * 0.2, hoverY], [W * 0.5, hoverY], [W * 0.8, hoverY]]
         : [[W * 0.27, hoverY], [W * 0.73, hoverY], [W * 0.5, hoverY + b.r * 2.4]]);
@@ -3213,6 +3267,225 @@ function phantomRejoin(b, fakes, found) {
   for (const e of fakes) { e.dead = true; burst(e.x, e.y, b.color, 30, 250); fxGhost({ ...b, x: e.x, y: e.y }, 0.5); }
   b.split = false; b.slotX = undefined; b.splitCd = isEnraged(b) ? 7 : 9;
   if (found) { fxText('FOUND IT!', b.x, b.y - b.r - 30, '#ffffff', 26, 1.4); b.rage = 0.5; beep(500, 0.3, 'triangle', 0.06, 400); }
+}
+
+// ---------- rage moves ----------
+// An ENRAGED solo boss transforms (see the ENRAGED moment in updateBoss, and drawRageLook) and gets a signature move
+// it never uses before then: every `cd` seconds once the last one ends. While a move runs the boss goes 'quiet'
+// (no other attacks) or 'hold's still. A move's state lives in b.special, which online guests get and draw.
+const RAGE_TRANSFORM = 1.6, RAGE_CLEAR = 240; // the transformation's length; its shockwave clears bullets this close
+const CHAIN_WARN = 0.8, CHAIN_SPIN = 1.05, CHAIN_LIFE = 3.3;          // THE WARDEN
+const MAGMA_LAND = 1.2, MAGMA_POOL = 3, MAGMA_R = 46;                  // HEXCORE
+const CROSS_WARN = 1.1, CROSS_FIRE = 0.35, CROSS_W = 30;               // NULL SERAPH
+const TEMPEST_ROW = 95, TEMPEST_COL = 80, TEMPEST_STEP = 0.11, TEMPEST_LEAD = 0.5; // STORMCALLER (LEAD: extra time to reach the lane)
+const STING_HOME = 1.1, STING_TURN = 1.8;                              // THE HIVE
+const HAUNT_T = 0.8, HAUNT_DIST = 175;                                 // PHANTOM
+const REWIND_AT = 1.4;                                                 // CHRONOS
+const BREATH_WARN = 0.8, BREATH_T = 1.6, BREATH_ARC = 1.3;             // THE WYRM
+const CRUSH_SLIDE = 2.2, CRUSH_HOLD = 2.2;                             // THE ARCHITECT
+const GAZE_WARN = 1.1, GAZE_T = 1.4, GAZE_ARC = 1.1, GAZE_W = 26;      // THE ORACLE
+const CRUNCH_T = 2.4, CRUNCH_PULL = 560;                               // THE SINGULARITY
+const BLOOD_HANG = 1;                                                  // THE LEECH
+const WIPE_WARN = 1.3, WIPE_FIRE = 0.4;                                // ZERO
+const at = (s, dt, T) => s.t >= T && s.t - dt < T; // did this frame just reach time T of the move?
+const gazeAngle = s => s.a + s.dir * GAZE_ARC * (Math.min(1, Math.max(0, s.t - GAZE_WARN) / GAZE_T) - 0.5);
+const wipeCell = (s, x, y) => (Math.floor(x / (W / s.cols)) + Math.floor(y / (H / s.rows))) % 2;
+const MIRRORED = ['ring', 'fan', 'wave', 'spiral']; // (the attacks ECHO's mirror image copies)
+const RAGE_MOVES = {
+  chains: { name: 'CHAINS!', len: CHAIN_WARN + CHAIN_LIFE + 0.2, cd: 7, // three chains of bullets swing around it, then snap off
+    start(b, s) { s.a = r2(Math.random() * Math.PI * 2); s.dir = Math.random() < 0.5 ? -1 : 1; },
+    update(b, s, dt) {
+      if (at(s, dt, CHAIN_WARN)) {
+        for (let i = 0; i < 3; i++) for (let k = 0; k < 7; k++)
+          eBullets.push({ x: b.x, y: b.y, vx: 0, vy: 0, r: 7, color: b.color, src: b, orb: { a: s.a + i / 3 * Math.PI * 2, r: b.r * 0.5, to: b.r + 24 + k * 27, w: s.dir * CHAIN_SPIN, t: 0, life: CHAIN_LIFE } });
+        beep(140, 0.5, 'sawtooth', 0.07, -40); shake = Math.max(shake, 10);
+      }
+      return 'quiet';
+    } },
+  magma: { name: 'MAGMA!', len: MAGMA_LAND + MAGMA_POOL, cd: 6, // bombs lobbed at everyone burst into rings and leave burning pools
+    start(b, s) {
+      s.x = Math.round(b.x); s.y = Math.round(b.y);
+      s.spots = living().map(p => [Math.round(p.x), Math.round(p.y)]);
+      for (let i = 0; i < 2; i++) s.spots.push([Math.round(60 + Math.random() * (W - 120)), Math.round(H * (0.4 + Math.random() * 0.5))]);
+      beep(200, 0.5, 'sawtooth', 0.06, 300);
+    },
+    update(b, s, dt) {
+      if (at(s, dt, MAGMA_LAND)) {
+        for (const [x, y] of s.spots) {
+          for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; eBullets.push({ x, y, vx: Math.cos(a) * 170 * BOSS_BULLET_SPEED, vy: Math.sin(a) * 170 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b }); }
+          burst(x, y, '#ff8d2d', 20, 260);
+        }
+        shake = Math.max(shake, 12); beep(70, 0.5, 'sawtooth', 0.09, -20);
+      }
+      if (s.t >= MAGMA_LAND) for (const p of living()) if (s.spots.some(([x, y]) => Math.hypot(p.x - x, p.y - y) < MAGMA_R + p.r * 0.4)) hurt(p);
+      return s.t < MAGMA_LAND + 0.3 ? 'quiet' : undefined;
+    } },
+  cross: { name: 'HOLY CROSS!', len: CROSS_WARN * 2 + CROSS_FIRE + 0.1, cd: 6.5, // beams cross where each player is, twice
+    start(b, s) { s.c = living().map(p => [Math.round(p.x), Math.round(p.y), 0]); },
+    update(b, s, dt) {
+      if (at(s, dt, CROSS_WARN)) s.c.push(...living().map(p => [Math.round(p.x), Math.round(p.y), CROSS_WARN]));
+      for (const [x, y, t0] of s.c) {
+        if (at(s, dt, t0 + CROSS_WARN)) { shake = Math.max(shake, 6); beep(1300, 0.3, 'sine', 0.05, -900); }
+        const k = s.t - t0 - CROSS_WARN;
+        if (k >= 0 && k < CROSS_FIRE) for (const p of living()) if (Math.abs(p.x - x) < CROSS_W / 2 + p.r * 0.4 || Math.abs(p.y - y) < CROSS_W / 2 + p.r * 0.4) hurt(p);
+      }
+      return 'quiet';
+    } },
+  rush: { name: 'TRIPLE CHARGE!', len: 0, cd: 7, // three charges in a row; only the last one rams the wall (see updateBoss)
+    start(b, s, tgt) { b.charge = { phase: 'aim', t: 0.6, tx: tgt.x, ty: tgt.y, combo: 2 }; beep(220, 0.6, 'sawtooth', 0.06, 400); } },
+  tempest: { name: 'TEMPEST!', len: 4, cd: 7, // a wall of lightning marches across the screen, with one lane left open
+    start(b, s) {
+      const rows = []; for (let y = H * 0.3; y < H; y += TEMPEST_ROW) rows.push(Math.round(y));
+      const gap = Math.floor(Math.random() * rows.length), dir = Math.random() < 0.5 ? 1 : -1;
+      s.gy = rows[gap]; // (the open lane, highlighted while the wall comes)
+      for (let i = 0; i * TEMPEST_COL < W + TEMPEST_COL; i++) {
+        const x = Math.round(dir > 0 ? 20 + i * TEMPEST_COL : W - 20 - i * TEMPEST_COL);
+        rows.forEach((y, j) => { if (j !== gap) (b.strikes ||= []).push([x, y, r2(-TEMPEST_LEAD - i * TEMPEST_STEP), 1]); }); // (1: a quick strike, no static)
+      }
+      beep(1500, 0.5, 'sawtooth', 0.03, -1200);
+    },
+    update: () => 'quiet' },
+  stingers: { name: 'STINGERS!', len: 1.6, cd: 6, // volleys of homing stingers
+    update(b, s, dt, tgt) {
+      for (const T of [0.15, 0.65, 1.15]) if (at(s, dt, T) && tgt) {
+        const a = Math.atan2(tgt.y - b.y, tgt.x - b.x);
+        for (let i = -3; i <= 3; i++) {
+          const sa = a + i * 0.35;
+          eBullets.push({ x: b.x + Math.cos(sa) * b.r * 0.6, y: b.y + Math.sin(sa) * b.r * 0.6, vx: Math.cos(sa) * 230 * BOSS_BULLET_SPEED, vy: Math.sin(sa) * 230 * BOSS_BULLET_SPEED, r: 5, color: '#fff27a', src: b, home: STING_HOME });
+        }
+        beep(900, 0.12, 'sawtooth', 0.04, 400);
+      }
+      return 'quiet';
+    } },
+  haunt: { name: 'POSSESSION!', len: HAUNT_T * 2 + 0.3, cd: 6.5, // vanishes and reappears right beside you, twice, bursting as it lands
+    start(b, s, tgt) { hauntSpot(b, s, tgt); },
+    update(b, s, dt, tgt) {
+      for (const T of [HAUNT_T, HAUNT_T * 2]) if (at(s, dt, T)) {
+        fxGhost(b, 0.5); b.x = s.x; b.y = s.y; b.appear = 1;
+        burst(b.x, b.y, b.color, 40, 300); shake = Math.max(shake, 8); beep(900, 0.25, 'sine', 0.06, -700);
+        const off = Math.random() * Math.PI;
+        for (let i = 0; i < 16; i++) bossShot(b, off + i / 16 * Math.PI * 2, 160, 6);
+        if (T === HAUNT_T && tgt) hauntSpot(b, s, tgt);
+      }
+      return 'hold';
+    } },
+  mirror: { name: 'MIRROR IMAGE!', len: 7, cd: 6, // a mirror image on the other side of the screen copies its attacks (see updateBoss)
+    start(b) { fxRing(W - b.x, b.y, b.r * 2.5, b.r * 0.3, 0.5, b.color, 4); burst(W - b.x, b.y, b.color, 40, 300); beep(500, 0.6, 'sine', 0.05, 500); } },
+  rewind: { name: 'REWIND!', len: REWIND_AT + 0.8, cd: 6.5, // a burst of clock hands... then time runs backwards and they all fly back
+    start(b) { BOSS_ATTACKS.clock(b, true, 1); },
+    update(b, s, dt) {
+      if (at(s, dt, REWIND_AT)) {
+        for (const e of eBullets) if (e.src === b && !e.orb) { e.vx = -e.vx; e.vy = -e.vy; }
+        fxText('TIME REWINDS', W / 2, H * 0.4, b.color, 30, 1.2); shake = Math.max(shake, 10); beep(1200, 0.5, 'square', 0.05, -1000);
+      }
+      return 'quiet';
+    } },
+  breath: { name: 'INFERNO!', len: BREATH_WARN + BREATH_T, cd: 6.5, // it stops and breathes a sweeping stream of fire
+    start(b, s, tgt) { s.a = r2(Math.atan2(tgt.y - b.y, tgt.x - b.x)); s.dir = Math.random() < 0.5 ? -1 : 1; beep(100, 0.8, 'sawtooth', 0.07, 200); },
+    update(b, s, dt) {
+      if (s.t < BREATH_WARN) return 'hold';
+      b._breathAcc = (b._breathAcc || 0) + dt;
+      for (; b._breathAcc > 0.035; b._breathAcc -= 0.035) {
+        const a = s.a + s.dir * BREATH_ARC * ((s.t - BREATH_WARN) / BREATH_T - 0.5) + (Math.random() - 0.5) * 0.12, sp = (280 + Math.random() * 60) * BOSS_BULLET_SPEED;
+        eBullets.push({ x: b.x + Math.cos(a) * b.r * 0.8, y: b.y + Math.sin(a) * b.r * 0.8, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 6, color: Math.random() < 0.5 ? '#ff7a2d' : '#ffd23d', src: b });
+      }
+      if (Math.random() < dt * 10) beep(80 + Math.random() * 60, 0.15, 'sawtooth', 0.04, -30);
+      return 'hold';
+    } },
+  crusher: { name: 'DEMOLITION!', len: CRUSH_SLIDE + CRUSH_HOLD, cd: 6, // two walls of bricks slide in from the sides, leaving one corridor
+    start(b, s) {
+      s.gw = Math.round(Math.min(170, W * 0.3)); s.gx = Math.round(s.gw / 2 + 30 + Math.random() * (W - s.gw - 60));
+      for (let y = H * 0.3; y < H - 10; y += 28) for (const side of [-1, 1]) {
+        const x0 = side < 0 ? -20 : W + 20, stop = s.gx + side * (s.gw / 2 + 20), e = makeEnemy('block', x0, y);
+        e.vx = (stop - x0) / CRUSH_SLIDE; e.vy = 0; e.stopX = stop; e.crumble = CRUSH_SLIDE + CRUSH_HOLD; e.owner = b;
+        e.hp = e.maxHp = Math.max(3, Math.round(b.max * 0.012));
+      }
+      beep(150, 0.6, 'square', 0.06, -60);
+    },
+    update: () => 'quiet' },
+  gaze: { name: 'ALL-SEEING EYE!', len: GAZE_WARN + GAZE_T, cd: 6, // its eye fires a beam that sweeps across the marked arc
+    start(b, s, tgt) { s.a = r2(Math.atan2(tgt.y - b.y, tgt.x - b.x)); s.dir = Math.random() < 0.5 ? -1 : 1; beep(400, 1, 'sine', 0.05, 400); },
+    update(b, s, dt) {
+      if (at(s, dt, GAZE_WARN)) { shake = Math.max(shake, 8); beep(150, 1.2, 'sawtooth', 0.08, 60); }
+      if (s.t >= GAZE_WARN) {
+        const a = gazeAngle(s), ex = b.x + Math.cos(a) * 3000, ey = b.y + Math.sin(a) * 3000;
+        for (const p of living()) if (distToSeg(p.x, p.y, b.x, b.y, ex, ey) < GAZE_W / 2 + p.r * 0.4) hurt(p);
+      }
+      return 'quiet';
+    } },
+  crunch: { name: 'BIG CRUNCH!', len: CRUNCH_T + 0.2, cd: 7, // drags every bullet into itself, then blasts them all back out
+    start(b, s) { s.n = 0; BOSS_ATTACKS.ring(b, true, 1); },
+    update(b, s, dt) {
+      if (s.t < CRUNCH_T) for (const e of eBullets) {
+        if (e.dead || e.orb || e.fuse !== undefined) continue;
+        const dx = b.x - e.x, dy = b.y - e.y, d = Math.hypot(dx, dy) || 1, pull = CRUNCH_PULL * dt, damp = Math.exp(-1.2 * dt);
+        if (d < b.r * 0.7) { e.dead = true; s.n++; continue; }
+        e.vx = (e.vx + (dx - dy * 0.35) / d * pull) * damp; e.vy = (e.vy + (dy + dx * 0.35) / d * pull) * damp; // (pulled in, with a little swirl)
+      }
+      if (at(s, dt, CRUNCH_T)) {
+        const n = Math.min(60, 20 + s.n), gap = Math.random() * Math.PI * 2;
+        for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; if (Math.abs(angleDiff(a, gap)) > 0.4 && Math.abs(angleDiff(a, gap + Math.PI)) > 0.4) bossShot(b, a, 165, 6); }
+        screenFlash = Math.max(screenFlash, 0.5); shake = Math.max(shake, 20); bossRoar(b, true);
+        fxRing(b.x, b.y, b.r, b.r * 5, 0.6, '#ffffff', 6);
+      }
+      return 'quiet';
+    } },
+  bloodmoon: { name: 'BLOODLUST!', len: 3, cd: 6, // rings of blood burst out, hang in the air, then rush back into it
+    update(b, s, dt) {
+      for (const T of [0.1, 0.7]) if (at(s, dt, T)) {
+        const off = Math.random() * Math.PI;
+        for (let i = 0; i < 16; i++) { const a = off + i / 16 * Math.PI * 2; eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, r: 8, color: '#ff2d55', src: b, ret: BLOOD_HANG }); }
+        beep(200, 0.4, 'sawtooth', 0.06, -120);
+      }
+      return 'quiet';
+    } },
+  wipe: { name: 'MEMORY WIPE', len: WIPE_WARN * 2 + WIPE_FIRE + 0.1, cd: 7, // a checkerboard: one color is deleted, then the other
+    start(b, s) { s.par = Math.random() < 0.5 ? 0 : 1; s.cols = W >= H ? 6 : 4; s.rows = W >= H ? 4 : 6; },
+    update(b, s, dt) {
+      for (const [T, par] of [[WIPE_WARN, s.par], [WIPE_WARN * 2, 1 - s.par]]) {
+        if (at(s, dt, T)) { shake = Math.max(shake, 10); beep(60, 0.4, 'square', 0.08, 600); }
+        if (s.t >= T && s.t < T + WIPE_FIRE) for (const p of living()) if (wipeCell(s, p.x, p.y) === par) hurt(p);
+      }
+      return 'quiet';
+    } },
+};
+// PHANTOM's next landing spot: right beside the target, on screen
+function hauntSpot(b, s, tgt) {
+  const a = Math.random() * Math.PI * 2;
+  s.x = Math.round(Math.max(b.r, Math.min(W - b.r, tgt.x + Math.cos(a) * HAUNT_DIST)));
+  s.y = Math.round(Math.max(b.r, Math.min(H * 0.8, tgt.y + Math.sin(a) * HAUNT_DIST)));
+}
+// runs the boss's rage move (once it's enraged); returns 'quiet' or 'hold' while one is going
+function updateRageMove(b, dt, tgt) {
+  if (b.rage > 0) return 'quiet'; // (still transforming)
+  const m = RAGE_MOVES[b.rageMove];
+  if (!b.special) {
+    b.specialT = (b.specialT ?? 0) - dt;
+    // wait until it's free: not mid-charge, split up, or in the middle of its own gimmick
+    if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0) return;
+    b.special = { k: b.rageMove, t: 0 };
+    m.start?.(b, b.special, tgt);
+    fxText(m.name, b.x, Math.max(40, b.y - b.r - 34), '#ff4d4d', 26, 1.2);
+  }
+  const s = b.special;
+  s.t += dt;
+  const r = m.update?.(b, s, dt, tgt);
+  if (s.t >= m.len) { b.special = null; b.specialT = m.cd; }
+  return r;
+}
+// bullets orbiting their boss (THE SINGULARITY's rings, THE WARDEN's chains): they circle it, then fling off.
+// Rings drift outward as they go; chains grow out to their length (`to`) and hold it
+function updateOrbiters(b, dt, enraged) {
+  for (const e of eBullets) {
+    const o = e.orb; if (!o || e.src !== b) continue;
+    o.t += dt; o.a += o.w * dt; o.r = o.to ? Math.min(o.to, o.r + 320 * dt) : o.r + 45 * dt;
+    const x = b.x + Math.cos(o.a) * o.r, y = b.y + Math.sin(o.a) * o.r;
+    e.vx = (x - e.x) / Math.max(dt, 0.001); e.vy = (y - e.y) / Math.max(dt, 0.001); e.x = x; e.y = y;
+    if (o.t > (o.life ?? (enraged ? 1.6 : 2.1))) { // fling off along the circle (with a little extra speed)
+      const s = Math.abs(o.w) * o.r * 1.1, ta = o.a + Math.sign(o.w) * Math.PI / 2;
+      e.vx = Math.cos(ta) * s; e.vy = Math.sin(ta) * s; e.orb = null;
+    }
+  }
 }
 
 function updateBoss(b, dt) {
@@ -3324,19 +3597,27 @@ function updateBoss(b, dt) {
     return;
   }
 
-  // phase-two transformation at half health: a dramatic pause, shockwaves, spikes grow
+  // phase-two transformation at half health: a dramatic pause and a roar, then it bursts into its rage form
+  // (horns, a burning aura, furious eyes: see drawRageLook) with a shockwave that blows away nearby bullets
   if (enraged && !b.wasEnraged) {
-    b.wasEnraged = true; b.rage = 1.3; b.atkT = Math.max(b.atkT, 1.3);
+    b.wasEnraged = true; b.rage = RAGE_TRANSFORM; b.atkT = Math.max(b.atkT, RAGE_TRANSFORM); b.specialT = 1.2;
     if (b.charge && b.charge.phase === 'aim') b.charge = null;
-    shake = Math.max(shake, 22); screenFlash = 0.35; bossRoar(b, true);
+    shake = Math.max(shake, 26); screenFlash = 0.35; bossRoar(b, true); beep(45, 1.4, 'sawtooth', 0.12, -15);
     for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (3 + i * 1.5), 0.6, i % 2 ? '#ff4d4d' : b.color, 5, i * 0.18);
+    fxRing(b.x, b.y, b.r, RAGE_CLEAR, 0.5, '#ffffff', 3);
+    for (const e of eBullets) if (Math.hypot(e.x - b.x, e.y - b.y) < RAGE_CLEAR) { e.dead = true; burst(e.x, e.y, e.color || '#ff8080', 3, 100); }
     burst(b.x, b.y, '#ff4d4d', 80, 450);
     fxText('ENRAGED!', b.x, b.y - b.r - 30, '#ff4d4d', 34, 1.6);
+    if (b.rageTitle) fxText(b.rageTitle, b.x, b.y + b.r + 46, '#ffb13d', 24, 2);
   }
   if (b.style === 'phantom') { b.ghostT -= dt; if (b.ghostT <= 0) { b.ghostT = 0.09; fxGhost(b, 0.45); } }
+  else if (b.wasEnraged && !b.final && (b._rageGhostT = (b._rageGhostT || 0) - dt) <= 0) { b._rageGhostT = 0.16; fxGhost({ ...b, color: '#ff3a2a' }, 0.3); } // (seething red afterimages)
 
+  updateOrbiters(b, dt, enraged);
   const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
   if (gim === 'hold') return;
+  const fury = b.rageMove && b.wasEnraged ? updateRageMove(b, dt, tgt) : null;
+  if (fury === 'hold') return;
 
   if (b.charge) {
     const c = b.charge;
@@ -3345,7 +3626,7 @@ function updateBoss(b, dt) {
       if (c.t <= 0) {
         const d = Math.hypot(c.tx - b.x, c.ty - b.y) || 1;
         c.phase = 'dash'; c.vx = (c.tx - b.x) / d * 950; c.vy = (c.ty - b.y) / d * 950; c.t = Math.min(1, (d + 120) / 950);
-        if (b.gimmick === 'stun') { c.t = 3; c.sx = b.x; c.sy = b.y; } // the Void Lancer doesn't stop until it hits a wall
+        if (b.gimmick === 'stun' && !c.combo) { c.t = 3; c.sx = b.x; c.sy = b.y; } // the Void Lancer doesn't stop until it hits a wall
         b.faceA = Math.atan2(c.vy, c.vx); b.kick = 1;
         beep(120, 0.4, 'sawtooth', 0.08, -60);
       }
@@ -3356,7 +3637,8 @@ function updateBoss(b, dt) {
       const wall = b.y > H - b.r || b.x < b.r || b.x > W - b.r || (c.sx !== undefined && b.y < b.r);
       if (c.t <= 0 || wall) {
         b.x = Math.max(b.r, Math.min(W - b.r, b.x)); b.y = Math.max(b.r, Math.min(H - b.r, b.y));
-        b.charge = null; shake = Math.max(shake, 14);
+        const next = c.combo && nearestPlayer(b.x, b.y); // (the Void Lancer's TRIPLE CHARGE: straight into the next one)
+        b.charge = next ? { phase: 'aim', t: 0.4, tx: next.x, ty: next.y, combo: c.combo - 1 } : null; shake = Math.max(shake, 14);
         if (c.sx !== undefined) { // Void Lancer: leaves a rift behind and knocks itself silly
           b.rifts.push([Math.round(c.sx), Math.round(c.sy), Math.round(b.x), Math.round(b.y), 0]);
           b.stun = enraged ? 1.7 : 2.3; shake = Math.max(shake, 22);
@@ -3388,8 +3670,10 @@ function updateBoss(b, dt) {
     particles.push({ x: b.x + Math.cos(a) * d, y: b.y + Math.sin(a) * d, vx: -Math.cos(a) * d * 2.4, vy: -Math.sin(a) * d * 2.4,
       life: 0.4, max: 0.4, color: Math.random() < 0.3 ? '#ffffff' : b.color, size: 2.5 });
   }
-  if (b.atkT > 0 || b.charge || gim === 'quiet') return;
-  BOSS_ATTACKS[b.patterns[b.pattern]](b, enraged, rate, tgt);
+  if (b.atkT > 0 || b.charge || gim === 'quiet' || fury === 'quiet') return;
+  const atk = b.patterns[b.pattern];
+  BOSS_ATTACKS[atk](b, enraged, rate, tgt);
+  if (b.special?.k === 'mirror' && MIRRORED.includes(atk)) BOSS_ATTACKS[atk]({ ...b, x: W - b.x }, enraged, rate, tgt); // ECHO's mirror image fires too
   GIMMICKS[b.gimmick]?.afterAttack?.(b, enraged);
   // recoil: big attacks punch outward with a shockwave, rapid-fire ones just twitch
   b.bigAtk = b.atkT >= 0.5;
@@ -3764,7 +4048,19 @@ function update(dt) {
   const ice = enemies.filter(e => e.type === 'ice' && !e.dead); // (FROZEN RINGS: ice chunks are cover)
   for (const b of eBullets) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
-    if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by THE SINGULARITY)
+    if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by their boss: see updateOrbiters)
+    if (b.home > 0 && flow) { // THE HIVE's stingers steer toward the nearest player for a moment
+      b.home -= dt;
+      const p = nearestPlayer(b.x, b.y);
+      if (p) { const sp = Math.hypot(b.vx, b.vy), a = turnToward(Math.atan2(b.vy, b.vx), Math.atan2(p.y - b.y, p.x - b.x), STING_TURN * dt); b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; }
+    }
+    if (b.ret !== undefined && flow) { // THE LEECH's blood: slows to a hang, then rushes back into it
+      const src = b.src;
+      if (b.ret > 0) {
+        b.ret -= dt; const k = Math.exp(-2.2 * dt); b.vx *= k; b.vy *= k;
+        if (b.ret <= 0 && src) { const a = Math.atan2(src.y - b.y, src.x - b.x); b.vx = Math.cos(a) * 340; b.vy = Math.sin(a) * 340; }
+      } else if (src && bosses.includes(src) && Math.hypot(src.x - b.x, src.y - b.y) < src.r * 0.6) b.dead = true;
+    }
     if (prisms.length) prismSplit(b, shrapnel);
     if (b.wild && !b.dead) for (const o of enemies) { // a derelict turret's shot hits enemies too
       if (o.dead || TYPES[o.type].ghost || o.type === 'turret' || Math.hypot(b.x - o.x, b.y - o.y) >= o.r + (b.r || 5)) continue;
@@ -3892,6 +4188,11 @@ function hexA(hex, a) {
   if (hex.length === 4) hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+// blend two #rrggbb colors (k = 0: all a, 1: all b)
+function mixHex(a, b, k) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), m = s => Math.round((x >> s & 255) * (1 - k) + (y >> s & 255) * k);
+  return `rgb(${m(16)},${m(8)},${m(0)})`;
 }
 function circlePath(list, k) {
   ctx.beginPath();
@@ -4808,9 +5109,9 @@ function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
   if (b.style === 'abyss') { drawAbyss(b); return; }
   if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
-  const enraged = isEnraged(b);
-  const c = b.flash > 0 ? '#ffffff' : b.color;
+  const enraged = isEnraged(b), fury = enraged && b.dying <= 0 && b.entered; // (fury: wearing its rage form)
   const t = b.t, rot = bossRot(b);
+  const c = b.flash > 0 ? '#ffffff' : fury ? mixHex(b.color, '#ff2a1a', 0.3 + Math.sin(t * 6) * 0.1) : b.color; // (enraged, it burns redder)
   const deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
   const aiming = b.charge && b.charge.phase === 'aim';
   const windup = b.bigAtk && !b.charge && b.entered && b.atkT > 0 && b.atkT < 0.45 ? 1 - b.atkT / 0.45 : 0;
@@ -4819,7 +5120,8 @@ function drawBoss(b) {
   let sc = 1 + Math.sin(t * 2.2) * 0.03 + b.kick * 0.12 - b.hitKick * 0.05 + windup * 0.05;
   if (!b.entered) sc *= 0.3 + 0.7 * easeOut(b.intro);
   if (b.appear > 0) sc *= 1 - b.appear * 0.8;
-  if (b.rage > 0) sc *= 1 + Math.sin(b.rage * 30) * 0.07;
+  if (b.rage > 0) sc *= 1 + Math.sin(b.rage * 30) * 0.07 + (1 - b.rage / RAGE_TRANSFORM) * 0.12; // (swelling up as it transforms)
+  if (b.special?.k === 'crunch') sc *= 1 + Math.min(0.5, (b.special.n || 0) * 0.012); // (THE SINGULARITY swells with every bullet it swallows)
   if (b.dying > 0) sc *= 1 - deathP * 0.2;
   const jitter = b.dying > 0 ? 2 + deathP * 8 : b.rage > 0 ? 6 : aiming ? 4 : enraged ? 1.5 : 0;
 
@@ -4828,8 +5130,11 @@ function drawBoss(b) {
   if (b.style === 'phantom') ctx.globalAlpha = Math.max(0.2, 0.7 + Math.sin(t * 7) * 0.2 - (Math.random() < 0.04 ? 0.4 : 0));
   if (!b.entered) ctx.globalAlpha = 0.3 + 0.7 * b.intro;
   if (b.dying > 0 && Math.random() < deathP * 0.3) ctx.globalAlpha = 0.35;
+  const sp = b.special;
+  if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
   ctx.scale(sc, sc);
 
+  if (fury) drawRageLook(b, 'back');
   drawBossDecor(b, 'back', c, enraged);
 
   // body
@@ -4847,7 +5152,8 @@ function drawBoss(b) {
     ctx.lineTo(Math.cos(a + 0.15) * b.r * 0.85, Math.sin(a + 0.15) * b.r * 0.85);
     ctx.stroke();
   }
-  ctx.lineWidth = 2;
+  if (fury) drawRageLook(b, 'shell', 0, rot);
+  ctx.strokeStyle = c; ctx.lineWidth = 2;
   polygon(b.sides, b.r * 0.62, -b.spin * 1.5); ctx.stroke();
 
   // cracks spreading across the shell as it dies
@@ -4880,12 +5186,14 @@ function drawBoss(b) {
     ctx.shadowBlur = 0; ctx.fillStyle = enraged ? '#300' : '#111';
     ctx.save();
     ctx.translate(b.look.x * coreR * 0.45, b.look.y * coreR * 0.45);
-    ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
+    if (fury) ctx.scale(0.38, blinking ? 0.1 : 1.25); // enraged: a demon's slit pupil
+    else ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
     ctx.beginPath(); ctx.arc(0, 0, coreR * 0.45, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
   drawBossDecor(b, 'front', c, enraged);
+  if (fury) drawRageLook(b, 'front', coreR);
   if (b.shielded) { // Aegis' bubble — flares where bullets bounce off
     const pulse = 1 + Math.sin(b.t * 4) * 0.03;
     ctx.globalAlpha = 1; glow('#5dff7a', 20 + b.shieldHit * 100);
@@ -5053,7 +5361,8 @@ function drawBossDecor(b, layer, c, enraged) {
         ctx.lineWidth = 2;
         for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r1 = r * (i % 3 ? 1.5 : 1.42); ctx.beginPath(); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r * 1.62, Math.sin(a) * r * 1.62); ctx.stroke(); }
       } else {
-        const tt = b.stop > 0 ? b._frozenT ??= t : (b._frozenT = undefined, t);
+        let tt = b.stop > 0 ? b._frozenT ??= t : (b._frozenT = undefined, t);
+        if (b.special?.k === 'rewind' && b.special.t < REWIND_AT) tt = -t * 6; // (its hands spin backward before time rewinds)
         ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 0.5 - Math.PI / 2) * r * 0.7, Math.sin(tt * 0.5 - Math.PI / 2) * r * 0.7); ctx.stroke();
         ctx.lineWidth = 2.5; ctx.strokeStyle = c;
@@ -5096,6 +5405,207 @@ function drawBossDecor(b, layer, c, enraged) {
     }
   }
   ctx.lineCap = 'butt';
+}
+
+// an ENRAGED boss's rage form (local space, like drawBossDecor): behind it, a heat haze, flames licking upward,
+// embers and a pair of horns; on its shell, glowing red cracks; over its eye, furious brows
+function drawRageLook(b, layer, coreR, rot) {
+  const t = b.t, r = b.r, swell = b.rage > 0 ? 1 + b.rage / RAGE_TRANSFORM : 1; // (everything flares while it transforms)
+  const a0 = ctx.globalAlpha; // (it may be see-through: PHANTOM fading, ECHO's mirror image)
+  ctx.save();
+  if (layer === 'back') {
+    ctx.shadowBlur = 0;
+    const haze = ctx.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 2.2 * swell);
+    haze.addColorStop(0, 'rgba(255,50,20,0.3)'); haze.addColorStop(1, 'rgba(255,50,20,0)');
+    ctx.fillStyle = haze; ctx.beginPath(); ctx.arc(0, 0, r * 2.2 * swell, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [col, k] of [['rgba(255,45,20,0.5)', 1], ['rgba(255,170,40,0.5)', 0.55]]) { // flames: an outer red layer, an inner gold one
+      ctx.fillStyle = col; ctx.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const a = i / 16 * Math.PI * 2, L = r * k * swell * (0.5 + 0.25 * Math.sin(t * 9 + i * 2.3) + 0.12 * Math.sin(t * 23 + i * 5.1));
+        const tx = Math.cos(a) * (r + L), ty = Math.sin(a) * (r + L) - L * 0.7; // (tips bend upward, like fire)
+        ctx.moveTo(Math.cos(a - 0.22) * r * 0.9, Math.sin(a - 0.22) * r * 0.9);
+        ctx.quadraticCurveTo(Math.cos(a - 0.1) * (r + L * 0.5), Math.sin(a - 0.1) * (r + L * 0.5) - L * 0.2, tx, ty);
+        ctx.quadraticCurveTo(Math.cos(a + 0.1) * (r + L * 0.5), Math.sin(a + 0.1) * (r + L * 0.5) - L * 0.2, Math.cos(a + 0.22) * r * 0.9, Math.sin(a + 0.22) * r * 0.9);
+      }
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 10; i++) { // embers drifting up
+      const ph = (t * 0.55 + i * 0.173) % 1, x = Math.sin(i * 7.3) * r * 1.1 + Math.sin(t * 2.2 + i) * 9, y = -r * 0.3 - ph * r * 2.4;
+      ctx.globalAlpha = a0 * (1 - ph) * 0.9; ctx.fillStyle = i % 3 ? '#ff7a2d' : '#ffd23d'; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+    }
+    ctx.globalAlpha = a0;
+    ctx.lineWidth = 3; ctx.strokeStyle = '#ff5a3a'; ctx.fillStyle = '#2a0607'; glow('#ff3a2a', 22);
+    for (const s of [-1, 1]) { // horns, curling up and out from behind its head
+      ctx.beginPath(); ctx.moveTo(s * r * 0.2, -r * 0.72);
+      ctx.quadraticCurveTo(s * r * 1.25, -r * 0.95, s * r * 1.05, -r * 1.8);
+      ctx.quadraticCurveTo(s * r * 0.85, -r * 1.05, s * r * 0.62, -r * 0.5);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  } else if (layer === 'shell') { // cracks in the shell, glowing from inside (they turn with the body)
+    ctx.rotate(rot); ctx.strokeStyle = '#ff3a1a'; ctx.lineWidth = 2; glow('#ff3a1a', 14);
+    ctx.globalAlpha = a0 * (0.6 + Math.sin(t * 11) * 0.25);
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.26 + 0.4, bend = i % 2 ? 0.3 : -0.3;
+      ctx.moveTo(Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97);
+      ctx.lineTo(Math.cos(a + bend * 0.5) * r * 0.72, Math.sin(a + bend * 0.5) * r * 0.72);
+      ctx.lineTo(Math.cos(a - bend * 0.3) * r * 0.5, Math.sin(a - bend * 0.3) * r * 0.5);
+    }
+    ctx.stroke();
+  } else { // furious brows in a hard V
+    const k = Math.max(coreR, r * 0.2), twitch = b.rage > 0 ? Math.sin(t * 40) * 1.5 : 0;
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; glow('#ff2a1a', 16); ctx.lineWidth = Math.max(3, k * 0.32);
+    ctx.beginPath();
+    ctx.moveTo(-k * 1.75, -k * 1.55 + twitch); ctx.lineTo(-k * 0.2, -k * 0.62);
+    ctx.moveTo(k * 1.75, -k * 1.55 + twitch); ctx.lineTo(k * 0.2, -k * 0.62);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// rage moves in world space: warnings, beams, magma, the mirror image... (b.special; see RAGE_MOVES)
+function drawRageMove(b) {
+  const s = b.special; if (!s || b.dying > 0) return;
+  const t = performance.now() / 1000, blink = Math.floor(t * 12) % 2;
+  ctx.save(); ctx.lineCap = 'round';
+  const wedge = (a0, a1, R, color, alpha) => { // a faint pie slice: where a sweep will go
+    ctx.globalAlpha = alpha; ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.arc(b.x, b.y, R, Math.min(a0, a1), Math.max(a0, a1)); ctx.closePath(); ctx.fill();
+  };
+  switch (s.k) {
+    case 'chains': { // dashed lines where the chains will swing out, then the chains themselves
+      const len = b.r + 24 + 6 * 27, live = s.t >= CHAIN_WARN;
+      if (live && s.t > CHAIN_WARN + CHAIN_LIFE) break;
+      ctx.strokeStyle = b.color; glow(b.color, 12);
+      ctx.lineWidth = live ? 2 : 3; ctx.globalAlpha = live ? 0.5 : 0.25 + blink * 0.35;
+      if (!live) ctx.setLineDash([8, 8]);
+      for (let i = 0; i < 3; i++) {
+        const a = s.a + i / 3 * Math.PI * 2 + (live ? s.dir * CHAIN_SPIN * (s.t - CHAIN_WARN) : 0), L = live ? Math.min(len, b.r * 0.5 + 320 * (s.t - CHAIN_WARN)) : len;
+        ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r); ctx.lineTo(b.x + Math.cos(a) * L, b.y + Math.sin(a) * L); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      break;
+    }
+    case 'magma':
+      for (const [x, y] of s.spots) {
+        if (s.t < MAGMA_LAND) { // a target closing in, and the bomb arcing over toward it
+          const k = s.t / MAGMA_LAND;
+          ctx.globalAlpha = 0.3 + k * 0.5; ctx.strokeStyle = '#ff8d2d'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+          ctx.beginPath(); ctx.arc(x, y, MAGMA_R * (1.8 - k * 0.8), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+          ctx.globalAlpha = 0.1 + k * 0.2; ctx.fillStyle = '#ff5a1a'; ctx.beginPath(); ctx.arc(x, y, MAGMA_R, 0, Math.PI * 2); ctx.fill();
+          const bx = s.x + (x - s.x) * k, by = s.y + (y - s.y) * k - Math.sin(k * Math.PI) * 160;
+          ctx.globalAlpha = 1; glow('#ff8d2d', 25); ctx.fillStyle = '#ffd23d'; ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        } else { // a pool of burning magma, bubbling
+          const fade = Math.min(1, (MAGMA_LAND + MAGMA_POOL - s.t) * 2), R = MAGMA_R * (1 + Math.sin(t * 6 + x) * 0.04);
+          const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+          g.addColorStop(0, 'rgba(255,220,80,0.9)'); g.addColorStop(0.6, 'rgba(255,90,26,0.75)'); g.addColorStop(1, 'rgba(255,40,10,0.15)');
+          ctx.globalAlpha = fade; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffe9a0';
+          for (let i = 0; i < 3; i++) { const ph = (t * 1.3 + i / 3 + x * 0.01) % 1; ctx.globalAlpha = fade * (1 - ph); ctx.beginPath(); ctx.arc(x + Math.sin(i * 4 + x) * R * 0.5, y + Math.cos(i * 3 + y) * R * 0.4, 2 + ph * 5, 0, Math.PI * 2); ctx.fill(); }
+        }
+      }
+      break;
+    case 'cross':
+      for (const [x, y, t0] of s.c) {
+        const k = s.t - t0; if (k < 0 || k > CROSS_WARN + CROSS_FIRE) continue;
+        if (k < CROSS_WARN) { // thin guide lines, and the band about to burn
+          ctx.globalAlpha = 0.05 + k / CROSS_WARN * 0.08; ctx.fillStyle = '#ffffff';
+          ctx.fillRect(x - CROSS_W / 2, 0, CROSS_W, H); ctx.fillRect(0, y - CROSS_W / 2, W, CROSS_W);
+          ctx.globalAlpha = 0.25 + k / CROSS_WARN * 0.4 + blink * 0.15; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.setLineDash([10, 8]);
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); ctx.setLineDash([]);
+        } else { // pillars of light
+          glow(b.color, 30); ctx.globalAlpha = 0.45; ctx.fillStyle = b.color;
+          ctx.fillRect(x - CROSS_W * 0.8, 0, CROSS_W * 1.6, H); ctx.fillRect(0, y - CROSS_W * 0.8, W, CROSS_W * 1.6);
+          ctx.globalAlpha = 0.95; ctx.fillStyle = '#ffffff';
+          ctx.fillRect(x - CROSS_W * 0.3, 0, CROSS_W * 0.6, H); ctx.fillRect(0, y - CROSS_W * 0.3, W, CROSS_W * 0.6);
+          ctx.shadowBlur = 0;
+        }
+      }
+      break;
+    case 'haunt': // where it's about to appear
+      if (s.t < HAUNT_T * 2) {
+        const ph = (s.t % HAUNT_T) / HAUNT_T;
+        ctx.strokeStyle = b.color; ctx.lineWidth = 2; glow(b.color, 15);
+        ctx.globalAlpha = 0.3 + ph * 0.5; ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.arc(s.x, s.y, b.r * (2 - ph), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha = ph * 0.5; ctx.save(); ctx.translate(s.x, s.y); polygon(b.sides, b.r, b.spin); ctx.stroke(); ctx.restore();
+      }
+      break;
+    case 'mirror': // the mirror image, on the far side of the screen: see-through, flickering
+      ctx.globalAlpha = 0.4 + Math.sin(t * 5) * 0.08 - (Math.random() < 0.05 ? 0.2 : 0);
+      drawBoss({ ...b, x: W - b.x, look: { x: -b.look.x, y: b.look.y }, special: null, charge: null, drain: null });
+      ctx.globalAlpha = 0.7; ctx.fillStyle = b.color; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('MIRROR IMAGE', W - b.x, b.y + b.r * 2.2);
+      break;
+    case 'rewind':
+      if (s.t < REWIND_AT) {
+        ctx.globalAlpha = 0.4 + blink * 0.5; ctx.fillStyle = b.color; ctx.font = 'bold 20px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('◀◀ REWIND', b.x, b.y + b.r * 2.1);
+      }
+      break;
+    case 'tempest': // the open lane
+      if (s.t < 3.4) {
+        const hw = TEMPEST_ROW - STRIKE_R - 4;
+        ctx.globalAlpha = 0.07; ctx.fillStyle = '#5dff7a'; ctx.fillRect(0, s.gy - hw, W, hw * 2);
+        ctx.globalAlpha = 0.4 + blink * 0.4; ctx.strokeStyle = '#5dff7a'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+        ctx.beginPath(); ctx.moveTo(0, s.gy - hw); ctx.lineTo(W, s.gy - hw); ctx.moveTo(0, s.gy + hw); ctx.lineTo(W, s.gy + hw); ctx.stroke(); ctx.setLineDash([]);
+      }
+      break;
+    case 'breath':
+      if (s.t < BREATH_WARN) wedge(s.a - BREATH_ARC / 2, s.a + BREATH_ARC / 2, Math.max(W, H), '#ff7a2d', 0.08 + blink * 0.06);
+      break;
+    case 'crusher': // the corridor to get into
+      if (s.t < CRUSH_SLIDE) {
+        ctx.strokeStyle = '#5dff7a'; ctx.lineWidth = 2; ctx.globalAlpha = 0.4 + blink * 0.4; ctx.setLineDash([10, 8]);
+        ctx.beginPath(); for (const e of [s.gx - s.gw / 2, s.gx + s.gw / 2]) { ctx.moveTo(e, H * 0.3 - 14); ctx.lineTo(e, H); } ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha = 0.06; ctx.fillStyle = '#5dff7a'; ctx.fillRect(s.gx - s.gw / 2, H * 0.3 - 14, s.gw, H);
+      }
+      break;
+    case 'gaze':
+      if (s.t < GAZE_WARN) { // the arc the beam will sweep, and where it starts
+        const a0 = s.a - s.dir * GAZE_ARC / 2;
+        wedge(s.a - GAZE_ARC / 2, s.a + GAZE_ARC / 2, Math.max(W, H) * 1.5, b.color, 0.07 + blink * 0.05);
+        ctx.globalAlpha = 0.6; ctx.strokeStyle = b.color; ctx.lineWidth = 1.5; ctx.setLineDash([8, 8]);
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(a0) * 3000, b.y + Math.sin(a0) * 3000); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        const a = gazeAngle(s), ex = b.x + Math.cos(a) * 3000, ey = b.y + Math.sin(a) * 3000;
+        glow(b.color, 30); ctx.strokeStyle = b.color; ctx.globalAlpha = 0.5; ctx.lineWidth = GAZE_W * 1.6 + Math.sin(t * 40) * 3;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#ffffff'; ctx.globalAlpha = 1; ctx.lineWidth = GAZE_W * 0.5;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+      break;
+    case 'crunch': // spiral arms of light pouring into it
+      if (s.t < CRUNCH_T) {
+        ctx.strokeStyle = b.color; ctx.lineWidth = 2; ctx.globalAlpha = 0.25; glow(b.color, 10);
+        const R = Math.max(W, H) * 0.7;
+        for (let i = 0; i < 8; i++) {
+          ctx.beginPath();
+          for (let k = 0; k <= 20; k++) { const d = R * (1 - k / 20) + b.r * 0.5, a = i / 8 * Math.PI * 2 + k * 0.18 - t * 2.5; ctx.lineTo(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d); }
+          ctx.stroke();
+        }
+      }
+      break;
+    case 'wipe': {
+      const cw = W / s.cols, ch = H / s.rows;
+      for (const [T, par] of [[WIPE_WARN, s.par], [WIPE_WARN * 2, 1 - s.par]]) {
+        const k = s.t - (T - WIPE_WARN); if (k < 0 || k > WIPE_WARN + WIPE_FIRE) continue;
+        const live = k >= WIPE_WARN;
+        for (let cx = 0; cx < s.cols; cx++) for (let cy = 0; cy < s.rows; cy++) {
+          if ((cx + cy) % 2 !== par) continue;
+          if (live) { ctx.globalAlpha = 0.75; ctx.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#00ffff'; ctx.fillRect(cx * cw, cy * ch, cw, ch); }
+          else {
+            ctx.globalAlpha = 0.06 + k / WIPE_WARN * 0.14; ctx.fillStyle = '#ff00ff'; ctx.fillRect(cx * cw, cy * ch, cw, ch);
+            ctx.globalAlpha = 0.5 + blink * 0.3; ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2; ctx.strokeRect(cx * cw + 4, cy * ch + 4, cw - 8, ch - 8);
+          }
+        }
+      }
+      break;
+    }
+  }
+  ctx.restore();
 }
 
 // shockwaves, afterimages, shattered debris and pop-up text
@@ -5207,7 +5717,9 @@ function drawGimmick(b) {
       break;
     case 'storm':
       for (const s of b.strikes || []) {
-        const [x, y, age] = s;
+        const [x, y, age, quick] = s;
+        if (age < 0) continue; // (TEMPEST's strikes waiting their turn)
+        if (quick && age >= STRIKE_WARN + STRIKE_BOLT) continue;
         if (age < STRIKE_WARN) { // target circle closing in
           const k = age / STRIKE_WARN;
           ctx.globalAlpha = 0.35 + k * 0.5; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
@@ -5332,7 +5844,7 @@ function drawWorld() {
   drawBossFx('under');
   drawEncounterFx();
   for (const bo of bosses) drawBoss(bo);
-  for (const bo of bosses) drawGimmick(bo);
+  for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); }
   const shots = [], ink = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
@@ -5577,7 +6089,7 @@ function drawJukebox() {
     ctx.fillText((on ? '♪ ' : '') + (locked ? '???' : SONGS[id].name), x + 8, y + bh / 2, bw - lw - 24);
   });
   const by = y0 + Math.ceil(SONG_LIST.length / cols) * (bh + gap) + 6, hw = Math.min(220, (W - 40) / 2);
-  const MODES = [['CALM', '#778'], ['BATTLE', '#ffb13d'], ['RAGE', '#ff3d4d']], [mode, mc] = MODES[music.jbMode];
+  const MODES = [['ROCK', '#778'], ['METAL', '#ffb13d'], ['RAGE', '#ff3d4d']], [mode, mc] = MODES[music.jbMode];
   button(`VERSION [B]: ${mode}`, W / 2 - hw - 4, by, hw, 38, mc, () => { music.jbMode = (music.jbMode + 1) % 3; });
   button('BACK  [Esc]', W / 2 + 4, by, hw, 38, '#9ab', () => go('settings'));
 }
@@ -7079,7 +7591,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
-  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova']; // (gimmicks)
+  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special']; // (gimmicks, rage moves)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)

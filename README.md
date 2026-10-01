@@ -27,9 +27,29 @@ Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 
 
 25 original songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, the secret boss, victory and game over each have their own song too.
 
-The style is soft rock in space: crunchy guitars, bass and drums, a bamboo flute, a koto and taiko drums, and spacey pads with lots of echo. When a boss shows up, the song switches to a battle version with driving drums, power chords and a lead guitar. When the boss gets **enraged**, it turns into a heavy metal remake: much faster (160–196 BPM), darker, with double bass drums, galloping guitars and twin lead guitars.
+The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
-Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its calm, battle and rage versions. All the music is played live by the browser from notes written in the code, so there are no audio files.
+Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. All the music is played live by the browser from notes written in the code, so there are no audio files.
+
+### Enraged bosses
+
+At half health a boss gets **ENRAGED**. It roars, blows away the bullets around it, and transforms: horns, a burning aura, glowing cracks and a furious glare. Every solo boss also learns a new move that it only uses when enraged:
+
+- **The Warden:** swings chains of bullets around itself.
+- **Hexcore:** lobs magma bombs that leave burning pools.
+- **Null Seraph:** crosses beams of light over each player.
+- **Void Lancer:** charges three times in a row.
+- **Stormcaller:** sends a wall of lightning across the screen with one safe lane.
+- **The Hive:** fires homing stingers.
+- **Phantom:** teleports right next to you.
+- **Echo:** summons a mirror image that copies its attacks.
+- **Chronos:** rewinds time so its bullets fly back.
+- **The Wyrm:** breathes fire.
+- **The Architect:** closes walls in from both sides.
+- **The Oracle:** sweeps a giant beam across a marked arc.
+- **The Singularity:** sucks every bullet in, then blasts them back out.
+- **The Leech:** sprays blood that rushes back into it.
+- **Zero:** deletes half the screen in a checkerboard pattern.
 
 ### Zones
 
