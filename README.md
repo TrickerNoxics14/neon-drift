@@ -8,7 +8,7 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 1. Everyone opens the link above.
 2. One player clicks **ONLINE CO-OP → HOST A GAME** and shares the 4-digit room code.
-3. Everyone else clicks **ONLINE CO-OP → BROWSE PUBLIC GAMES** and picks the room, or **JOIN WITH A CODE** and types the code.
+3. Everyone else clicks **ONLINE CO-OP → BROWSE PUBLIC GAMES** and picks the room, or **JOIN WITH A CODE** and types the code. Sharing a computer? Set **PLAYERS ON THIS PC** first (they split the keyboard like local co-op).
 4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**. Public games can be joined even after they start.
 
 ## Controls
@@ -19,7 +19,7 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 22 enemy types · 12 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 22 enemy types · 15 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
 Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 33 achievements · online quick chat (1–4) · procedural music
 

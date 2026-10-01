@@ -22,7 +22,9 @@ const net = {
   peer: null, conns: [], host: null,
   code: '', typed: '', status: '',
   playing: false,    // a run is in progress (host simulates, guests mirror)
-  myId: 0,           // guest: which player slot is mine
+  myId: 0,           // the first player slot this computer controls (see mine)
+  localN: 1,         // players sharing this computer in online play (1-4, chosen on the ONLINE screen)
+  mine: [0],         // every player slot this computer controls
   slots: [],         // lobby: [{ ship }] per player
   sendT: 0, events: [], rewarded: false, leaveArm: 0,
   hostW: 0, hostH: 0, vs: 1, vx: 0, vy: 0, // guests draw the host's world scaled to fit their screen
@@ -31,6 +33,7 @@ const net = {
 };
 // host: record a visual/sound event so guests can replay it
 function netRec(ev) { if (net.role === 'host' && net.playing) net.events.push(ev); }
+const isMine = i => net.mine.includes(i); // online: is this player slot controlled from this computer?
 const guestView = () => net.role === 'guest' && net.playing && net.hostW > 0;
 
 function resize() {
@@ -702,6 +705,12 @@ const BOSSES = [
     hint: 'THE HIVE lays eggs — smash them before they hatch, or they swarm you and feed the queen!' },
   { name: 'PHANTOM',     style: 'phantom', color: '#e0b0ff', sides: 9, gimmick: 'decoys', patterns: ['blink', 'laser', 'spiral'],
     hint: 'PHANTOM splits into copies — only the real one leaves an afterimage trail. Popping a fake makes it burst!' },
+  { name: 'ECHO',        style: 'echo',    color: '#9dffea', sides: 6, gimmick: 'echo', patterns: ['fan', 'ring', 'wave', 'blink'],
+    hint: 'ECHO copies your past: its ghosts replay where you flew 3 seconds ago. Keep moving!' },
+  { name: 'CHRONOS',     style: 'chronos', color: '#ffd9a0', sides: 12, gimmick: 'timestop', patterns: ['ring', 'clock', 'spiral', 'fan'],
+    hint: 'CHRONOS stops time: its bullets freeze in the air, then all move at once. Find the gaps before time resumes!' },
+  { name: 'THE WYRM',    style: 'wyrm',    color: '#ff9d3d', sides: 5, r: 40, hpMult: 0.55, gimmick: 'wyrm', patterns: ['volley', 'fan', 'charge', 'volley'],
+    hint: 'THE WYRM: its armored body blocks your shots, only the head takes damage. Watch out for the sideways volleys!' },
   { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true,
     hint: 'THE LEECH heals by draining you — shoot the blood orbs before they reach it, and outrun its drain beam!',
     patterns: ['drain', 'fan', 'drain', 'ring'] },
@@ -880,9 +889,9 @@ function makePlayer(id, x, shipId, cos) {
 let shipPick = null;
 const baseIndex = id => Math.max(0, SHIPS.findIndex(s => s.id === shipById(id).id || s.id === shipById(id).base));
 // online: the same screen, opened from the lobby, picks just your own ship and returns there
-function openShipSelect(m, online = false) {
-  shipPick = { mode: m, player: 0, picks: [], online, mk2: {} };
-  const cur = online ? (net.slots[net.role === 'host' ? 0 : net.myId]?.ship || lastShips[0]) : lastShips[0];
+function openShipSelect(m, online = false, k = 0) { // (k: online, which of the players on this computer is picking)
+  shipPick = { mode: m, player: 0, picks: [], online, mk2: {}, k };
+  const cur = online ? (net.slots[net.mine[k]]?.ship || lastShips[k] || lastShips[0]) : lastShips[0];
   rememberVariant(cur);
   go('ships');
   sel = baseIndex(cur);
@@ -905,10 +914,10 @@ function pickShip(i) {
     return;
   }
   const id = wantsMk2(base) ? base.id + '2' : base.id;
-  lastShips[shipPick.player] = id;
+  if (!shipPick.online) lastShips[shipPick.player] = id; // (online: setMyOnlineShip remembers it)
   try { localStorage.setItem('neonDriftShips', JSON.stringify(lastShips)); } catch (e) {}
   beep(520 + shipPick.player * 80, 0.12, 'triangle', 0.06, 200);
-  if (shipPick.online) { setMyOnlineShip(id); go('lobby'); return; }
+  if (shipPick.online) { setMyOnlineShip(id, shipPick.k); go('lobby'); return; }
   shipPick.picks[shipPick.player] = id;
   shipPick.player++;
   if (shipPick.player >= shipPick.mode) { start(shipPick.mode, shipPick.picks); return; }
@@ -1056,6 +1065,7 @@ const TYPES = {
   pylon:    { r: 14, hp: 1, color: '#ff3df2', pts: 250, drop: 0, harmless: true }, // The Warden's shield pylons
   egg:      { r: 15, hp: 1, color: '#d4ff3d', pts: 150, drop: 0, harmless: true }, // The Hive's eggs
   decoy:    { r: 50, hp: 1, color: '#e0b0ff', pts: 100, drop: 0, harmless: true }, // Phantom's fake copies
+  echo:     { r: 14, hp: 1, color: '#9dffea', pts: 0, drop: 0, harmless: true }, // ECHO's ghosts (can't be shot)
   // later additions
   kamikaze: { r: 12, hp: 1, color: '#ff4d3d', pts: 150, label: 'KAMIKAZE' },
   spinner:  { r: 17, hp: 3, color: '#ffd23d', pts: 300, label: 'SPINNER' },
@@ -1357,6 +1367,14 @@ const ENEMY_AI = {
     e.dest = m && !m.dead ? { x: m.x, y: m.y } : null; // (dest also tells online guests where to draw the beam)
     if (e.dest && e.side < 0 && e.t > LINK_WARM)
       for (const p of living()) if (distToSeg(p.x, p.y, e.x, e.y, m.x, m.y) < 6 + p.r * 0.5) hurt(p);
+  },
+  echo(e, dt) { // replays a player's recorded path; fades in for half a second before it can hurt
+    const b = e.owner;
+    e.life += dt;
+    const i = e.life / ECHO_STEP, p0 = e.path[Math.floor(i)], p1 = e.path[Math.ceil(i)];
+    if (!p1 || !b || !bosses.includes(b) || !bossAlive(b)) { e.dead = true; burst(e.x, e.y, e.color, 10, 120); return; }
+    const f = i % 1; e.x = p0[0] + (p1[0] - p0[0]) * f; e.y = p0[1] + (p1[1] - p0[1]) * f;
+    if (e.life > 0.5) for (const p of living()) if (Math.hypot(p.x - e.x, p.y - e.y) < e.r * 0.8 + p.r * 0.5) hurt(p);
   },
   pylon(e, dt) { // circles its Warden, keeping its shield up, and takes potshots
     const b = e.owner;
@@ -1784,6 +1802,7 @@ function updateEncounter(dt) {
 function bossHome(b, enraged, hoverY) {
   if (b.slotX !== undefined) return { x: b.slotX, y: b.slotY + Math.sin(b.t * 1.3) * 14 }; // Phantom hiding among its copies
   if (b.style === 'abyss') return { x: W / 2 + Math.sin(b.t * 0.25) * W * 0.18, y: hoverY + 30 + Math.sin(b.t * 0.7) * 14 }; // a slow, looming drift
+  if (b.style === 'wyrm') return { x: W / 2 + Math.sin(b.t * 0.55) * (W / 2 - 60), y: H * 0.38 + Math.sin(b.t * 0.9) * H * 0.2 }; // slithers all over the screen
   const amp = Math.max(0, W / 2 - b.r - 20);
   const sweep = { x: W / 2 + Math.sin(b.t * (enraged ? 0.9 : 0.6)) * amp, y: b.hoverLow ? Math.max(hoverY, H * 0.33) : hoverY };
   if (!encounter || encounter.kind === 'single') return sweep;
@@ -1954,6 +1973,22 @@ const BOSS_ATTACKS = {
     b.drain = { target, t: 0, fill: 0, range: enraged ? 420 : 380 };
     b.atkT = 3.4 * rate; beep(90, 0.8, 'sawtooth', 0.06, 60);
   },
+  clock(b, enraged, rate) { // CHRONOS: four "clock hands" of bullets sweeping out at different speeds
+    const hands = enraged ? 6 : 4, off = b.t * 0.7;
+    for (let h = 0; h < hands; h++) for (let j = 1; j <= 6; j++) bossShot(b, off + h / hands * Math.PI * 2, 70 + j * 32, 5);
+    b.atkT = 1.7 * rate; beep(880, 0.1, 'square', 0.04); setTimeout(() => beep(660, 0.1, 'square', 0.04), 120);
+  },
+  volley(b, enraged, rate) { // THE WYRM: every other scale fires sideways
+    const body = b.body || [];
+    for (let i = 1; i < body.length - 1; i += 2) {
+      const [x, y] = body[i], a = Math.atan2(body[i + 1][1] - body[i - 1][1], body[i + 1][0] - body[i - 1][0]);
+      for (const side of [-1, 1]) {
+        const s = a + side * Math.PI / 2;
+        eBullets.push({ x, y, vx: Math.cos(s) * 170 * BOSS_BULLET_SPEED, vy: Math.sin(s) * 170 * BOSS_BULLET_SPEED, r: 5, color: b.color, src: b });
+      }
+    }
+    b.atkT = (enraged ? 1.4 : 1.9) * rate; beep(240, 0.25, 'sawtooth', 0.05, -80);
+  },
   grid(b, enraged, rate) { // ZERO: a lattice of beams across the screen, with gaps to find
     if (b.grid) return;
     const lanes = (n, lo, hi) => Array.from({ length: n }, (_, i) => Math.round(lo + (hi - lo) * (i + 0.2 + Math.random() * 0.6) / n));
@@ -2007,6 +2042,13 @@ const BOSS_ATTACKS = {
 // dmg() scales damage taken (fx, fy = where the hit landed, when known)
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
+const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
+const WYRM_SEGS = 14, WYRM_GAP = 5;        // THE WYRM: body segments, spaced 5 recorded positions apart
+const wyrmSegR = (b, i) => b.r * (0.72 - i * 0.03);
+// does a player bullet hit THE WYRM's armored body (it's blocked, no damage)?
+const hitsWyrmBody = (bo, b) => bo.body && bo.body.some(([x, y], i) => distToSeg(x, y, b.px, b.py, b.x, b.y) < wyrmSegR(bo, i) + b.size);
+// CHRONOS's time stop: enemy bullets don't move
+const timeFlow = () => bosses.some(b => b.gimmick === 'timestop' && b.stop > 0) ? 0 : 1;
 const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
 
 const ownerOf = (e, gimmick) => e.owner || bosses.find(b => b.gimmick === gimmick);
@@ -2111,6 +2153,48 @@ const GIMMICKS = {
     },
   },
   brood: {}, // all in the 'eggs' attack and the egg AI
+  echo: { // remembers where everyone flew; every few seconds ghosts replay the last 3 seconds of it
+    update(b, dt, enraged) {
+      b._rec ||= {};
+      if ((b._recT = (b._recT || 0) - dt) <= 0) {
+        b._recT = ECHO_STEP;
+        for (const p of living()) { const r = (b._rec[p.id] ||= []); r.push([p.x, p.y]); if (r.length > ECHO_LEN) r.shift(); }
+      }
+      if ((b.echoT = (b.echoT ?? 4) - dt) > 0) return;
+      b.echoT = enraged ? 5 : 7;
+      for (const p of living()) {
+        const path = b._rec[p.id]; if (!path || path.length < ECHO_LEN / 2) continue;
+        const e = makeEnemy('echo', path[0][0], path[0][1]);
+        e.path = path.slice(); e.vx = e.vy = 0; e.owner = b; e.life = 0;
+      }
+      fxText('ECHOES!', b.x, b.y - b.r - 30, b.color, 22, 1.2); beep(500, 0.5, 'sine', 0.05, -300);
+    },
+  },
+  timestop: { // freezes every enemy bullet for a few seconds while it keeps firing, then lets them all go
+    update(b, dt, enraged) {
+      if (b.stop > 0) {
+        b.stop -= dt;
+        if (b.stop <= 0) { b.stop = 0; b.stopT = enraged ? 6 : 9; fxText('TIME RESUMES', W / 2, H * 0.4, b.color, 30, 1.4); shake = Math.max(shake, 10); beep(200, 0.5, 'sawtooth', 0.06, 400); }
+        return;
+      }
+      if (b.stopW > 0) {
+        b.stopW -= dt;
+        if (b.stopW <= 0) { b.stopW = 0; b.stop = 2.6; fxText('TIME STOP!', W / 2, H * 0.4, '#ffffff', 34, 1.6); beep(600, 0.6, 'sine', 0.06, -500); }
+        return;
+      }
+      if ((b.stopT = (b.stopT ?? 6) - dt) <= 0) { b.stopW = 0.8; for (let i = 0; i < 3; i++) setTimeout(() => beep(1200, 0.05, 'square', 0.04), i * 250); }
+    },
+    rate: b => b.stop > 0 ? 0.35 : 1, // fills the air while time is stopped
+  },
+  wyrm: { // the head drags a long armored body that hurts to touch and blocks shots (see hitsWyrmBody)
+    update(b, dt) {
+      const h = b._hist ||= [];
+      if ((b._histT = (b._histT || 0) - dt) <= 0) { b._histT = 0.03; h.unshift([b.x, b.y]); if (h.length > WYRM_SEGS * WYRM_GAP + 1) h.pop(); }
+      b.body = [];
+      for (let i = 1; i <= WYRM_SEGS; i++) { const q = h[Math.min(h.length - 1, i * WYRM_GAP)]; if (q) b.body.push([Math.round(q[0]), Math.round(q[1])]); }
+      b.body.forEach(([x, y], i) => { for (const p of living()) if (Math.hypot(p.x - x, p.y - y) < wyrmSegR(b, i) + p.r * 0.5) hurt(p); });
+    },
+  },
   zero: {
     update(b, dt, enraged) {
       if (b.grid) { // warn, then fire
@@ -2590,7 +2674,8 @@ function controlsFor(p) {
   let dx = 0, dy = 0;
   // online: remote players' ships are moved by their own computers; the local player gets every control
   if (net.role && p.remote) return { dx: 0, dy: 0, usePointer: false };
-  const scheme = net.role ? ['wasd', 'arrows', 'mouse'] : CONTROLS[mode]?.[p.id] || ['wasd', 'arrows', 'mouse'];
+  // (online, players sharing this computer split the keyboard like local co-op)
+  const k = net.role ? net.mine.indexOf(p.id) : p.id, scheme = CONTROLS[net.role ? net.localN : mode]?.[k] || ['wasd', 'arrows', 'mouse'];
   if (scheme.includes('wasd')) { if (keys.KeyA) dx--; if (keys.KeyD) dx++; if (keys.KeyW) dy--; if (keys.KeyS) dy++; }
   if (scheme.includes('arrows')) { if (keys.ArrowLeft) dx--; if (keys.ArrowRight) dx++; if (keys.ArrowUp) dy--; if (keys.ArrowDown) dy++; }
   if (scheme.includes('ijkl')) {
@@ -2598,7 +2683,7 @@ function controlsFor(p) {
     if (keys.KeyI || keys.Numpad8) dy--; if (keys.KeyK || keys.Numpad5 || keys.Numpad2) dy++;
   }
   const usePointer = scheme.includes('mouse');
-  const pad = padState[net.role ? 0 : p.id];
+  const pad = padState[k];
   if (pad && (pad.x || pad.y)) { dx = pad.x; dy = pad.y; }
   return { dx, dy, usePointer };
 }
@@ -2793,6 +2878,7 @@ function update(dt) {
         if (Math.random() < 0.3) burst(b.x, b.y, '#ffffff', 3, 120);
         continue;
       }
+      if (hitsWyrmBody(bo, b)) { b.dead = true; if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // armor
       if (distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) >= bo.r + b.size) continue;
       b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
       if ((b.missile || s.explosive) && bossFx.rings.length < 40) fxRing(b.x, b.y, 4, 30, 0.2, '#ffb13d', 2);
@@ -2807,11 +2893,11 @@ function update(dt) {
   }
   if (state !== 'play') return;
 
-  const shrapnel = [];
+  const shrapnel = [], flow = s.chrono * timeFlow(); // (Chrono Field slows enemy fire; CHRONOS can stop it)
   for (const b of eBullets) {
-    b.x += b.vx * dt * s.chrono; b.y += b.vy * dt * s.chrono; // Chrono Field slows enemy fire
+    b.x += b.vx * dt * flow; b.y += b.vy * dt * flow;
     if (b.fuse !== undefined) { // boss mine: slows down, then bursts into a ring
-      b.vx *= 0.97; b.vy *= 0.97; b.fuse -= dt;
+      if (flow) { b.vx *= 0.97; b.vy *= 0.97; b.fuse -= dt; }
       if (b.fuse <= 0 && !b.dead) {
         b.dead = true; burst(b.x, b.y, b.color, 20, 200); beep(180, 0.15, 'square', 0.04, -100);
         for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; shrapnel.push({ x: b.x, y: b.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5, color: b.color }); }
@@ -2841,7 +2927,7 @@ function update(dt) {
     e.x += e.vx * edt; e.y += e.vy * edt;
     ENEMY_AI[e.type]?.(e, edt);
     for (const b of bullets) {
-      if (b.dead || e.dead || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
+      if (b.dead || e.dead || e.type === 'echo' || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
       if (e.type === 'bulwark' && Math.abs(angleDiff(Math.atan2((b.py ?? b.y) - e.y, (b.px ?? b.x) - e.x), e.aimA)) < BULWARK_ARC) {
         b.dead = true; e.shieldHit = 0.1; if (Math.random() < 0.4) burst(b.x, b.y, '#dfe8ff', 3, 120); continue; // blocked by its shield
       }
@@ -3146,6 +3232,14 @@ function drawWreck(p) {
 }
 
 function drawEnemy(e) {
+  if (e.type === 'echo') { // a see-through ghost ship, flickering
+    ctx.save(); ctx.translate(e.x, e.y);
+    ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.lineDashOffset = time * 30; ctx.globalAlpha = 0.8;
+    ctx.beginPath(); ctx.arc(0, 0, 20 + Math.sin(time * 8) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 0.6 + Math.sin(time * 18 + e.id) * 0.2;
+    drawHull('striker', e.color, 0.5, false, 'skin_holo'); ctx.restore();
+    return;
+  }
   if (e.type === 'decoy') { // a perfect copy of the Phantom (no afterimage trail, though)
     const b = ownerOf(e, 'decoys');
     if (b) drawBoss({ ...b, x: e.x, y: e.y, flash: e.flash, kick: 0, hitKick: e.flash > 0 ? 0.3 : 0, charge: null, drain: null, appear: 0 });
@@ -3647,9 +3741,33 @@ function drawAbyssDark() {
   ctx.stroke(); ctx.restore();
 }
 
+// THE WYRM's body: armored segments from the tail up to the head, each with a glowing scale
+function drawWyrmBody(b) {
+  const body = b.body || [], fade = b.dying > 0 ? b.dying / DEATH_TIME : 1, c = b.flash > 0 ? '#ffffff' : b.color;
+  ctx.save(); ctx.globalAlpha = (b.entered ? 1 : b.intro) * fade;
+  for (let i = body.length - 1; i >= 0; i--) {
+    const [x, y] = body[i], r = wyrmSegR(b, i), next = body[i - 1] || [b.x, b.y], a = Math.atan2(next[1] - y, next[0] - x);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    glow(c, 14); ctx.fillStyle = '#140a04'; ctx.strokeStyle = c; ctx.lineWidth = 2.5;
+    ctx.beginPath(); for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; ctx.lineTo(Math.cos(t) * r * 1.15, Math.sin(t) * r * 0.85); } ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.fillStyle = hexA(c, 0.5 + Math.sin(b.t * 4 + i) * 0.3); // scale that lights up before a volley
+    ctx.beginPath(); ctx.moveTo(-r * 0.5, 0); ctx.lineTo(0, -r * 0.45); ctx.lineTo(r * 0.5, 0); ctx.lineTo(0, r * 0.45); ctx.fill();
+    ctx.restore();
+  }
+  // tail fin
+  const tail = body[body.length - 1], pre = body[body.length - 2];
+  if (tail && pre) {
+    const a = Math.atan2(tail[1] - pre[1], tail[0] - pre[0]), r = wyrmSegR(b, body.length);
+    ctx.save(); ctx.translate(tail[0], tail[1]); ctx.rotate(a); ctx.strokeStyle = c; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 2.2, 0); ctx.lineTo(0, r); ctx.stroke(); ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
   if (b.style === 'abyss') { drawAbyss(b); return; }
+  if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
   const enraged = isEnraged(b);
   const c = b.flash > 0 ? '#ffffff' : b.color;
   const t = b.t, rot = bossRot(b);
@@ -3858,6 +3976,20 @@ function drawBossDecor(b, layer, c, enraged) {
         ctx.translate(Math.sin(t * 2 + i) * 12 * i, Math.cos(t * 1.7 + i) * 8 * i);
         polygon(b.sides, r * (1 + i * 0.12), -b.spin + i); ctx.stroke();
         ctx.restore();
+      }
+      break;
+    case 'chronos': // a clock face: 12 ticks and two hands (which stop when time does)
+      if (layer === 'back') {
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r1 = r * (i % 3 ? 1.5 : 1.42); ctx.beginPath(); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r * 1.62, Math.sin(a) * r * 1.62); ctx.stroke(); }
+      } else {
+        const tt = b.stop > 0 ? b._frozenT ??= t : (b._frozenT = undefined, t);
+        ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 0.5 - Math.PI / 2) * r * 0.7, Math.sin(tt * 0.5 - Math.PI / 2) * r * 0.7); ctx.stroke();
+        ctx.lineWidth = 2.5; ctx.strokeStyle = c;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 3 * fast - Math.PI / 2) * r * 1.3, Math.sin(tt * 3 * fast - Math.PI / 2) * r * 1.3); ctx.stroke();
+        ctx.lineCap = 'butt';
+        if (b.stopW > 0) { ctx.globalAlpha *= 0.5 + Math.sin(t * 30) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2); ctx.stroke(); }
       }
       break;
     case 'zero': { // glitching: offset cyan/magenta copies of its outline, plus orbiting cube fragments
@@ -4437,7 +4569,7 @@ function drawAchBanner() {
 const CONTROL_NAMES = { wasd: 'WASD', arrows: 'Arrow keys', mouse: 'Mouse', ijkl: 'IJKL' };
 
 function drawShips() {
-  const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? (net.role === 'host' ? 0 : net.myId) : pl];
+  const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? net.mine[sp.k || 0] ?? 0 : pl];
   const mySkin = sp.online || pl === 0 ? meta.cos.eq.skin : null; // (your skin shows on P1's picks)
   if (sel < SHIPS.length) sp.view = sel;
   const base = SHIPS[sp.view ?? 0], two = wantsMk2(base), owned2 = mk2Owned(base);
@@ -4571,7 +4703,7 @@ function showEmote(id, k) {
   beep(700 + k * 120, 0.08, 'triangle', 0.04);
 }
 function sendEmote(k) {
-  const me = net.role === 'guest' ? net.myId : 0, p = players[me];
+  const me = net.role ? net.mine[0] : 0, p = players[me];
   if (!p || (p.emoteCd || 0) > performance.now()) return; // no spamming
   p.emoteCd = performance.now() + 700;
   showEmote(me, k);
@@ -4579,13 +4711,13 @@ function sendEmote(k) {
 }
 // callouts, name tags (online) and arrows pointing to downed teammates
 function drawTeamUi() {
-  const now = performance.now(), online = !!net.role, me = net.role === 'guest' ? net.myId : 0;
+  const now = performance.now(), online = !!net.role;
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const p of players) {
     const at = p.alive ? p : p.wreck; if (!at) continue;
     if (online && p.alive && players.length > 1) { // who's who
       ctx.font = 'bold 10px system-ui'; ctx.fillStyle = hexA(p.color, 0.8);
-      ctx.fillText(p.id === me ? 'YOU' : `P${p.id + 1}`, p.x, p.y + 30);
+      ctx.fillText(isMine(p.id) ? (net.mine.length > 1 ? `YOU · P${p.id + 1}` : 'YOU') : `P${p.id + 1}`, p.x, p.y + 30);
     }
     if (p.emote && now < p.emote.until) { // speech bubble
       const [text, color] = EMOTES[p.emote.k], pop = Math.min(1, (p.emote.until - now) / 200, (now - p.emote.until + 2200) / 120);
@@ -4598,7 +4730,7 @@ function drawTeamUi() {
     }
   }
   // arrows from your ship (online) or every ship (local) toward downed teammates
-  const mine = online ? [players[me]].filter(p => p?.alive) : living();
+  const mine = online ? living().filter(p => isMine(p.id)) : living();
   for (const p of mine) for (const d of players) {
     if (d.alive || !d.wreck) continue;
     const dx = d.wreck.x - p.x, dy = d.wreck.y - p.y, dist = Math.hypot(dx, dy);
@@ -4887,7 +5019,8 @@ function drawVignette() {
 
 function draw() {
   // ZERO turns the world inside out: invert the canvas colors (a CSS filter, so it costs nothing to draw)
-  const inv = inRun() && !settings.calm && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)' : '';
+  const inv = inRun() && !settings.calm && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)'
+    : inRun() && timeFlow() === 0 ? 'saturate(0.2) sepia(0.35)' : ''; // (CHRONOS's time stop: the world fades like an old photo)
   if (cv.style.filter !== inv) cv.style.filter = inv;
   ctx.shadowBlur = 0;
   const gv = guestView();
@@ -4989,14 +5122,15 @@ const unlockedShips = () => SHIPS.filter(shipUnlocked);
 function leaveOnline(msg) {
   dirUnlist(); // take my room off the public list
   try { net.peer?.destroy(); } catch (e) {}
-  Object.assign(net, { role: null, peer: null, conns: [], host: null, code: '', status: '', playing: false, myId: 0, slots: [], hostW: 0, hostH: 0 });
+  Object.assign(net, { role: null, peer: null, conns: [], host: null, code: '', status: '', playing: false, myId: 0, mine: [0], slots: [], hostW: 0, hostH: 0 });
   resize(); go('menu');
   if (msg) showToast(msg);
 }
 
 // ----- host -----
 async function hostGame() {
-  Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0], cos: meta.cos.eq }], status: 'Connecting to the matchmaking server…', code: '',
+  Object.assign(net, { role: 'host', conns: [], slots: hostSlots(), mine: Array.from({ length: net.localN }, (_, k) => k), myId: 0,
+    status: 'Connecting to the matchmaking server…', code: '',
     public: net.wantPublic ?? true, roomName: randomRoomName() });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
@@ -5010,40 +5144,55 @@ async function hostGame() {
       else net.status = 'Network problem: ' + err.type;
     });
     peer.on('connection', conn => {
-      conn.on('open', () => {
-        if (net.playing) { // public rooms let people drop into a running game (taking over a slot someone left, if any)
-          const free = players.findIndex(p => p.gone);
-          if (!net.public || (free < 0 && players.length >= MAX_ONLINE)) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
-          conn.slot = free >= 0 ? free : players.length; conn.late = true; net.conns.push(conn);
-          return; // they join for real once they tell us their ship (see lateJoin)
-        }
-        if (net.conns.length >= MAX_ONLINE - 1) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
-        conn.slot = net.slots.length;
-        net.conns.push(conn); net.slots.push({ ship: 'striker' });
-        beep(660, 0.2, 'triangle', 0.06, 330);
-        broadcastLobby();
-      });
+      // a guest says hello with how many players share their computer (and their ships); see onHello
+      conn.on('open', () => { if (net.playing && !net.public) refuse(conn); });
       conn.on('data', d => onHostData(conn, d));
       conn.on('close', () => onGuestLeft(conn));
     });
   };
   open();
 }
+function refuse(conn) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); }
+// the host's own slots come first (one per player sharing the host's computer)
+const hostSlots = () => Array.from({ length: net.localN }, (_, k) => ({ ship: lastShips[k] || 'striker', cos: k === 0 ? meta.cos.eq : COS_DEFAULT }));
+function onHello(conn, h) {
+  if (conn.slots) return;
+  const n = Math.max(1, Math.min(4, h.n | 0)), ships = h.ships || [], slot = k => ({ ship: ships[k] || 'striker', cos: k === 0 && h.cos ? h.cos : COS_DEFAULT });
+  if (!net.playing) { // in the lobby: add their players to the end
+    if (net.slots.length + n > MAX_ONLINE) { refuse(conn); return; }
+    conn.slots = [];
+    for (let k = 0; k < n; k++) { conn.slots.push(net.slots.length); net.slots.push(slot(k)); }
+    net.conns.push(conn);
+    beep(660, 0.2, 'triangle', 0.06, 330);
+    broadcastLobby();
+    return;
+  }
+  // a game is running: public rooms let people drop in (taking over slots of players who left first)
+  if (!net.public) { refuse(conn); return; }
+  const free = players.map((p, i) => p.gone ? i : -1).filter(i => i >= 0), ids = [];
+  let next = players.length;
+  for (let k = 0; k < n; k++) ids.push(free.length ? free.shift() : next++);
+  if (next > MAX_ONLINE) { refuse(conn); return; }
+  conn.slots = ids; net.conns.push(conn);
+  lateJoin(conn, ids.map((id, k) => slot(k)));
+}
 function broadcastLobby() {
-  for (const c of net.conns) c.send({ lobby: { slots: net.slots, runType }, you: c.slot });
+  for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType }, you: c.slots });
 }
 function onHostData(conn, d) {
-  if (d.ship && conn.late) { conn.late = false; lateJoin(conn, d.ship, d.cos); return; }
-  if (d.ship && !net.playing && net.slots[conn.slot]) { net.slots[conn.slot].ship = d.ship; if (d.cos) net.slots[conn.slot].cos = d.cos; broadcastLobby(); }
+  if (d.hello) { onHello(conn, d.hello); return; }
+  if (!conn.slots) return;
+  const id = conn.slots[d.k || 0]; // which of their players this is about
+  if (d.ship && !net.playing && net.slots[id]) { net.slots[id].ship = d.ship; if (d.cos) net.slots[id].cos = d.cos; broadcastLobby(); }
   if (!net.playing || !run) return;
-  const p = players[conn.slot];
+  const p = players[id];
   if (d.in && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
     p.toff = clockOffset(p.toff, d.in[4]); (p.track ||= newTrack()); trackPush(p.track, d.in[4], d.in.slice(0, 4));
   }
   if (d.pick !== undefined && state === 'upgrade' && offer) pickUpgrade(d.pick);
   if (d.reroll && state === 'upgrade') reroll();
   if (d.buy !== undefined && state === 'shop' && shop) buyShop(d.buy);
-  if (d.emote !== undefined && players[conn.slot]) { showEmote(conn.slot, d.emote); netRec(['e', conn.slot, d.emote]); }
+  if (d.emote !== undefined && p) { showEmote(id, d.emote); netRec(['e', id, d.emote]); }
 }
 // host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
 function smoothRemotePlayers() {
@@ -5053,46 +5202,48 @@ function smoothRemotePlayers() {
     if (v) [p.x, p.y, p.tilt, p.thrust] = v;
   }
 }
-// someone joined a public game that's already running: give them a ship and catch everyone up
-function lateJoin(conn, ship, cos) {
-  const id = conn.slot;
-  net.slots[id] = { ship, cos: cos || COS_DEFAULT };
-  const p = makePlayer(id, W * (0.2 + Math.random() * 0.6), ship, cos);
-  p.remote = true; p.inv = 3;
-  players[id] = p; mode = players.length;
-  conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: id } });
-  for (const c of net.conns) if (c !== conn && c.open) c.send({ addPlayer: { id, ship, cos: p.cos } });
-  fxText(`P${id + 1} JOINED!`, W / 2, H * 0.3, P_COLORS[id], 26, 2);
+// someone joined a public game that's already running: give them ships and catch everyone up
+function lateJoin(conn, slots) {
+  conn.slots.forEach((id, k) => {
+    net.slots[id] = slots[k];
+    const p = makePlayer(id, W * (0.2 + Math.random() * 0.6), slots[k].ship, slots[k].cos);
+    p.remote = true; p.inv = 3;
+    players[id] = p;
+    for (const c of net.conns) if (c !== conn && c.open) c.send({ addPlayer: { id, ship: slots[k].ship, cos: p.cos } });
+    fxText(`P${id + 1} JOINED!`, W / 2, H * (0.3 + k * 0.06), P_COLORS[id], 26, 2);
+  });
+  mode = players.length;
+  conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: conn.slots } });
   [523, 784].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.06), i * 100));
 }
 function onGuestLeft(conn) {
   const i = net.conns.indexOf(conn);
   if (i < 0) return;
   net.conns.splice(i, 1);
-  if (net.playing && run) { // their ship goes down for good
-    const p = players[conn.slot];
-    if (p) p.gone = true; // (their slot can be taken by someone joining a public game)
-    if (p && p.alive) { p.alive = false; p.lives = 0; p.wreck = null; if (!living().length) endRun(); }
-    showToast(`P${conn.slot + 1} disconnected`);
-  } else {
-    net.slots.splice(conn.slot, 1);
-    net.conns.forEach((c, k) => c.slot = k + 1);
-    broadcastLobby();
-  }
+  if (net.playing && run) { // their ships go down for good
+    for (const id of conn.slots || []) {
+      const p = players[id]; if (!p) continue;
+      p.gone = true; // (their slot can be taken by someone joining a public game)
+      if (p.alive) { p.alive = false; p.lives = 0; p.wreck = null; }
+    }
+    if (!living().length) endRun();
+    showToast(`${(conn.slots || []).map(id => 'P' + (id + 1)).join(' & ')} disconnected`);
+  } else { compactSlots(); broadcastLobby(); }
 }
 function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
   compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
   start(ships.length, ships, cos);
-  players.forEach((p, i) => p.remote = i > 0);
+  players.forEach((p, i) => p.remote = !isMine(i));
   net.playing = true; net.sendT = 0; net.events = [];
-  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slot } }); // (you: slots may have been renumbered)
+  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slots } }); // (you: slots may have been renumbered)
 }
-// drop the slots of anyone who disconnected mid-game, and renumber everyone else
+// drop the slots of anyone who disconnected, and renumber everyone else (the host's own slots stay first)
 function compactSlots() {
-  net.slots = [net.slots[0], ...net.conns.map(c => net.slots[c.slot] || { ship: 'striker' })];
-  net.conns.forEach((c, k) => { c.slot = k + 1; c.late = false; });
+  const slots = net.slots.slice(0, net.localN);
+  for (const c of net.conns) c.slots = (c.slots || []).map(id => slots.push(net.slots[id] || { ship: 'striker' }) - 1);
+  net.slots = slots;
 }
 function backToLobby() {
   net.playing = false; go('lobby');
@@ -5135,10 +5286,10 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
-  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW']; // (gimmicks)
+  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body']; // (gimmicks)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
-  if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain') o[k] = roundDeep(b[k]); }
+  if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
   else for (const k of BOSS_DYNAMIC) if (b[k] !== undefined) o[k] = roundDeep(b[k]);
   if (b.drain) o.drain = { ...roundDeep({ ...b.drain, target: 0 }), target: b.drain.target.id };
   return o;
@@ -5149,7 +5300,8 @@ function packBullets(s) {
   const colors = [], ci = c => { let i = colors.indexOf(c); if (i < 0) { i = colors.length; colors.push(c); } return i; };
   const bu = [], eb = [];
   for (const b of bullets) bu.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), ci(b.color), (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0));
-  for (const b of eBullets) eb.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx * s.chrono), Math.round(b.vy * s.chrono), b.r || 5, ci(b.color || '#ff4d4d'), b.fuse !== undefined ? r2(b.fuse) : -1);
+  const flow = s.chrono * timeFlow();
+  for (const b of eBullets) eb.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx * flow), Math.round(b.vy * flow), b.r || 5, ci(b.color || '#ff4d4d'), b.fuse !== undefined ? r2(b.fuse) : -1);
   return { bu, eb, cl: colors };
 }
 function hostTick(dt) {
@@ -5161,7 +5313,7 @@ function hostTick(dt) {
 
 // ----- guest -----
 async function joinGame(code) {
-  Object.assign(net, { role: 'guest', status: 'Connecting…', slots: [], myId: 0 });
+  Object.assign(net, { role: 'guest', status: 'Connecting…', slots: [], myId: 0, mine: [] });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
   const config = await iceConfig();
@@ -5170,7 +5322,10 @@ async function joinGame(code) {
   peer.on('open', () => {
     const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
     net.host = conn;
-    conn.on('open', () => { net.status = 'Connected! Pick your ship — the host starts the game.'; conn.send({ ship: lastShips[0], cos: meta.cos.eq }); });
+    conn.on('open', () => { // say hello: how many of us share this computer, and our ships
+      net.status = 'Connected! Pick your ship — the host starts the game.';
+      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq } });
+    });
     conn.on('data', onGuestData);
     conn.on('close', () => { if (net.role === 'guest') leaveOnline('The host left the game'); });
   });
@@ -5179,17 +5334,17 @@ async function joinGame(code) {
 function onGuestData(d) {
   if (d.full) { leaveOnline('That game is full or already running'); return; }
   if (d.lobby) {
-    net.slots = d.lobby.slots; net.myId = d.you; runType = d.lobby.runType;
+    net.slots = d.lobby.slots; net.mine = [].concat(d.you); net.myId = net.mine[0]; runType = d.lobby.runType;
     if (net.playing) { net.playing = false; resize(); go('lobby'); }
     else if (state !== 'lobby' && !(state === 'ships' && shipPick?.online)) go('lobby'); // don't yank me out of the ship picker
   }
   if (d.start) {
-    if (d.start.you !== undefined) net.myId = d.start.you; // (joined a game already in progress)
+    if (d.start.you !== undefined) { net.mine = [].concat(d.start.you); net.myId = net.mine[0]; } // (slots may have been renumbered)
     runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
     net.playing = true; net.rewarded = false; resize();
     Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
     start(d.start.n, d.start.ships, d.start.cos);
-    players.forEach((p, i) => p.remote = i !== net.myId);
+    players.forEach((p, i) => p.remote = !isMine(i));
   }
   if (d.addPlayer && net.playing && run) { // someone dropped into the game
     const a = d.addPlayer, p = makePlayer(a.id, W / 2, a.ship, a.cos);
@@ -5262,7 +5417,7 @@ function dirRooms() {
 const roomOpen = r => r.n < MAX_ONLINE;
 const sortedRooms = () => dir.list.slice().sort((a, b) => roomOpen(b) - roomOpen(a) || a.playing - b.playing || b.n - a.n);
 const myRoom = () => net.role === 'host' && net.public && net.code
-  ? { code: net.code, name: net.roomName, n: net.conns.length + 1, run: runType, playing: net.playing ? 1 : 0 } : null;
+  ? { code: net.code, name: net.roomName, n: net.playing ? players.filter(p => !p.gone).length : net.slots.length, run: runType, playing: net.playing ? 1 : 0 } : null;
 // every few seconds: (re)send my room if I'm hosting a public game, and refresh the list if I'm browsing
 function dirBeat() {
   const room = myRoom();
@@ -5323,7 +5478,7 @@ function applySnap(s) {
   Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr, wonStandard: !!s.ws });
   s.pl.forEach((a, i) => {
     const p = players[i]; if (!p) return;
-    const mine = i === net.myId, wasAlive = p.alive;
+    const mine = isMine(i), wasAlive = p.alive;
     if (!mine) { (net.ptr[i] ||= newTrack()); trackPush(net.ptr[i], s.ts, [a[0], a[1], a[7], a[8]]); } // others glide (see guestFrame)
     else if (!p.alive || !a[3]) { p.x = a[0]; p.y = a[1]; p.tilt = a[7]; p.thrust = a[8]; } // my own ship stays where I steer it
     if (mine && !wasAlive && a[3]) { p.x = a[0]; p.y = a[1]; } // just revived: take the host's spot
@@ -5383,14 +5538,14 @@ function applySnap(s) {
 function replayEvent(ev) {
   switch (ev[0]) {
     case 'b': burst(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
-    case 'e': if (ev[1] !== net.myId) showEmote(ev[1], ev[2]); break; // a teammate's quick chat
+    case 'e': if (!isMine(ev[1])) showEmote(ev[1], ev[2]); break; // a teammate's quick chat
     case 'r': fxRing(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6], ev[7], ev[8]); break;
     case 't': fxText(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
     case 'g': bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: ev[4], r: ev[5], color: ev[6], life: ev[7], max: ev[7] }); break;
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
     case 's': beep(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
     case 'o': showToast(ev[1]); break;
-    case 'h': if (ev[1] === net.myId) hurtFlash = Math.max(hurtFlash, ev[2]); break;
+    case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
   }
 }
@@ -5406,7 +5561,7 @@ function guestFrame(dt) {
     for (const e of enemies) { const v = trackAt(net.etr.get(e.id), rt); if (v) { e.x = v[0]; e.y = v[1]; } }
     for (const b of bosses) { const v = trackAt(net.btr.get(b.name), rt); if (v) { b.x = v[0]; b.y = v[1]; } }
     players.forEach((p, i) => {
-      if (i === net.myId || !p.alive) return;
+      if (isMine(i) || !p.alive) return;
       const v = trackAt(net.ptr[i], rt); if (v) [p.x, p.y, p.tilt, p.thrust] = v;
     });
     // bullets move in straight lines: draw them where they are right now (fair dodging), capped if updates stall
@@ -5427,44 +5582,48 @@ function guestFrame(dt) {
   updateParticles(dt);
   if ((net.sendT -= dt) <= 0 && net.host?.open) {
     net.sendT = INPUT_RATE;
-    const p = players[net.myId];
-    if (p && p.alive && state === 'play') net.host.send({ in: [Math.round(p.x), Math.round(p.y), r2(p.tilt || 0), r2(p.thrust || 0), Math.round(performance.now())] });
+    if (state === 'play') net.mine.forEach((id, k) => { // where each of my ships is (k = which of us)
+      const p = players[id];
+      if (p && p.alive) net.host.send({ in: [Math.round(p.x), Math.round(p.y), r2(p.tilt || 0), r2(p.thrust || 0), Math.round(performance.now())], k });
+    });
   }
 }
+// move every ship controlled from this computer (sharing the keyboard like local co-op when there are several)
 function guestMove(dt) {
-  const p = players[net.myId];
-  if (!p || !p.alive) return;
-  const pad = readPad(0), m = p.ship.mod, speed = run.s.speed * (m.speed || 1), ox = p.x, oy = p.y;
-  let dx = 0, dy = 0;
-  if (keys.KeyA || keys.ArrowLeft) dx--; if (keys.KeyD || keys.ArrowRight) dx++;
-  if (keys.KeyW || keys.ArrowUp) dy--; if (keys.KeyS || keys.ArrowDown) dy++;
-  if (pad && (pad.x || pad.y)) { dx = pad.x; dy = pad.y; }
-  if (dx || dy) { const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt; }
-  else if (pointer) {
-    const k = 1 - Math.exp(-dt * 22), ty = pointer.y - (pointer.touch ? 50 : 0);
-    p.x += (pointer.x - p.x) * k; p.y += (ty - p.y) * k;
+  padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
+  for (const id of net.mine) {
+    const p = players[id];
+    if (!p || !p.alive) continue;
+    const m = p.ship.mod, speed = run.s.speed * (m.speed || 1), ox = p.x, oy = p.y;
+    const { dx, dy, usePointer } = controlsFor(p);
+    if (dx || dy) { const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt; }
+    else if (usePointer && pointer) {
+      const k = 1 - Math.exp(-dt * 22), ty = pointer.y - (pointer.touch ? 50 : 0);
+      p.x += (pointer.x - p.x) * k; p.y += (ty - p.y) * k;
+    }
+    p.x = Math.max(p.r, Math.min(W - p.r, p.x)); p.y = Math.max(p.r, Math.min(H - p.r, p.y));
+    const kk = Math.min(1, dt * 12);
+    p.tilt = (p.tilt || 0) + (Math.max(-1, Math.min(1, (p.x - ox) / dt / 500)) * 0.45 - (p.tilt || 0)) * kk;
+    p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -(p.y - oy) / dt / 400)) - (p.thrust || 0)) * kk;
   }
-  p.x = Math.max(p.r, Math.min(W - p.r, p.x)); p.y = Math.max(p.r, Math.min(H - p.r, p.y));
-  const kk = Math.min(1, dt * 12);
-  p.tilt = (p.tilt || 0) + (Math.max(-1, Math.min(1, (p.x - ox) / dt / 500)) * 0.45 - (p.tilt || 0)) * kk;
-  p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -(p.y - oy) / dt / 400)) - (p.thrust || 0)) * kk;
 }
 
 // ----- lobby: pick ships -----
 // quick-cycle through every ship you can fly (A/D in the lobby); CHANGE SHIP opens the full picker
 function cycleShip(d) {
-  const list = flyableShips(), me = net.role === 'host' ? 0 : net.myId, slot = net.slots[me];
+  const list = flyableShips(), slot = net.slots[net.mine[0]];
   if (!slot) return;
   const i = list.findIndex(s => s.id === slot.ship);
-  setMyOnlineShip(list[(i + d + list.length) % list.length].id);
+  setMyOnlineShip(list[(i + d + list.length) % list.length].id, 0);
   beep(520, 0.08, 'triangle', 0.05);
 }
-function setMyOnlineShip(id) {
-  const slot = net.slots[net.role === 'host' ? 0 : net.myId];
+// k = which of the players on this computer
+function setMyOnlineShip(id, k = 0) {
+  const slot = net.slots[net.mine[k]];
   if (!slot) return;
-  slot.ship = id; lastShips[0] = id;
+  slot.ship = id; lastShips[k] = id;
   try { localStorage.setItem('neonDriftShips', JSON.stringify(lastShips)); } catch (e) {}
-  if (net.role === 'host') broadcastLobby(); else net.host?.send({ ship: id });
+  if (net.role === 'host') broadcastLobby(); else net.host?.send({ ship: id, k });
 }
 
 // ----- keys for the online screens -----
@@ -5479,6 +5638,7 @@ function onlineKey(e) {
   if (state === 'online') {
     if (e.code === 'Escape') { go('menu'); return true; }
     if (e.code === 'KeyB') { go('browse'); return true; }
+    if (e.code === 'KeyL') { cycleLocalPlayers(); return true; }
     return false; // arrows/Enter work the buttons as usual
   }
   if (state === 'browse') {
@@ -5510,17 +5670,25 @@ function onlineKey(e) {
 }
 
 // ----- online screens -----
+function cycleLocalPlayers() {
+  net.localN = net.localN % 4 + 1;
+  beep(440 + net.localN * 80, 0.1, 'triangle', 0.05);
+}
 function drawOnline() {
   const cy = Math.max(170, H / 2 - 110), bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   title('ONLINE CO-OP', cy - 80, '#9dff5d', 48);
   fitText('Play with up to 7 friends over the internet', cy - 34, 15, '#9ab');
-  button('BROWSE PUBLIC GAMES  [B]', bx, cy, bw, 46, '#ffe93d', () => go('browse'));
-  button('HOST A GAME', bx, cy + 56, bw, 46, '#9dff5d', hostGame);
-  button('JOIN WITH A CODE', bx, cy + 112, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
-  button('BACK  [Esc]', bx, cy + 168, bw, 40, '#9ab', () => go('menu'));
+  // friends sharing this computer can come along (they split the keyboard like local co-op)
+  button(`PLAYERS ON THIS PC:  ${net.localN}  [L]`, bx, cy, bw, 38, net.localN > 1 ? '#c08dff' : '#9ab', cycleLocalPlayers);
+  if (net.localN > 1) fitText(CONTROLS[net.localN].map((c, k) => `P${k + 1}: ${c.map(n => CONTROL_NAMES[n]).join('/')}`).join('  ·  '), cy + 50, 12, '#c08dff');
+  const oy = cy + (net.localN > 1 ? 66 : 50);
+  button('BROWSE PUBLIC GAMES  [B]', bx, oy, bw, 46, '#ffe93d', () => go('browse'));
+  button('HOST A GAME', bx, oy + 56, bw, 46, '#9dff5d', hostGame);
+  button('JOIN WITH A CODE', bx, oy + 112, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
+  button('BACK  [Esc]', bx, oy + 168, bw, 40, '#9ab', () => go('menu'));
   ctx.font = '13px system-ui';
   wrap('Everyone needs an internet connection and this same version of the game. The host runs the game; friends join with a 4-digit room code. Some strict networks (like school or work) can block the connection.', Math.min(460, W - 40))
-    .forEach((l, i) => fitText(l, cy + 236 + i * 18, 13, '#789'));
+    .forEach((l, i) => fitText(l, oy + 186 + i * 18, 13, '#789'));
 }
 // typing the last digit joins straight away
 function typeCodeDigit(d) {
@@ -5584,7 +5752,8 @@ function togglePublic() {
   beep(net.public ? 660 : 440, 0.12, 'triangle', 0.05);
 }
 function drawLobby() {
-  const host = net.role === 'host', me = host ? 0 : net.myId;
+  const host = net.role === 'host', me = net.mine[0] ?? 0;
+  const ctrlOf = i => (CONTROLS[net.localN]?.[net.mine.indexOf(i)] || []).map(c => CONTROL_NAMES[c]).join(' / '); // (players sharing this computer)
   title('ONLINE LOBBY', 56, '#9dff5d', 44);
   fitText(net.status + (net.peer ? (relayOn ? '  ·  relay ON' : '  ·  direct only') : ''), 96, 14, '#9ab');
   if (host && net.code) {
@@ -5597,21 +5766,22 @@ function drawLobby() {
   for (let i = 0; i < MAX_ONLINE; i++) {
     const s = net.slots[i], c = P_COLORS[i];
     const rx = x0 + Math.floor(i / 4) * (cw + gap), y = top + (i % 4) * (rh + 8);
-    panel(rx, y, cw, rh, s ? c : '#334', i === me);
+    panel(rx, y, cw, rh, s ? c : '#334', isMine(i));
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillStyle = s ? c : '#556'; ctx.font = 'bold 14px system-ui';
-    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${i === me ? ' — you' : ''}`, rx + 50, y + 16);
+    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`, rx + 50, y + 16);
     ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '12px system-ui';
-    ctx.fillText(s ? shipById(s.ship).name + (i === me ? '  · click to change' : '') : 'open slot…', rx + 50, y + 33);
+    ctx.fillText(s ? shipById(s.ship).name + (isMine(i) ? '  · click to change' : '') : 'open slot…', rx + 50, y + 33);
     if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c, 0, shipById(s.ship).mk2 === true, s.cos?.skin); ctx.restore(); }
-    if (i === me && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true) }); // click your own slot to pick a ship
+    if (isMine(i) && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true, net.mine.indexOf(i)) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   fitText(`Run: ${RUN_LABEL[runType]}${host ? '  [E] to change' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
-    button(n > 1 ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, n > 1 ? '#9dff5d' : '#667', startOnline);
+    const ready = net.conns.length > 0; // (needs at least one friend from another computer)
+    button(ready ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, ready ? '#9dff5d' : '#667', startOnline);
   }
   button('LEAVE  [Esc]', bx, by + (host ? 120 : 68), bw, 40, '#ff5a70', () => leaveOnline());
   if (host) button(net.public ? 'PUBLIC: anyone can join, even mid-game  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
@@ -5621,7 +5791,7 @@ let last = performance.now(), fps = 60, beatT = 0;
 // on your last life: a heartbeat you can hear (the red screen edges are in drawVignette)
 function heartbeat(dt) {
   if (state !== 'play' || paused || !run) return;
-  const mine = net.role ? [players[net.role === 'guest' ? net.myId : 0]] : players;
+  const mine = net.role ? players.filter(p => isMine(p.id)) : players;
   if (!mine.some(p => p?.alive && p.lives === 1 && maxLivesOf(p) > 1)) { beatT = 0; return; }
   if ((beatT -= dt) <= 0) { beatT = 0.9; beep(58, 0.12, 'sine', 0.09, -8); setTimeout(() => beep(50, 0.14, 'sine', 0.07, -8), 150); }
 }
