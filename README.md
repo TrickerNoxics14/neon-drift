@@ -19,8 +19,16 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 34 enemy types · 2 maps (Deep Space, Neon City) · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 33 achievements · online quick chat (1–4) · procedural music
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 34 achievements · online quick chat (1–4) · procedural music
+
+### Zones
+
+Every run travels through space, zone by zone. You always start in **Deep Space**. After a zone's last boss you choose your next zone on a **route map**. All routes end at the **Event Horizon**, where THE ABYSS waits. Every zone has its own sky, its own bosses and enemies, and a hazard:
+
+- **Shattered Belt:** meteors tear across flashing lanes.
+- **Crimson Nebula:** lightning strikes pink circles.
+- **Frozen Rings:** drifting ice blocks enemy shots.
 
 The whole game is a single file: `index.html`.
