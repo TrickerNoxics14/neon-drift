@@ -68,6 +68,7 @@ function toggleSetting(key) {
 // sound effects and music have separate buses so each can be muted; music also runs through a
 // low-pass filter that muffles it while the game is paused or on the upgrade screen
 let ac = null, master, sfxBus, musicBus, musicFilter, noiseBuf;
+const MUSIC_LEVEL = 0.4; // the music's volume (the band is a lot fuller than the sound effects)
 function ensureAudio() {
   if (ac) { if (ac.state === 'suspended' && !document.hidden) ac.resume(); return true; }
   try {
@@ -87,7 +88,7 @@ function ensureAudio() {
 function applyVolumes() {
   if (!ac) return;
   sfxBus.gain.value = settings.sfx ? 1 : 0;
-  musicBus.gain.value = settings.music ? 0.4 : 0; // (the band is a lot fuller than the sound effects)
+  musicBus.gain.value = settings.music ? MUSIC_LEVEL : 0;
 }
 
 const beepLast = {};
@@ -354,35 +355,43 @@ function scheduleMusic() {
   if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.05; // woke from sleep: don't play a backlog
   while (music.next < ac.currentTime + 0.15) music.next += musicStep(music.next);
 }
-// Recorded songs (audio files instead of notes, like THE ABYSS's) stream through the music bus, so the music volume,
-// the mute key and the pause muffle all apply. They loop between their `loop` points (skipping the silence at either
-// end) at their own `gain` (matched to the band's loudness). If the file can't load, the song's written-out version plays.
-const rec = { el: null, gain: null, song: null, failed: {} };
-const recordedOk = id => !!SONGS[id]?.file && !rec.failed[SONGS[id].file];
+// Recorded songs (audio files instead of notes, like THE ABYSS's) play straight from an <audio> element. (Routing them
+// through the music bus would be neater, but when the game is opened as a file on disk the browser silences audio
+// it sends through Web Audio that way.) Its volume follows the music setting, dips while paused like the band's
+// muffle, and fades in and out. They loop between their `loop` points, skipping the silence at either end, at their
+// own `gain` (matched to the band's loudness). Until enough of the file has loaded (or if it can't load, or the
+// browser won't let it play yet), the song's written-out version plays instead.
+const rec = { el: null, song: null, failed: {}, blocked: false };
+function recordedOk(id) {
+  const s = SONGS[id];
+  if (!s?.file || rec.failed[s.file] || rec.blocked) return false;
+  return rec.song === id || prepRecorded(s).readyState >= 3; // (HAVE_FUTURE_DATA: it can start playing now)
+}
 function prepRecorded(s) {
   if (rec.el?.dataset.file === s.file) return rec.el;
   const el = rec.el = new Audio(s.file);
-  el.dataset.file = s.file; el.preload = 'auto';
-  el.addEventListener('error', () => { rec.failed[s.file] = true; });
-  rec.gain = null; // (hooked up to the music bus the first time it plays)
+  el.dataset.file = s.file; el.preload = 'auto'; el.volume = 0;
+  el.addEventListener('error', () => { rec.failed[s.file] = true; rec.song = null; });
   return el;
 }
+const recordedVolume = s => settings.music ? s.gain * MUSIC_LEVEL * (paused || state === 'upgrade' ? 0.45 : 1) : 0;
+function fadeRecorded(target) { const el = rec.el; el.volume = Math.max(0, Math.min(1, el.volume + Math.max(-0.02, Math.min(0.02, target - el.volume)))); }
 function playRecorded(id) {
-  const s = SONGS[id], el = prepRecorded(s), t = ac.currentTime;
-  if (!rec.gain) { rec.gain = ac.createGain(); rec.gain.gain.value = 0; ac.createMediaElementSource(el).connect(rec.gain); rec.gain.connect(musicBus); }
-  if (rec.song !== id) { // start it from the top, fading in
-    rec.song = id; el.currentTime = s.loop[0];
-    rec.gain.gain.cancelScheduledValues(t); rec.gain.gain.setValueAtTime(0, t); rec.gain.gain.linearRampToValueAtTime(s.gain, t + 0.5);
-  }
-  if (el.paused) el.play().catch(() => {});
+  const s = SONGS[id], el = rec.el;
+  if (rec.song !== id) { rec.song = id; el.currentTime = s.loop[0]; el.volume = 0; } // (from the top, fading in)
+  if (el.paused) el.play().catch(() => { // the browser wants a click first: play the written-out version until then
+    rec.blocked = true; rec.song = null;
+    const retry = () => { rec.blocked = false; removeEventListener('pointerdown', retry); removeEventListener('keydown', retry); };
+    addEventListener('pointerdown', retry); addEventListener('keydown', retry);
+  });
   if (el.currentTime >= s.loop[1]) el.currentTime = s.loop[0];
+  fadeRecorded(recordedVolume(s));
 }
-function stopRecorded() {
-  if (!rec.song) return;
+function stopRecorded() { // fade out, then pause
   rec.song = null;
-  const t = ac.currentTime, el = rec.el;
-  rec.gain.gain.cancelScheduledValues(t); rec.gain.gain.setValueAtTime(rec.gain.gain.value, t); rec.gain.gain.linearRampToValueAtTime(0, t + 0.6);
-  setTimeout(() => { if (!rec.song) el.pause(); }, 700);
+  const el = rec.el; if (!el || el.paused) return;
+  fadeRecorded(0);
+  if (el.volume <= 0) el.pause();
 }
 // which song should be playing right now
 function wantedSong() {
