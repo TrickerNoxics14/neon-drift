@@ -985,7 +985,7 @@ function continueEndless() {
   run.paid = (run.paid || 0) + run.earned; // the Standard finish has already been paid out
   run.endless = true; run.victory = false; run.wonStandard = true; run.victoryT = 0;
   const alive = living();
-  for (const p of players) { if (!p.alive) revive(p, alive[0]); p.inv = 2; }
+  for (const p of players) { if (!p.alive && !p.gone) revive(p, alive[0]); p.inv = 2; }
   paused = false; eBullets = []; lasers = [];
   const m = startNextCycle();
   openUpgrade(`ENDLESS BEGINS — NEW MUTATOR: ${m.name}`, true);
@@ -2620,7 +2620,7 @@ function update(dt) {
       if (level >= 5) unlockAch('sector5');
       if (level >= 10) unlockAch('sector10');
       const alive = living();
-      for (const p of players) if (!p.alive) revive(p, alive[0]); // downed teammates rejoin
+      for (const p of players) if (!p.alive && !p.gone) revive(p, alive[0]); // downed teammates rejoin
       pendingBoss = level % BOSS_EVERY === 0;
       openUpgrade(`SECTOR ${level - 1} CLEARED`, false);
       return;
@@ -4151,11 +4151,11 @@ function drawHUD() {
     const y = 14 + i * hudRowH();
     ctx.font = compactHud ? '15px system-ui' : '20px system-ui'; ctx.fillStyle = p.alive ? p.color : '#556';
     const label = mode > 1 ? `P${p.id + 1} ` : '';
-    ctx.fillText(p.alive ? label + '♥'.repeat(p.lives) + '♡'.repeat(Math.max(0, maxLivesOf(p) - p.lives)) : label + 'DOWN', W - 16, y);
+    ctx.fillText(p.alive ? label + '♥'.repeat(p.lives) + '♡'.repeat(Math.max(0, maxLivesOf(p) - p.lives)) : label + (p.gone ? 'LEFT' : 'DOWN'), W - 16, y);
     if (compactHud) return;
     ctx.font = 'bold 12px system-ui';
     if (p.alive && p.power > 0) { ctx.fillStyle = '#ffe93d'; ctx.fillText(`SPREAD ${p.power.toFixed(1)}s`, W - 16, y + 26); }
-    else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText('fly to the wreck to revive', W - 16, y + 26); }
+    else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText(p.gone ? 'left the game' : 'fly to the wreck to revive', W - 16, y + 26); }
     else { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
   });
 
@@ -4927,7 +4927,13 @@ async function hostGame() {
     });
     peer.on('connection', conn => {
       conn.on('open', () => {
-        if (net.playing || net.conns.length >= MAX_ONLINE - 1) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
+        if (net.playing) { // public rooms let people drop into a running game (taking over a slot someone left, if any)
+          const free = players.findIndex(p => p.gone);
+          if (!net.public || (free < 0 && players.length >= MAX_ONLINE)) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
+          conn.slot = free >= 0 ? free : players.length; conn.late = true; net.conns.push(conn);
+          return; // they join for real once they tell us their ship (see lateJoin)
+        }
+        if (net.conns.length >= MAX_ONLINE - 1) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 300); return; }
         conn.slot = net.slots.length;
         net.conns.push(conn); net.slots.push({ ship: 'striker' });
         beep(660, 0.2, 'triangle', 0.06, 330);
@@ -4943,6 +4949,7 @@ function broadcastLobby() {
   for (const c of net.conns) c.send({ lobby: { slots: net.slots, runType }, you: c.slot });
 }
 function onHostData(conn, d) {
+  if (d.ship && conn.late) { conn.late = false; lateJoin(conn, d.ship, d.cos); return; }
   if (d.ship && !net.playing && net.slots[conn.slot]) { net.slots[conn.slot].ship = d.ship; if (d.cos) net.slots[conn.slot].cos = d.cos; broadcastLobby(); }
   if (!net.playing || !run) return;
   const p = players[conn.slot];
@@ -4962,12 +4969,25 @@ function smoothRemotePlayers() {
     if (v) [p.x, p.y, p.tilt, p.thrust] = v;
   }
 }
+// someone joined a public game that's already running: give them a ship and catch everyone up
+function lateJoin(conn, ship, cos) {
+  const id = conn.slot;
+  net.slots[id] = { ship, cos: cos || COS_DEFAULT };
+  const p = makePlayer(id, W * (0.2 + Math.random() * 0.6), ship, cos);
+  p.remote = true; p.inv = 3;
+  players[id] = p; mode = players.length;
+  conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: id } });
+  for (const c of net.conns) if (c !== conn && c.open) c.send({ addPlayer: { id, ship, cos: p.cos } });
+  fxText(`P${id + 1} JOINED!`, W / 2, H * 0.3, P_COLORS[id], 26, 2);
+  [523, 784].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.06), i * 100));
+}
 function onGuestLeft(conn) {
   const i = net.conns.indexOf(conn);
   if (i < 0) return;
   net.conns.splice(i, 1);
   if (net.playing && run) { // their ship goes down for good
     const p = players[conn.slot];
+    if (p) p.gone = true; // (their slot can be taken by someone joining a public game)
     if (p && p.alive) { p.alive = false; p.lives = 0; p.wreck = null; if (!living().length) endRun(); }
     showToast(`P${conn.slot + 1} disconnected`);
   } else {
@@ -4978,17 +4998,21 @@ function onGuestLeft(conn) {
 }
 function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
+  compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = i > 0);
   net.playing = true; net.sendT = 0; net.events = [];
-  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H } });
+  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slot } }); // (you: slots may have been renumbered)
+}
+// drop the slots of anyone who disconnected mid-game, and renumber everyone else
+function compactSlots() {
+  net.slots = [net.slots[0], ...net.conns.map(c => net.slots[c.slot] || { ship: 'striker' })];
+  net.conns.forEach((c, k) => { c.slot = k + 1; c.late = false; });
 }
 function backToLobby() {
   net.playing = false; go('lobby');
-  // drop the slots of anyone who disconnected mid-game, and renumber everyone else
-  net.slots = [net.slots[0], ...net.conns.map(c => net.slots[c.slot] || { ship: 'striker' })];
-  net.conns.forEach((c, k) => c.slot = k + 1);
+  compactSlots();
   broadcastLobby();
 }
 const r1 = v => Math.round(v * 10) / 10, r2 = v => Math.round(v * 100) / 100;
@@ -5001,7 +5025,7 @@ function packSnap() {
     rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
-      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0)]),
+      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
       e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0]),
@@ -5076,11 +5100,16 @@ function onGuestData(d) {
     else if (state !== 'lobby' && !(state === 'ships' && shipPick?.online)) go('lobby'); // don't yank me out of the ship picker
   }
   if (d.start) {
+    if (d.start.you !== undefined) net.myId = d.start.you; // (joined a game already in progress)
     runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
     net.playing = true; net.rewarded = false; resize();
     Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
     start(d.start.n, d.start.ships, d.start.cos);
     players.forEach((p, i) => p.remote = i !== net.myId);
+  }
+  if (d.addPlayer && net.playing && run) { // someone dropped into the game
+    const a = d.addPlayer, p = makePlayer(a.id, W / 2, a.ship, a.cos);
+    p.remote = true; players[a.id] = p; mode = players.length;
   }
   if (d.snap && net.playing && run) applySnap(d.snap);
 }
@@ -5145,11 +5174,11 @@ function dirRooms() {
   for (const [k, r] of dir.rooms) if (now - r.t > DIR_STALE * 1000) dir.rooms.delete(k);
   return [...dir.rooms.values()].map(({ t, ...r }) => r);
 }
-// joinable rooms first (busiest first), then full or already-playing ones
-const roomOpen = r => !r.playing && r.n < MAX_ONLINE;
-const sortedRooms = () => dir.list.slice().sort((a, b) => roomOpen(b) - roomOpen(a) || b.n - a.n);
+// joinable rooms first (lobbies, then games in progress — public games can be joined mid-game), busiest first
+const roomOpen = r => r.n < MAX_ONLINE;
+const sortedRooms = () => dir.list.slice().sort((a, b) => roomOpen(b) - roomOpen(a) || a.playing - b.playing || b.n - a.n);
 const myRoom = () => net.role === 'host' && net.public && net.code
-  ? { code: net.code, name: net.roomName, n: net.slots.length, run: runType, playing: net.playing ? 1 : 0 } : null;
+  ? { code: net.code, name: net.roomName, n: net.conns.length + 1, run: runType, playing: net.playing ? 1 : 0 } : null;
 // every few seconds: (re)send my room if I'm hosting a public game, and refresh the list if I'm browsing
 function dirBeat() {
   const room = myRoom();
@@ -5215,7 +5244,7 @@ function applySnap(s) {
     else if (!p.alive || !a[3]) { p.x = a[0]; p.y = a[1]; p.tilt = a[7]; p.thrust = a[8]; } // my own ship stays where I steer it
     if (mine && !wasAlive && a[3]) { p.x = a[0]; p.y = a[1]; } // just revived: take the host's spot
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
-    p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11];
+    p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11]; p.gone = !!a[12];
   });
   // enemies keep their identity between snapshots (by id) so they can glide along a timeline
   const byId = new Map(enemies.map(e => [e.id, e])), seen = new Set();
@@ -5447,8 +5476,8 @@ function drawBrowse() {
     ctx.fillStyle = open ? '#fff' : '#778'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`${i + 1}.  ${r.name}`, rx + 14, y + 19);
     ctx.fillStyle = RUN_COLOR[r.run] || '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(`${RUN_LABEL[r.run] || r.run}  ·  code ${r.code}`, rx + 14, y + 38);
     ctx.textAlign = 'right'; ctx.font = 'bold 15px system-ui';
-    ctx.fillStyle = open ? '#9dff5d' : '#c88'; ctx.fillText(r.playing ? 'IN GAME' : r.n >= MAX_ONLINE ? 'FULL' : 'JOIN', rx + rw - 14, y + 19);
-    ctx.fillStyle = '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(`${r.n} / ${MAX_ONLINE} players`, rx + rw - 14, y + 38);
+    ctx.fillStyle = open ? '#9dff5d' : '#c88'; ctx.fillText(!open ? 'FULL' : r.playing ? 'JOIN GAME ▶' : 'JOIN', rx + rw - 14, y + 19);
+    ctx.fillStyle = r.playing ? '#ffb13d' : '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(`${r.playing ? 'in progress · ' : 'in lobby · '}${r.n} / ${MAX_ONLINE}`, rx + rw - 14, y + 38);
   });
   if (searching || !rooms.length) { // a little radar sweep while waiting
     const t = performance.now() / 1000, cy = top + 60;
@@ -5460,7 +5489,7 @@ function drawBrowse() {
   button('HOST A PUBLIC GAME', bx, by, bw, 44, '#9dff5d', () => { net.wantPublic = true; hostGame(); });
   button('BACK  [Esc]', bx, by + 52, bw, 40, '#9ab', () => go('online'));
   ctx.font = '12px system-ui';
-  wrap('The list updates by itself. Games show up when their host turns PUBLIC on in the lobby. Strict networks (school/work) may hide some games — use a room code then.', Math.min(460, W - 40))
+  wrap('The list updates by itself. Public games can be joined even after they start — you drop in with your last-used ship. Strict networks (school/work) may hide some games — use a room code then.', Math.min(460, W - 40))
     .forEach((l, i) => fitText(l, by + 112 + i * 17, 12, '#789'));
 }
 // host: show or hide this room on the public list
@@ -5500,7 +5529,7 @@ function drawLobby() {
     button(n > 1 ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, n > 1 ? '#9dff5d' : '#667', startOnline);
   }
   button('LEAVE  [Esc]', bx, by + (host ? 120 : 68), bw, 40, '#ff5a70', () => leaveOnline());
-  if (host) button(net.public ? 'PUBLIC: ON — anyone can join  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
+  if (host) button(net.public ? 'PUBLIC: anyone can join, even mid-game  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
 }
 
 let last = performance.now();

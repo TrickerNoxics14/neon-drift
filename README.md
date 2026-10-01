@@ -9,7 +9,7 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 1. Everyone opens the link above.
 2. One player clicks **ONLINE CO-OP → HOST A GAME** and shares the 4-digit room code.
 3. Everyone else clicks **ONLINE CO-OP → BROWSE PUBLIC GAMES** and picks the room, or **JOIN WITH A CODE** and types the code.
-4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**.
+4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**. Public games can be joined even after they start.
 
 ## Controls
 
