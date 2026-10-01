@@ -21,7 +21,11 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 34 achievements · online quick chat (1–4) · procedural music
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 34 achievements · online quick chat (1–4) · an original soundtrack (below)
+
+### Music
+
+Every zone has its own song, and so do the menus and the final boss. The style is soft rock in space: crunchy guitars, bass and drums, a bamboo flute, a koto and taiko drums, and spacey pads with lots of echo. When a boss shows up, the song switches to a battle version with driving drums, power chords and a lead guitar. All of it is played live by the browser from notes written in the code, so there are no audio files.
 
 ### Zones
 
