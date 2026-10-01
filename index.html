@@ -190,8 +190,10 @@ const META_ITEMS = [
   { id: 'medkit',  name: 'Field Medic',     desc: 'Revive teammates 25% faster',        costs: [120, 300] },
   { id: 'bounty',  name: 'Boss Bounty',     desc: '+20 shards per boss defeated',       costs: [200, 450, 900] },
 ];
-let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} } };
-try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: m.shards || 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats) }; } catch (e) {}
+const COS_DEFAULT = { trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default' };
+let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } } };
+try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: m.shards || 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
+  cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } } }; } catch (e) {}
 const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
 
@@ -200,6 +202,87 @@ function buyMeta(item) {
   if (cost === undefined || meta.shards < cost) { beep(110, 0.15, 'square', 0.05); return; }
   meta.shards -= cost; meta.lv[item.id] = lv + 1; saveMeta();
   beep(660, 0.2, 'triangle', 0.08, 440);
+}
+
+// ---------- cosmetics: bought with shards, purely for looks (sw = the colors shown on the shop tile) ----------
+const COS_CATS = [['trail', 'TRAILS'], ['bullet', 'BULLETS'], ['kill', 'KILL FX']];
+const RAINBOW = ['#ff3d5a', '#ff9a3d', '#ffe93d', '#5dff7a', '#3dd8ff', '#c05dff'];
+const COSMETICS = [
+  { id: 'trail_none',     cat: 'trail',  name: 'None',          cost: 0,   sw: ['#334'] },
+  { id: 'trail_comet',    cat: 'trail',  name: 'Comet',         cost: 120, sw: ['#7df9ff', '#3d9dff'] },
+  { id: 'trail_fire',     cat: 'trail',  name: 'Afterburn',     cost: 200, sw: ['#ffe93d', '#ff9a3d', '#ff3d3d'] },
+  { id: 'trail_ice',      cat: 'trail',  name: 'Frostbite',     cost: 200, sw: ['#ffffff', '#bfefff', '#5dc8ff'] },
+  { id: 'trail_rainbow',  cat: 'trail',  name: 'Rainbow Road',  cost: 300, sw: RAINBOW },
+  { id: 'trail_void',     cat: 'trail',  name: 'Abyssal Wake',  cost: 350, sw: ['#000000', '#ff1f3d', '#000000'] },
+  { id: 'trail_gold',     cat: 'trail',  name: 'Gold Dust',     cost: 400, sw: ['#fff3b0', '#ffd23d', '#c9a227'] },
+  { id: 'bullet_default', cat: 'bullet', name: 'Ship Color',    cost: 0,   sw: ['#7df9ff'] },
+  { id: 'bullet_white',   cat: 'bullet', name: 'White Hot',     cost: 150, sw: ['#ffffff'], color: '#ffffff' },
+  { id: 'bullet_toxic',   cat: 'bullet', name: 'Toxic',         cost: 200, sw: ['#9dff3d'], color: '#9dff3d' },
+  { id: 'bullet_plasma',  cat: 'bullet', name: 'Plasma Pink',   cost: 200, sw: ['#ff5dc8'], color: '#ff5dc8' },
+  { id: 'bullet_crimson', cat: 'bullet', name: 'Crimson',       cost: 250, sw: ['#ff1f3d'], color: '#ff1f3d' },
+  { id: 'bullet_gold',    cat: 'bullet', name: 'Golden Rounds', cost: 350, sw: ['#ffd23d'], color: '#ffd23d' },
+  { id: 'bullet_rainbow', cat: 'bullet', name: 'Prism',         cost: 450, sw: RAINBOW, colors: RAINBOW },
+  { id: 'kill_default',   cat: 'kill',   name: 'Classic',       cost: 0,   sw: ['#ff3df2'] },
+  { id: 'kill_shock',     cat: 'kill',   name: 'Shockwave',     cost: 200, sw: ['#ffffff', '#7df9ff'] },
+  { id: 'kill_confetti',  cat: 'kill',   name: 'Confetti',      cost: 250, sw: RAINBOW },
+  { id: 'kill_ink',       cat: 'kill',   name: 'Bloodink',      cost: 300, sw: ['#ff1f3d', '#5a0010'] },
+  { id: 'kill_nova',      cat: 'kill',   name: 'Supernova',     cost: 400, sw: ['#ffffff', '#ffd23d', '#ff9a3d'] },
+];
+const cosById = id => COSMETICS.find(c => c.id === id);
+const cosOwned = c => c.cost === 0 || !!meta.cos.owned[c.id];
+// buy it if you can afford it, then equip it (equipping something you own is free)
+function useCosmetic(c) {
+  if (!cosOwned(c)) {
+    if (meta.shards < c.cost) { beep(110, 0.15, 'square', 0.05); return; }
+    meta.shards -= c.cost; meta.cos.owned[c.id] = true;
+    beep(660, 0.2, 'triangle', 0.08, 440);
+  } else beep(880, 0.08, 'triangle', 0.05);
+  meta.cos.eq[c.cat] = c.id; saveMeta();
+}
+// a player's cosmetics (P1 locally uses your saved choices; online, each player brings their own)
+const cosOf = p => p?.cos || COS_DEFAULT;
+// the color of a player's normal shots (other shots — missiles, drones, rails — keep theirs)
+function bulletColorOf(p, color) {
+  if (!p || color !== p.color) return color;
+  const c = cosById(cosOf(p).bullet);
+  if (c?.colors) return c.colors[(p.shotN = (p.shotN || 0) + 1) % c.colors.length];
+  return c?.color || color;
+}
+// the burst when an enemy dies, in the style of whoever got the kill
+function killBurst(e, big) {
+  const n = big ? 50 : 25, sp = big ? 360 : 260, style = cosOf(players[e.lastBy]).kill;
+  const ring = (to, color, w) => { if (bossFx.rings.length < 40) fxRing(e.x, e.y, 4, to, 0.3, color, w); };
+  if (style === 'kill_shock') { burst(e.x, e.y, e.color, n * 0.6, sp); ring(e.r * 3.2, '#ffffff', 3); }
+  else if (style === 'kill_confetti') for (const c of RAINBOW) burst(e.x, e.y, c, Math.ceil(n / 4), sp * 1.1);
+  else if (style === 'kill_ink') { burst(e.x, e.y, '#ff1f3d', n * 0.7, sp * 0.9); burst(e.x, e.y, '#5a0010', n * 0.5, sp * 0.5); }
+  else if (style === 'kill_nova') { burst(e.x, e.y, '#ffd23d', n, sp * 1.3); burst(e.x, e.y, '#ffffff', n * 0.4, sp * 0.6); ring(e.r * 2.6, '#ffd23d', 4); }
+  else burst(e.x, e.y, e.color, n, sp);
+}
+// engine trails: each screen keeps its own short history of every ship's position (nothing goes over the network)
+function drawTrail(p) {
+  const style = cosOf(p).trail;
+  if (style === 'trail_none' || !p.alive) { p.trailPts = null; return; }
+  const pts = p.trailPts ||= [];
+  pts.push([p.x, p.y + 12]); if (pts.length > 20) pts.shift();
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.lineCap = 'round';
+  for (let i = 1; i < pts.length; i++) {
+    const k = i / pts.length, [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    ctx.globalAlpha = k * 0.85;
+    if (style === 'trail_comet') { ctx.strokeStyle = p.color; ctx.lineWidth = 2 + k * 7; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+    else if (style === 'trail_rainbow') { ctx.strokeStyle = RAINBOW[(i + Math.floor(t * 12)) % RAINBOW.length]; ctx.lineWidth = 3 + k * 6; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+    else if (style === 'trail_void') {
+      ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 4 + k * 10; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 2 + k * 7; ctx.stroke();
+    } else { // particle-style trails: fire, ice, gold
+      const cols = style === 'trail_fire' ? ['#ff3d3d', '#ff9a3d', '#ffe93d'] : style === 'trail_ice' ? ['#5dc8ff', '#bfefff', '#ffffff'] : ['#c9a227', '#ffd23d', '#fff3b0'];
+      ctx.fillStyle = cols[Math.min(2, Math.floor(k * 3))];
+      const jx = style === 'trail_gold' ? Math.sin(i * 7.3 + t * 9) * 6 : (Math.random() - 0.5) * 4, r = style === 'trail_fire' ? 1.5 + k * 5 : 1 + k * 3;
+      ctx.beginPath(); ctx.arc(x1 + jx, y1 + (style === 'trail_fire' ? (1 - k) * 8 : 0), r, 0, Math.PI * 2); ctx.fill();
+      if (style !== 'trail_fire' && i % 4 === 0) { ctx.fillStyle = '#fff'; ctx.fillRect(x1 - jx - 1, y1 - 1, 2, 2); } // sparkles
+    }
+  }
+  ctx.restore();
 }
 
 // ---------- achievements ----------
@@ -372,7 +455,7 @@ function openUpgrade(title, bossReward) {
   if (bossReward) run.shopNext = true;
   const cards = rollCards(metaLv('choice') ? 4 : 3, bossReward);
   if (!cards.length) { resumeAfterUpgrade(); return; }
-  offer = { title, bossReward, cards };
+  offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1 }; // (Boss Rush: two picks per boss)
   go('upgrade');
   beep(520, 0.3, 'triangle', 0.07, 300);
 }
@@ -382,6 +465,10 @@ function pickUpgrade(i) {
   applyUpgrade(u);
   for (const p of living()) burst(p.x, p.y, RARITY[u.r].color, 40, 300);
   beep(880, 0.25, 'triangle', 0.08, 660);
+  if (--offer.picks > 0) { // Boss Rush bonus pick: a fresh hand
+    const cards = rollCards(offer.cards.length, true);
+    if (cards.length) { offer.cards = cards; offer.title = 'BONUS PICK — CHOOSE ANOTHER'; sel = 0; return; }
+  }
   resumeAfterUpgrade();
 }
 function reroll() {
@@ -395,7 +482,10 @@ function resumeAfterUpgrade() {
   if (run.shopNext) { run.shopNext = false; openShop(); return; } // the merchant visits after each boss
   go('play');
   if (run.s.sectorSpread) for (const p of living()) p.power = Math.max(p.power, run.s.sectorSpread); // Overcharge
-  if (pendingBoss) { pendingBoss = false; bossWarn = 3; bossCount++; beep(110, 0.6, 'square', 0.06); }
+  if (pendingBoss) {
+    pendingBoss = false; bossWarn = 3; bossCount++; beep(110, 0.6, 'square', 0.06);
+    if (run.rush) level = Math.min(16, 1 + Math.round(bossCount * 1.15)); // (Boss Rush has no sectors: minions and elites scale with the boss number)
+  }
   else if (levelT === 0) fxText(`SECTOR ${level}`, W / 2, H * 0.4, '#7df9ff', 30, 1.4);
 }
 
@@ -472,7 +562,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyO' && state === 'menu') go('settings');
     if (e.code === 'KeyT' && state === 'menu') go('achievements');
     if (e.code === 'KeyE' && state === 'menu') toggleRunType();
-    if (e.code === 'KeyE' && state === 'over' && run?.victory && net.role !== 'guest') continueEndless();
+    if (e.code === 'KeyE' && state === 'over' && run?.victory && !run.rush && net.role !== 'guest') continueEndless();
     if (e.code === 'KeyN' && state === 'menu') go('online');
   } else if (state === 'shop') {
     if (num >= 1 && num <= shop.items.length) buyShop(num - 1);
@@ -482,6 +572,10 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyR') reroll();
   } else if (state === 'hangar') {
     if (e.code === 'Escape' || e.code === 'KeyH') go('menu');
+    if (e.code === 'KeyC') go('cosmetics');
+  } else if (state === 'cosmetics') {
+    if (e.code === 'Escape') go('hangar');
+    if (num >= 1 && num <= 3) { cosTab = COS_CATS[num - 1][0]; sel = num - 1; }
   } else if (state === 'settings') {
     if (e.code === 'Escape' || e.code === 'KeyO') go('menu');
   } else if (state === 'achievements') {
@@ -543,20 +637,26 @@ function readPad(i) {
 }
 
 // ---------- run state ----------
-// run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators
+// run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators;
+// 'rush' (Boss Rush) is every boss back to back with upgrades and the shop in between
+const RUN_TYPES = ['standard', 'endless', 'rush'];
 let runType = 'standard';
-try { if (localStorage.getItem('neonDriftRunType') === 'endless') runType = 'endless'; } catch (e) {}
+try { const t = localStorage.getItem('neonDriftRunType'); if (RUN_TYPES.includes(t)) runType = t; } catch (e) {}
 function toggleRunType() {
-  runType = runType === 'endless' ? 'standard' : 'endless';
+  runType = RUN_TYPES[(RUN_TYPES.indexOf(runType) + 1) % RUN_TYPES.length];
   try { localStorage.setItem('neonDriftRunType', runType); } catch (e) {}
-  beep(runType === 'endless' ? 330 : 520, 0.15, 'triangle', 0.06, 200);
+  beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : 520, 0.15, 'triangle', 0.06, 200);
 }
+const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠' };
+const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70' };
+const runKind = () => run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
 
 // best scores are kept per player count and per run type
-const bestKey = (m, endless) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m) + (endless ? 'Endless' : '');
+const bestKey = (m, kind) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m)
+  + ({ endless: 'Endless', rush: 'Rush' }[kind] || '');
 const best = {};
-function bestOf(m, endless) {
-  const k = bestKey(m, endless);
+function bestOf(m, kind) {
+  const k = bestKey(m, kind);
   if (best[k] === undefined) { try { best[k] = +localStorage.getItem(k) || 0; } catch (e) { best[k] = 0; } }
   return best[k];
 }
@@ -646,6 +746,15 @@ function buildBossOrder() {
   // a full 4-player squad always meets the Quartet
   const second = mode === 4 ? quad : Math.random() < 0.5 ? trio : duos[1];
   return [singles[0], { team: duos[0] }, singles[1], singles[2], { team: second }, singles[3], singles[4], { single: omega }];
+}
+// Boss Rush: every solo boss, a team fight after every two, and THE ABYSS last (then ZERO, once you've earned it)
+function buildRushOrder() {
+  const solos = shuffle(BOSSES.map((b, i) => i).filter(i => !BOSSES[i].final)).map(i => ({ single: i }));
+  const teams = shuffle(TEAMS.map((t, i) => i).filter(i => !TEAMS[i].quad || mode === 4)).map(i => ({ team: i }));
+  const out = [];
+  while (solos.length || teams.length) { out.push(...solos.splice(0, 2)); if (teams.length) out.push(teams.shift()); }
+  out.push({ single: BOSSES.findIndex(b => b.final) });
+  return out;
 }
 const BOSS_CYCLE = 8; // encounters per cycle (buildBossOrder's length)
 function encounterDef(n) {
@@ -741,10 +850,10 @@ const maxLivesOf = p => Math.max(1, run.s.maxLives + (p.ship.mod.lives || 0));
 let lastShips = ['striker', 'striker', 'striker', 'striker'];
 try { const l = JSON.parse(localStorage.getItem('neonDriftShips')); if (Array.isArray(l)) lastShips = l.concat(lastShips).slice(0, 4); } catch (e) {}
 
-function makePlayer(id, x, shipId) {
+function makePlayer(id, x, shipId, cos) {
   const ship = shipById(shipId), m = ship.mod;
   const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1), inv: 2, power: 0, shield: m.aegis ? 1 : 0, alive: true,
-    shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship };
+    shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT };
   p.lives = maxLivesOf(p);
   return p;
 }
@@ -798,14 +907,15 @@ function shipSelectBack() {
   else go('menu');
 }
 
-function start(m, ships) {
+function start(m, ships, cosList) {
   mode = m;
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
-    bossOrder: buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', cycle: 1, mut: {} };
+    bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
+    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {} };
   lasers = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }; screenFlash = 0;
-  players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i]));
+  // cosmetics: online everyone brings their own; locally P1 wears yours
+  players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
   bullets = []; enemies = []; particles = []; pickups = []; eBullets = [];
   score = 0; time = 0; levelT = 0; spawnT = 0; shake = 0; combo = 1; comboT = 0; level = 1;
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
@@ -814,7 +924,11 @@ function start(m, ships) {
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   if (metaLv('deflect')) for (const p of players) p.shield = 1;
-  fxText('SECTOR 1', W / 2, H * 0.4, '#7df9ff', 30, 1.4);
+  if (run.rush) { // Boss Rush: no sectors — pick a starting upgrade, then the first boss arrives
+    pendingBoss = true; hint = { text: 'BOSS RUSH: every boss, back to back. Two upgrade picks and a shop after each fight!', life: 6 };
+    openUpgrade('BOSS RUSH — CHOOSE A STARTING UPGRADE', false);
+  }
+  if (!run.rush) fxText('SECTOR 1', W / 2, H * 0.4, '#7df9ff', 30, 1.4);
   if (m === 4) unlockAch('squad');
   // catch up on progress-based trophies earned before they existed (or by other means)
   if (meta.shards >= 1000) unlockAch('hoarder');
@@ -841,12 +955,12 @@ function endRun(victory = false) {
   const earned = Math.max(0, runShards() - (run.paid || 0));
   run.earned = earned; meta.shards += earned; saveMeta();
   if (meta.shards >= 1000) unlockAch('hoarder');
-  const prev = bestOf(mode, run.endless);
+  const prev = bestOf(mode, runKind());
   run.newBest = score > prev && score > 0;
   if (run.newBest) {
     beep(880, 0.5, 'triangle', 0.08, 880);
-    best[bestKey(mode, run.endless)] = score;
-    try { localStorage.setItem(bestKey(mode, run.endless), score); } catch (e) {}
+    best[bestKey(mode, runKind())] = score;
+    try { localStorage.setItem(bestKey(mode, runKind()), score); } catch (e) {}
   }
   if (victory) [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'triangle', 0.07), i * 120));
   go('over');
@@ -1243,6 +1357,7 @@ const ENEMY_AI = {
 // kind: undefined (normal shot), 'missile' (homing, explodes) or 'rail' (huge piercing slug)
 // p (optional): the ship that fired, whose class modifies damage, pierce and bullet speed
 function fire(x, y, a, color, kind, p) {
+  color = bulletColorOf(p, color); // (cosmetic bullet colors)
   const s = run.s, m = p ? p.ship.mod : {}, crit = Math.random() < s.crit;
   const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
@@ -1294,7 +1409,7 @@ function killEnemy(e, src) {
   if (combo >= 8) unlockAch('combo8');
   if (combo >= 16) unlockAch('combo16');
   const big = e.r >= 20;
-  burst(e.x, e.y, e.color, big ? 50 : 25, big ? 360 : 260);
+  killBurst(e, big);
   shake = Math.max(shake, big ? 10 : 4);
   beep(180 + Math.random() * 100, 0.15, 'sawtooth', 0.05, -120);
   if (e.type === 'splitter') for (let k = -1; k <= 1; k++) { // breaks into three minis
@@ -1363,7 +1478,7 @@ function updateBlades() {
     const { x, y } = bladePos(p, k, n);
     for (const e of enemies) {
       if (e.dead || (e.bladeCd || 0) > time || Math.hypot(e.x - x, e.y - y) > e.r + 9) continue;
-      e.bladeCd = time + 0.3; damageEnemy(e, dmg, 'blade'); burst(x, y, '#ffffff', 4, 120);
+      e.bladeCd = time + 0.3; e.lastBy = p.id; damageEnemy(e, dmg, 'blade'); burst(x, y, '#ffffff', 4, 120);
       if (s.stormHalo && Math.random() < 0.5) chainLightning(x, y, 3, dmg); // Storm Halo evolution
     }
     for (const b of eBullets) if (!b.dead && b.fuse === undefined && Math.hypot(b.x - x, b.y - y) < (b.r || 5) + 9) { b.dead = true; burst(b.x, b.y, b.color || '#ff4d4d', 5, 100); }
@@ -2080,19 +2195,25 @@ function updateBoss(b, dt) {
           : b.final ? 'THE ABYSS IS SILENCED — CHOOSE A REWARD' : 'BOSS DEFEATED — CHOOSE A REWARD';
         onEncounterBeaten(encounter, b);
         encounter = null;
-        if (b.final && !run.endless) {
+        if (b.final && !run.endless && !run.rush) {
           // Standard run complete: let the explosion play out, then the victory screen
           run.victoryT = 2.4; players.forEach(p => { if (p.alive) p.inv = 99; });
           fxText('VICTORY!', W / 2, H * 0.4, '#ffe93d', 56, 2.4);
         } else if (b.final && meta.ach.omega) {
-          // Endless, and THE ABYSS has been beaten before: the secret boss crawls out of the wreckage
+          // Endless or Boss Rush, and THE ABYSS has been beaten before: the secret boss crawls out of the wreckage
           run.secretNext = true; bossWarn = 3.2;
           fxText('SOMETHING ELSE IS HERE', W / 2, H * 0.45, '#ffffff', 30, 3);
           [880, 440, 1760, 220].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'square', 0.05, -f / 2), 600 + i * 90));
+        } else if ((b.final || b.secret) && run.rush) { // Boss Rush cleared
+          run.victoryT = 2.4; players.forEach(p => { if (p.alive) p.inv = 99; });
+          fxText('BOSS RUSH CLEARED!', W / 2, H * 0.4, '#ffe93d', 44, 2.4);
         } else if (b.final || b.secret) {
           const m = startNextCycle();
           openUpgrade(`CYCLE ${run.cycle} — NEW MUTATOR: ${m.name}`, true);
-        } else openUpgrade(title, true);
+        } else {
+          if (run.rush) pendingBoss = true; // the next boss comes right after the shop
+          openUpgrade(title, true);
+        }
       }
     }
     return;
@@ -2252,7 +2373,7 @@ function hitBoss(b, dmg, fx, fy) {
 // achievements for winning a boss fight (called once, when its last boss is gone)
 function onEncounterBeaten(enc, last) {
   unlockAch('first_boss');
-  run.coins = (run.coins || 0) + 30; // shop money
+  run.coins = (run.coins || 0) + (run.rush ? 60 : 30); // shop money (Boss Rush has few other kills)
   if (!enc.hitTaken) unlockAch('flawless');
   if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) unlockAch('clutch');
   if (last.final) unlockAch('omega');
@@ -2592,6 +2713,7 @@ function update(dt) {
       if (b.dead || e.dead || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
       if (b.pierce > 0) { b.pierce--; b.hits.push(e); } else b.dead = true;
       if (b.crit) burst(b.x, b.y, '#ffffff', 6, 150);
+      e.lastBy = b.owner; // (whose kill effect to show)
       damageEnemy(e, b.dmg, b.missile ? 'missile' : 'bullet');
       // missiles always explode; Explosive Rounds make every hit explode
       if (b.missile) splash(b.x, b.y, s.inferno ? 90 : 45, b.dmg * 0.6, e);
@@ -3782,6 +3904,7 @@ function drawWorld() {
     ctx.fillStyle = c; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(l, k.x, k.y + 1);
   }
   for (const p of players) if (!p.alive && p.wreck) drawWreck(p);
+  for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
   drawTeamUi();
   drawBossFx('over');
@@ -3801,7 +3924,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}SECTOR ${level}   BEST ${bestOf(mode, run.endless).toLocaleString()}   ● ${run.coins || 0}`, 16, 42);
+  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `SECTOR ${level}`}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}`, 16, 42);
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -3928,8 +4051,8 @@ function drawMenu() {
   fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators)
-  const endless = runType === 'endless';
-  button(endless ? 'RUN: ENDLESS  ∞  [E]' : 'RUN: STANDARD  [E]', bx, top, bw, 36, endless ? '#ff9a3d' : '#9ab', toggleRunType);
+
+  button(`RUN: ${RUN_LABEL[runType]}  [E]`, bx, top, bw, 36, RUN_COLOR[runType], toggleRunType);
   const cy = top + 46;
   button('SOLO  [1]', bx, cy, bw, bh, '#7df9ff', () => openShipSelect(1));
   button('2-PLAYER CO-OP  [2]', bx, cy + gap, bw, bh, '#9dff5d', () => openShipSelect(2));
@@ -4024,7 +4147,7 @@ function drawShips() {
 
   title(sp.mode > 1 ? `P${pl + 1} — CHOOSE YOUR SHIP` : 'CHOOSE YOUR SHIP', 52, sp.mode > 1 ? pc : '#7df9ff', 40);
   const ctrl = sp.online ? 'Mouse / WASD / Arrow keys' : CONTROLS[sp.mode][pl].map(k => CONTROL_NAMES[k]).join(' / ');
-  fitText(`${sp.online ? 'ONLINE  ·  ' : runType === 'endless' ? 'ENDLESS RUN  ·  ' : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, 88, 13, runType === 'endless' ? '#ff9a3d' : '#9ab');
+  fitText(`${sp.online ? 'ONLINE  ·  ' : runType !== 'standard' ? `${RUN_LABEL[runType]} RUN  ·  ` : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, 88, 13, RUN_COLOR[runType]);
 
   // ship icons: 6 across on wide screens, 3x2 on narrow ones
   const cols = W < 560 ? 3 : 6, gap = 10;
@@ -4218,6 +4341,37 @@ function drawShop() {
   else button('LEAVE SHOP  [Esc]', (W - bw) / 2, by, bw, 44, '#7df9ff', leaveShop);
 }
 
+let cosTab = 'trail';
+function drawCosmetics() {
+  title('COSMETICS', 56, '#ff5dc8', 48);
+  fitText(`◆ ${meta.shards} shards  ·  just for looks — online, your friends see them too`, 100, 14, '#ffe93d', 'bold');
+  // category tabs
+  const tw = Math.min(150, (W - 48) / 3), tx = (W - (tw * 3 + 16)) / 2;
+  COS_CATS.forEach(([cat, label], i) => button(`${label} [${i + 1}]`, tx + i * (tw + 8), 122, tw, 36, cat === cosTab ? '#ff5dc8' : '#667', () => { cosTab = cat; sel = i; }));
+  const items = COSMETICS.filter(c => c.cat === cosTab);
+  const cols = W >= 700 ? 4 : 2, gap = 10, cw = Math.min(170, (W - 32 - gap * (cols - 1)) / cols), ch = 92;
+  const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 176, t = performance.now() / 1000;
+  items.forEach((c, i) => {
+    const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap);
+    const owned = cosOwned(c), worn = meta.cos.eq[c.cat] === c.id, can = owned || meta.shards >= c.cost;
+    buttons.push({ x, y, w: cw, h: ch, action: () => useCosmetic(c) });
+    panel(x, y, cw, ch, worn ? '#5dff7a' : can ? '#ff5dc8' : '#556', sel === i + 3);
+    // preview: a little animated swatch of its colors
+    const sw = c.sw, px = x + 12, pw = cw - 24, py = y + 14;
+    if (c.cat === 'trail') sw.forEach((col, k) => { ctx.fillStyle = col; ctx.globalAlpha = 0.9; ctx.fillRect(px + pw * k / sw.length, py + Math.sin(t * 4 + k) * 3, pw / sw.length - 2, 8); });
+    else if (c.cat === 'bullet') for (let k = 0; k < 5; k++) { ctx.fillStyle = sw[k % sw.length]; glow(sw[k % sw.length], 8); ctx.beginPath(); ctx.arc(px + 10 + k * (pw - 20) / 4, py + 5 + ((t * 30 + k * 7) % 8) - 4, 4, 0, Math.PI * 2); ctx.fill(); }
+    else for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + t, d = 6 + ((t * 20) % 10); ctx.fillStyle = sw[k % sw.length]; ctx.fillRect(x + cw / 2 + Math.cos(a) * d - 2, py + 6 + Math.sin(a) * d * 0.6 - 2, 4, 4); }
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px system-ui'; ctx.fillText(c.name, x + cw / 2, y + 46);
+    ctx.font = 'bold 12px system-ui';
+    ctx.fillStyle = worn ? '#5dff7a' : owned ? '#9ab' : can ? '#ffe93d' : '#a55';
+    ctx.fillText(worn ? '✓ EQUIPPED' : owned ? 'OWNED · EQUIP' : `◆ ${c.cost}`, x + cw / 2, y + 72);
+  });
+  const rows = Math.ceil(items.length / cols), bw = Math.min(240, W - 32);
+  button('BACK  [Esc]', (W - bw) / 2, y0 + rows * (ch + gap) + 10, bw, 44, '#7df9ff', () => go('hangar'));
+}
+
 function drawHangar() {
   title('HANGAR', 56, '#ffe93d', 52);
   fitText(`◆ ${meta.shards} shards`, 102, 18, '#ffe93d', 'bold');
@@ -4242,7 +4396,9 @@ function drawHangar() {
     ctx.fillText('●'.repeat(lv) + '○'.repeat(it.costs.length - lv), rx + rw - 12, y + rh / 2 + (small ? 8 : 10));
   });
   const by = 130 + perCol * (rh + gap) + 8, bw = Math.min(240, W - 32);
-  button('BACK  [Esc]', (W - bw) / 2, by, bw, 44, '#7df9ff', () => go('menu'));
+  const hw = Math.min(200, (W - 40) / 2);
+  button('COSMETICS  [C]', W / 2 - hw - 4, by, hw, 44, '#ff5dc8', () => go('cosmetics'));
+  button('BACK  [Esc]', W / 2 + 4, by, hw, 44, '#7df9ff', () => go('menu'));
 }
 
 function drawOver() {
@@ -4254,11 +4410,12 @@ function drawOver() {
     fitText('★  NEW BEST!  ★', cy - 55, 26, '#ffe93d', '900');
     ctx.restore();
   }
-  if (run.victory) title('VICTORY!', cy, '#ffe93d', 72);
+  if (run.victory) title(run.rush ? 'RUSH CLEARED!' : 'VICTORY!', cy, '#ffe93d', run.rush ? 56 : 72);
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   const lines = [
-    [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, run.endless).toLocaleString()}${run.endless ? ' (Endless)' : ''}`, '#cde', 18],
-    [run.victory ? `THE ABYSS destroyed  ·  +◆ ${VICTORY_BONUS} victory bonus`
+    [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, runKind()).toLocaleString()}${run.endless ? ' (Endless)' : run.rush ? ' (Boss Rush)' : ''}`, '#cde', 18],
+    [run.victory ? `${run.rush ? `All ${run.bossKills} bosses defeated` : 'THE ABYSS destroyed'}  ·  +◆ ${VICTORY_BONUS} victory bonus`
+      : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
     [`+◆ ${run.earned} shards   (total ◆ ${meta.shards})`, '#ffe93d', 18],
@@ -4271,9 +4428,9 @@ function drawOver() {
   wrap(build || 'No upgrades taken', Math.min(600, W - 32)).slice(0, 2).forEach((l, i) => fitText(l, cy + 162 + i * 18, 12, '#789'));
   const bw = Math.min(260, W - 32), bx = (W - bw) / 2;
   let by = cy + 214;
-  const again = run.victory ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
+  const again = run.victory && !run.rush ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
   // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
-  if (run.victory && net.role !== 'guest') {
+  if (run.victory && !run.rush && net.role !== 'guest') {
     button('CONTINUE INTO ENDLESS  [E]', bx, by, bw, 44, '#ff9a3d', continueEndless);
     fitText('Keep your ships, upgrades and score', by + 58, 12, '#c9a07a');
     by += 76;
@@ -4457,6 +4614,7 @@ function draw() {
   else if (state === 'shop') { drawHUD(); drawShop(); }
   else if (state === 'menu') drawMenu();
   else if (state === 'hangar') drawHangar();
+  else if (state === 'cosmetics') drawCosmetics();
   else if (state === 'settings') drawSettings();
   else if (state === 'ships') drawShips();
   else if (state === 'achievements') drawAchievements();
@@ -4532,7 +4690,7 @@ function leaveOnline(msg) {
 
 // ----- host -----
 async function hostGame() {
-  Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0] }], status: 'Connecting to the matchmaking server…', code: '' });
+  Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0], cos: meta.cos.eq }], status: 'Connecting to the matchmaking server…', code: '' });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
   const config = await iceConfig();
@@ -4562,7 +4720,7 @@ function broadcastLobby() {
   for (const c of net.conns) c.send({ lobby: { slots: net.slots, runType }, you: c.slot });
 }
 function onHostData(conn, d) {
-  if (d.ship && !net.playing && net.slots[conn.slot]) { net.slots[conn.slot].ship = d.ship; broadcastLobby(); }
+  if (d.ship && !net.playing && net.slots[conn.slot]) { net.slots[conn.slot].ship = d.ship; if (d.cos) net.slots[conn.slot].cos = d.cos; broadcastLobby(); }
   if (!net.playing || !run) return;
   const p = players[conn.slot];
   if (d.in && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
@@ -4597,11 +4755,11 @@ function onGuestLeft(conn) {
 }
 function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
-  const ships = net.slots.map(s => s.ship);
-  start(ships.length, ships);
+  const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
+  start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = i > 0);
   net.playing = true; net.sendT = 0; net.events = [];
-  for (const c of net.conns) c.send({ start: { n: ships.length, ships, runType, w: W, h: H } });
+  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H } });
 }
 function backToLobby() {
   net.playing = false; go('lobby');
@@ -4681,7 +4839,7 @@ async function joinGame(code) {
   peer.on('open', () => {
     const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
     net.host = conn;
-    conn.on('open', () => { net.status = 'Connected! Pick your ship — the host starts the game.'; conn.send({ ship: lastShips[0] }); });
+    conn.on('open', () => { net.status = 'Connected! Pick your ship — the host starts the game.'; conn.send({ ship: lastShips[0], cos: meta.cos.eq }); });
     conn.on('data', onGuestData);
     conn.on('close', () => { if (net.role === 'guest') leaveOnline('The host left the game'); });
   });
@@ -4698,7 +4856,7 @@ function onGuestData(d) {
     runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
     net.playing = true; net.rewarded = false; resize();
     Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
-    start(d.start.n, d.start.ships);
+    start(d.start.n, d.start.ships, d.start.cos);
     players.forEach((p, i) => p.remote = i !== net.myId);
   }
   if (d.snap && net.playing && run) applySnap(d.snap);
@@ -4985,7 +5143,7 @@ function drawLobby() {
     if (i === me && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
-  fitText(`Run: ${runType === 'endless' ? 'ENDLESS ∞' : 'STANDARD'}${host ? '  [E] to change' : ''}`, by + 4, 13, runType === 'endless' ? '#ff9a3d' : '#9ab', 'bold');
+  fitText(`Run: ${RUN_LABEL[runType]}${host ? '  [E] to change' : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
