@@ -1074,6 +1074,13 @@ const TYPES = {
   piker:    { r: 15, hp: 3, color: '#3dffd8', pts: 400, label: 'PIKER' },
   bulwark:  { r: 22, hp: 7, color: '#8da8ff', pts: 500, label: 'BULWARK', drop: 0.35 },
   linker:   { r: 13, hp: 3, color: '#ff5d8d', pts: 250, label: 'LINKERS' },
+  bouncer:  { r: 13, hp: 3, color: '#5dffd0', pts: 250, label: 'BOUNCER' },
+  shade:    { r: 15, hp: 3, color: '#b9a8ff', pts: 350, label: 'SHADE' },
+  vortex:   { r: 18, hp: 6, color: '#8d6dff', pts: 450, label: 'VORTEX', drop: 0.3 },
+  mortar:   { r: 18, hp: 4, color: '#ffb86b', pts: 400, label: 'MORTAR' },
+  shell:    { r: 10, hp: 1, color: '#ffb86b', pts: 0, drop: 0, harmless: true }, // a mortar's incoming shell (can't be shot)
+  mimic:    { r: 14, hp: 4, color: '#ffe93d', pts: 400, label: 'MIMIC', drop: 1 },
+  sapper:   { r: 10, hp: 2, color: '#9dff3d', pts: 300, label: 'SAPPER', harmless: true },
 };
 
 // which enemies can appear from which sector, and how often (relative weight)
@@ -1100,6 +1107,12 @@ const SPAWN_TABLE = [
   { type: 'piker',    from: 5, w: 1.6 },
   { type: 'bulwark',  from: 6, w: 1.3 },
   { type: 'linker',   from: 7, w: 1.2 }, // a pair joined by a beam
+  { type: 'bouncer',  from: 3, w: 1.8 },
+  { type: 'mimic',    from: 4, w: 1 },
+  { type: 'shade',    from: 5, w: 1.5 },
+  { type: 'mortar',   from: 5, w: 1.4 },
+  { type: 'sapper',   from: 6, w: 1.3 },
+  { type: 'vortex',   from: 7, w: 1.1 },
 ];
 
 function spawnEnemy() {
@@ -1195,6 +1208,13 @@ function makeEnemy(type, x, y) {
     case 'piker':    e.vy = 140; e.stopY = 60 + Math.random() * H * 0.2; e.stay = 12; break;
     case 'bulwark':  e.vy = speed * 0.3; e.fire = 2; break;
     case 'linker':   e.vy = speed * 0.28; break;
+    case 'bouncer':  e.vx = (Math.random() < 0.5 ? -1 : 1) * 190; e.vy = 170; e.life = 12; break;
+    case 'shade':    e.vy = 60; e.life = 16; break;
+    case 'vortex':   e.vy = 38; break;
+    case 'mortar':   e.vy = 120; e.stopY = 40 + Math.random() * 90; e.stay = 14; e.fire = 1.5; break;
+    case 'shell':    e.vx = e.vy = 0; e.timer = 1.3; break; // seconds until it lands
+    case 'mimic':    e.vy = 0; e.x = 40 + Math.random() * (W - 80); e.y = H * (0.25 + Math.random() * 0.3); e.state = 'disguise'; e.life = 14; break;
+    case 'sapper':   e.vy = 160; e.life = 14; break;
   }
   enemies.push(e);
   return e;
@@ -1223,6 +1243,7 @@ function enemyBoom(e, n, speed) {
   burst(e.x, e.y, e.color, 25, 260); if (bossFx.rings.length < 40) fxRing(e.x, e.y, 4, 60, 0.3, e.color, 3);
   beep(160, 0.2, 'square', 0.05, -100); shake = Math.max(shake, 5);
 }
+const SHADE_REVEAL = 170, SHELL_R = 48, SAP_TIME = 5, BOUNCER_MAX = 400, VORTEX_R = 120;
 const angleDiff = (a, b) => ((a - b) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
 // per-type behavior, run every frame after the enemy moves by its velocity
 const ENEMY_AI = {
@@ -1367,6 +1388,80 @@ const ENEMY_AI = {
     e.dest = m && !m.dead ? { x: m.x, y: m.y } : null; // (dest also tells online guests where to draw the beam)
     if (e.dest && e.side < 0 && e.t > LINK_WARM)
       for (const p of living()) if (distToSeg(p.x, p.y, e.x, e.y, m.x, m.y) < 6 + p.r * 0.5) hurt(p);
+  },
+  bouncer(e, dt) { // ricochets around the screen, a little faster each bounce, spitting bullets as it hits a wall
+    e.life -= dt; e.aimA += dt * 4;
+    let hit = false;
+    if ((e.x < e.r && e.vx < 0) || (e.x > W - e.r && e.vx > 0)) { e.vx = -e.vx; hit = true; }
+    if (e.life > 0 && ((e.y > H - e.r && e.vy > 0) || (e.y < e.r && e.vy < 0 && e.t > 2))) { e.vy = -e.vy; hit = true; }
+    if (hit) {
+      const f = Math.min(1.06, BOUNCER_MAX / Math.hypot(e.vx, e.vy)); e.vx *= f; e.vy *= f;
+      for (let k = 0; k < 4; k++) { const a = e.aimA + k * Math.PI / 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140, r: 4, color: e.color }); }
+      beep(700, 0.05, 'square', 0.03);
+    }
+  },
+  shade(e, dt) { // drifts in nearly invisible, then dives at whoever it gets close to
+    const p = nearestPlayer(e.x, e.y); if (!p) return;
+    const d = Math.hypot(p.x - e.x, p.y - e.y), a = Math.atan2(p.y - e.y, p.x - e.x);
+    if (e.state !== 'dive' && d < SHADE_REVEAL) { e.state = 'dive'; e.timer = 1.2; beep(300, 0.3, 'sine', 0.04, -200); }
+    const sp = e.state === 'dive' ? 270 : 70;
+    if (e.state !== 'dive') e.aimA = turnToward(e.aimA, a, 2 * dt);
+    if ((e.life -= dt) <= 0) { e.vy = 150; e.vx = 0; return; } // fades off after a while
+    if (e.state === 'dive') { e.timer -= dt; if (e.timer <= 0) e.state = 'enter'; } // (lunges in a straight line, then hunts again)
+    e.vx = Math.cos(e.aimA) * sp; e.vy = Math.sin(e.aimA) * sp;
+  },
+  vortex(e, dt) { e.x += Math.sin(e.t * 0.6) * 25 * dt; }, // (pulling your bullets in is done where bullets move)
+  mortar(e, dt) { // parks at the top and lobs shells at you: a target circle marks where each will land
+    if (e.state === 'enter') { if (e.y >= e.stopY) { e.state = 'hover'; e.vy = 0; } return; }
+    if (e.state === 'leave') return;
+    e.stay -= dt; if (e.stay <= 0) { e.state = 'leave'; e.vy = 140; return; }
+    e.fire -= dt;
+    const p = nearestPlayer(e.x, e.y);
+    if (e.fire <= 0 && p) {
+      e.fire = 2.8 * enemyFireScale();
+      const s = makeEnemy('shell', Math.max(20, Math.min(W - 20, p.x + (Math.random() - 0.5) * 80)), Math.max(20, Math.min(H - 20, p.y + (Math.random() - 0.5) * 60)));
+      s.owner = e; beep(140, 0.25, 'triangle', 0.05, 120);
+    }
+  },
+  shell(e, dt) { // lands after a moment and blows up where the circle was
+    e.timer -= dt;
+    if (e.timer > 0) return;
+    e.dead = true;
+    for (const p of living()) if (Math.hypot(p.x - e.x, p.y - e.y) < SHELL_R + p.r * 0.4) hurt(p);
+    burst(e.x, e.y, e.color, 30, 260); if (bossFx.rings.length < 40) fxRing(e.x, e.y, 6, SHELL_R, 0.3, e.color, 4);
+    beep(90, 0.25, 'square', 0.06, -40); shake = Math.max(shake, 5);
+  },
+  mimic(e, dt) { // sits there looking like a pickup; get close and it bites
+    e.life -= dt;
+    if (e.state === 'disguise') {
+      e.vy = 25;
+      const p = nearestPlayer(e.x, e.y);
+      if (p && Math.hypot(p.x - e.x, p.y - e.y) < 80) { e.state = 'bite'; e.timer = 0.9; e.aimA = Math.atan2(p.y - e.y, p.x - e.x); popups.push({ x: e.x, y: e.y - 24, text: 'MIMIC!', life: 1, color: e.color }); beep(220, 0.3, 'sawtooth', 0.06, -100); }
+      return;
+    }
+    const p = nearestPlayer(e.x, e.y);
+    e.timer -= dt;
+    if (p && e.timer <= 0) e.aimA = turnToward(e.aimA, Math.atan2(p.y - e.y, p.x - e.x), 2.5 * dt);
+    const sp = e.timer > 0 ? 330 : 160; e.vx = Math.cos(e.aimA) * sp; e.vy = Math.sin(e.aimA) * sp;
+    if (e.life <= 0) e.vy = Math.abs(e.vy) + 100; // gives up and leaves
+  },
+  sapper(e, dt) { // homes in and latches onto a ship (slowing its guns), then blows up unless someone shoots it off
+    e.life -= dt;
+    if (e.state !== 'latch') {
+      const p = nearestPlayer(e.x, e.y); if (!p) return;
+      e.aimA = turnToward(Math.atan2(e.vy, e.vx), Math.atan2(p.y - e.y, p.x - e.x), 3 * dt);
+      e.vx = Math.cos(e.aimA) * 210; e.vy = Math.sin(e.aimA) * 210;
+      if (Math.hypot(p.x - e.x, p.y - e.y) < 30 && p.inv <= 0) { e.state = 'latch'; e.host = p.id; e.timer = SAP_TIME; popups.push({ x: p.x, y: p.y - 30, text: 'SAPPED!', life: 1, color: e.color }); beep(1000, 0.2, 'square', 0.04, -600); }
+      if (e.life <= 0) e.vy = Math.abs(e.vy) + 60;
+      return;
+    }
+    const p = players[e.host];
+    if (!p || !p.alive) { e.state = 'enter'; return; }
+    e.vx = e.vy = 0; e.x = p.x; e.y = p.y + 24; // clings under the ship, where its own guns can't reach
+    e.dest = { x: p.x, y: p.y };
+    p.sapped = 0.1; // (slows its fire rate — see auto fire)
+    e.timer -= dt;
+    if (e.timer <= 0) { e.dead = true; hurt(p); burst(e.x, e.y, e.color, 30, 250); beep(150, 0.25, 'square', 0.06, -80); }
   },
   echo(e, dt) { // replays a player's recorded path; fades in for half a second before it can hurt
     const b = e.owner;
@@ -2761,13 +2856,14 @@ function update(dt) {
     if (!p.remote) p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -vy / 400)) - (p.thrust || 0)) * kk;
     p.inv = Math.max(0, p.inv - dt);
     p.power = Math.max(0, p.power - dt);
+    p.sapped = Math.max(0, (p.sapped || 0) - dt);
 
     // auto fire
     p.shotT -= dt;
     if (p.shotT <= 0) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
-      p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1);
+      p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1); // (a Sapper slows your guns)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
       for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, undefined, p);
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
@@ -2842,6 +2938,7 @@ function update(dt) {
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'));
   }
 
+  const vortexes = enemies.filter(e => e.type === 'vortex' && !e.dead);
   for (const b of bullets) {
     if ((s.homing && !b.rail) || b.missile) {
       const tgt = nearestTarget(b.x, b.y, b.missile ? 600 : 350);
@@ -2852,6 +2949,12 @@ function update(dt) {
         cur += Math.sign(d) * Math.min(Math.abs(d), (b.missile ? 5 : s.homing * 4) * dt);
         b.vx = Math.cos(cur) * sp; b.vy = Math.sin(cur) * sp;
       }
+    }
+    for (const v of vortexes) { // Vortexes bend your shots into themselves (shielding whatever is behind them)
+      const dx = v.x - b.x, dy = v.y - b.y, d = Math.hypot(dx, dy);
+      if (b.rail || d > VORTEX_R || d < 1) continue;
+      const sp = Math.hypot(b.vx, b.vy), a = turnToward(Math.atan2(b.vy, b.vx), Math.atan2(dy, dx), 6 * dt);
+      b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
     }
     // remember where it was, so hits are checked along the whole path (fast shots at low fps can't skip small targets)
     b.px = b.x; b.py = b.y;
@@ -2927,7 +3030,7 @@ function update(dt) {
     e.x += e.vx * edt; e.y += e.vy * edt;
     ENEMY_AI[e.type]?.(e, edt);
     for (const b of bullets) {
-      if (b.dead || e.dead || e.type === 'echo' || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
+      if (b.dead || e.dead || e.type === 'echo' || e.type === 'shell' || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
       if (e.type === 'bulwark' && Math.abs(angleDiff(Math.atan2((b.py ?? b.y) - e.y, (b.px ?? b.x) - e.x), e.aimA)) < BULWARK_ARC) {
         b.dead = true; e.shieldHit = 0.1; if (Math.random() < 0.4) burst(b.x, b.y, '#dfe8ff', 3, 120); continue; // blocked by its shield
       }
@@ -3232,6 +3335,24 @@ function drawWreck(p) {
 }
 
 function drawEnemy(e) {
+  if (e.type === 'shell') return; // (drawn as its target circle, in drawEnemyTelegraph)
+  if (e.type === 'mimic' && e.state === 'disguise') { // looks exactly like a pickup... almost (it wobbles a bit)
+    const [c, l] = PICK[['power', 'shield', 'life'][e.id % 3]];
+    ctx.save(); glow(c, 20); ctx.strokeStyle = c; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(e.x, e.y, 13 + Math.sin(e.t * 6) * 2, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = c; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(l, e.x + Math.sin(e.t * 13) * 0.8, e.y + 1); ctx.restore();
+    return;
+  }
+  if (e.type === 'shade') { // nearly invisible until someone gets close (or it gets hit)
+    const p = nearestPlayer(e.x, e.y), d = p ? Math.hypot(p.x - e.x, p.y - e.y) : 999;
+    ctx.save(); ctx.globalAlpha = e.flash > 0 ? 1 : Math.max(0.07, Math.min(1, (SHADE_REVEAL + 60 - d) / 120));
+    drawEnemyBody(e); ctx.restore();
+    return;
+  }
+  drawEnemyBody(e);
+}
+function drawEnemyBody(e) {
   if (e.type === 'echo') { // a see-through ghost ship, flickering
     ctx.save(); ctx.translate(e.x, e.y);
     ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.lineDashOffset = time * 30; ctx.globalAlpha = 0.8;
@@ -3294,6 +3415,30 @@ function drawEnemy(e) {
       break;
     case 'guardian': // tall shield shape
       ctx.moveTo(0, -r); ctx.lineTo(r * 0.9, -r * 0.6); ctx.lineTo(r * 0.8, r * 0.3); ctx.lineTo(0, r * 1.1); ctx.lineTo(-r * 0.8, r * 0.3); ctx.lineTo(-r * 0.9, -r * 0.6);
+      break;
+    case 'bouncer': // a spinning rounded square
+      ctx.rotate(e.aimA);
+      ctx.roundRect(-r, -r, r * 2, r * 2, r * 0.45);
+      break;
+    case 'shade': // a ragged wisp pointing where it's heading
+      ctx.rotate(e.aimA - Math.PI / 2);
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, rr = r * (i % 2 ? 0.55 : 1) * (i === 5 ? 1.6 : 1) * (1 + Math.sin(e.t * 9 + i) * 0.1); ctx.lineTo(Math.cos(a + Math.PI / 2) * rr, Math.sin(a + Math.PI / 2) * rr); }
+      break;
+    case 'vortex': // spiral arms
+      ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
+      break;
+    case 'mortar': // squat dome with a barrel
+      ctx.moveTo(-r * 1.1, r * 0.5); ctx.lineTo(-r * 0.8, -r * 0.4); ctx.lineTo(0, -r * 0.7); ctx.lineTo(r * 0.8, -r * 0.4); ctx.lineTo(r * 1.1, r * 0.5);
+      break;
+    case 'mimic': { // revealed: a chomping mouth
+      ctx.rotate(e.aimA);
+      const open = 0.25 + Math.abs(Math.sin(e.t * 14)) * 0.6;
+      ctx.moveTo(0, 0); ctx.arc(0, 0, r * 1.2, open, Math.PI * 2 - open);
+      break;
+    }
+    case 'sapper': // small spiky leech
+      ctx.rotate(e.t * 5);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a + 0.5) * r * 0.45, Math.sin(a + 0.5) * r * 0.45); }
       break;
     case 'kamikaze': // a dart pointing where it's diving
       ctx.rotate(e.aimA - Math.PI / 2);
@@ -3365,6 +3510,16 @@ function drawEnemy(e) {
     case 'orbiter': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
     case 'kamikaze': ctx.fillStyle = Math.floor(time * 12) % 2 ? '#fff' : c; ctx.beginPath(); ctx.arc(0, r * 0.2, r * 0.3, 0, Math.PI * 2); ctx.fill(); break; // blinking warhead
     case 'spinner': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
+    case 'bouncer': ctx.fillStyle = c; ctx.fillRect(-r * 0.3, -r * 0.3, r * 0.6, r * 0.6); break;
+    case 'shade': ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-r * 0.25, -r * 0.1, 2, 0, Math.PI * 2); ctx.arc(r * 0.25, -r * 0.1, 2, 0, Math.PI * 2); ctx.fill(); break; // eyes
+    case 'vortex': // three swirling arms around the eye
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 3; k++) { const a = -e.t * 4 + k * Math.PI * 2 / 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.2, a, a + 1.6); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 0.85, a + 0.8, a + 2); ctx.stroke(); }
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 'mortar': ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, -r * 0.6); ctx.lineTo(0, -r * 1.3); ctx.stroke(); break; // barrel
+    case 'mimic': ctx.fillStyle = '#fff'; for (let k = -1; k <= 1; k += 2) { ctx.beginPath(); ctx.moveTo(r * 0.4, k * r * 0.25); ctx.lineTo(r * 0.8, k * r * 0.05); ctx.lineTo(r * 0.6, k * r * 0.45); ctx.fill(); } break; // fangs
+    case 'sapper': ctx.fillStyle = e.state === 'latch' && Math.floor(time * (6 + (SAP_TIME - e.timer) * 3)) % 2 ? '#fff' : c; ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill(); break;
     case 'layer': ctx.fillStyle = e.fire < 0.4 ? '#fff' : c; ctx.fillRect(-r * 0.3, r * 0.35, r * 0.6, r * 0.3); break;
     case 'mine': ctx.fillStyle = e.timer <= 0 && Math.floor(e.t * 8) % 2 ? '#fff' : c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
     case 'piker': ctx.fillStyle = e.state === 'aim' || e.state === 'fire' ? '#fff' : c; ctx.beginPath(); ctx.arc(0, r * 0.4, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
@@ -3404,6 +3559,24 @@ function drawEnemy(e) {
 
 // warnings drawn beneath enemies: aim lines and heal pulses
 function drawEnemyTelegraph(e) {
+  if (e.type === 'shell') { // where a mortar shell will land: a shrinking circle, and the shell dropping onto it
+    const k = Math.max(0, Math.min(1, 1 - e.timer / 1.3));
+    ctx.save(); ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + k * 0.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, SHELL_R * (1.3 - k * 0.3), 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.1 + k * 0.2; ctx.fillStyle = e.color; ctx.fill();
+    ctx.globalAlpha = 1; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(e.x - 8, e.y); ctx.lineTo(e.x + 8, e.y); ctx.moveTo(e.x, e.y - 8); ctx.lineTo(e.x, e.y + 8); ctx.stroke();
+    glow(e.color, 12); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(e.x, e.y - (1 - k) * 220, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  if (e.type === 'sapper' && e.state === 'latch' && e.dest) { // the crackling leash to the ship it's draining
+    ctx.save(); ctx.strokeStyle = e.color; ctx.lineWidth = 2; glow(e.color, 10); ctx.beginPath(); ctx.moveTo(e.x, e.y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(e.x + (e.dest.x - e.x) * i / 4 + (Math.random() - 0.5) * 8, e.y + (e.dest.y - e.y) * i / 4);
+    ctx.lineTo(e.dest.x, e.dest.y); ctx.stroke(); ctx.restore();
+  }
+  if (e.type === 'vortex') { // the pull zone
+    ctx.save(); ctx.strokeStyle = e.color; ctx.globalAlpha = 0.18; ctx.lineWidth = 1.5; ctx.setLineDash([3, 7]); ctx.lineDashOffset = time * 40;
+    ctx.beginPath(); ctx.arc(e.x, e.y, VORTEX_R, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
   if (e.type === 'bulwark') { // its shield: a thick arc facing its aim (bullets from that side bounce off)
     ctx.save(); glow('#dfe8ff', 14); ctx.strokeStyle = (e.shieldHit || 0) > 0 ? '#ffffff' : '#bcd0ff'; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.4, e.aimA - BULWARK_ARC, e.aimA + BULWARK_ARC); ctx.stroke(); ctx.restore();
