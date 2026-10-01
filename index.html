@@ -49,7 +49,7 @@ const toWorld = (cx, cy) => ({ x: (cx - net.vx) / net.vs, y: (cy - net.vy) / net
 window.addEventListener('resize', resize); resize();
 
 // ---------- settings (persist between sessions) ----------
-const settings = { music: true, sfx: true, shake: true };
+const settings = { music: true, sfx: true, shake: true, dmgNums: true, calm: false, fps: false }; // (calm = fewer flashes)
 try { Object.assign(settings, JSON.parse(localStorage.getItem('neonDriftSettings')) || {}); } catch (e) {}
 function toggleSetting(key) {
   settings[key] = !settings[key];
@@ -556,9 +556,12 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   ensureAudio();
   if (e.code === 'KeyM') { toggleSetting('music'); showToast(settings.music ? 'MUSIC ON' : 'MUSIC OFF'); return; }
+  if (e.code === 'KeyF' && state !== 'joinCode') { toggleFullscreen(); return; }
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
   if (state === 'play') {
-    if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; sel = 0; return; }
+    if (paused && pauseView === 'settings' && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
+    if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
+    if (paused && e.code === 'KeyR') { restartRun(); return; }
     if (!paused && /^Digit[1-4]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; } // quick chat
     if (!paused) return;
     // fall through: arrows/WASD/Enter drive the pause menu
@@ -577,6 +580,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyT' && state === 'menu') go('achievements');
     if (e.code === 'KeyE' && state === 'menu') toggleRunType();
     if (e.code === 'KeyE' && state === 'over' && run?.victory && !run.rush && net.role !== 'guest') continueEndless();
+    if (e.code === 'KeyR' && state === 'over' && net.role !== 'guest') restartRun(); // quick restart
     if (e.code === 'KeyN' && state === 'menu') go('online');
   } else if (state === 'shop') {
     if (num >= 1 && num <= shop.items.length) buyShop(num - 1);
@@ -1502,14 +1506,29 @@ function damageEnemy(e, dmg, src) {
   if (e.dead) return;
   if (e.guardedT > 0) dmg *= 0.5; // shielded by a Guardian
   e.hp -= dmg; e.flash = 0.08;
+  dmgNumber(e, dmg, false);
   if (run.s.cryo) e.slow = 1 + run.s.cryo * 0.5;
   if (e.hp <= 0) killEnemy(e, src);
 }
 
+// floating damage numbers: hits on the same target add up and show a few times a second (and count toward run stats)
+function dmgNumber(t, dmg, big) {
+  run.dmgDone = (run.dmgDone || 0) + dmg;
+  if (!settings.dmgNums && net.role !== 'host') return; // (a host always makes them: each guest decides whether to show them)
+  t.dnAcc = (t.dnAcc || 0) + dmg;
+  if (time - (t.dnT ?? -1) < 0.18 || popups.length > 70) return;
+  t.dnT = time;
+  const v = t.dnAcc; t.dnAcc = 0;
+  popups.push({ x: t.x + (Math.random() - 0.5) * t.r, y: t.y - t.r * (big ? 0.9 : 0.6), life: 0.55, dn: big ? 2 : 1,
+    text: v >= 10 ? Math.round(v).toLocaleString() : v.toFixed(1).replace(/\.0$/, '') });
+}
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const fmtBig = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n));
 function killEnemy(e, src) {
   const s = run.s;
   e.dead = true;
   run.coins = (run.coins || 0) + (e.r >= 20 ? 3 : 1); // shop money (big enemies are worth more)
+  run.kills = (run.kills || 0) + 1;
   const pts = addScore(e.pts * combo);
   popups.push({ x: e.x, y: e.y, text: '+' + pts.toLocaleString(), life: 0.8, hot: combo >= 4 });
   combo = Math.min(s.comboMax, combo + 1); comboT = s.comboTime;
@@ -2455,6 +2474,7 @@ function hitBoss(b, dmg, fx, fy) {
     g.onHit?.(b, dmg);
   }
   b.hp -= dmg; b.flash = 0.06; b.lastHit = time;
+  dmgNumber(b, dmg, true);
   b.hitKick = Math.min(1, b.hitKick + 0.15);
   if (b.hp > 0) return true;
   b.hp = 0;
@@ -4126,9 +4146,10 @@ function drawWorld() {
   // floating score from kills
   ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const pp of popups) {
+    if (pp.dn && !settings.dmgNums) continue;
     ctx.globalAlpha = Math.min(1, pp.life / 0.4);
-    ctx.font = `bold ${pp.hot || pp.color ? 15 : 12}px system-ui`;
-    ctx.fillStyle = pp.color || (pp.hot ? '#ffe93d' : '#dfe8ff');
+    ctx.font = `bold ${pp.dn ? (pp.dn === 2 ? 14 : 11) : pp.hot || pp.color ? 15 : 12}px system-ui`;
+    ctx.fillStyle = pp.dn ? (pp.dn === 2 ? '#ffe9a0' : '#ffffff') : pp.color || (pp.hot ? '#ffe93d' : '#dfe8ff');
     ctx.fillText(pp.text, pp.x, pp.y);
   }
   ctx.globalAlpha = 1;
@@ -4198,6 +4219,7 @@ function drawHUD() {
     const head = bo.name + (status ? (compact ? ' · ' : '  ·  ') : ''), x0 = cx - ctx.measureText(head + status).width / 2;
     ctx.fillStyle = bo.color; ctx.fillText(head, x0, by);
     if (status) { ctx.fillStyle = statusColor; ctx.fillText(status, x0 + ctx.measureText(head).width, by); }
+    if (!compact && !bo.downed) { ctx.textAlign = 'right'; ctx.fillStyle = '#cde'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${Math.ceil(Math.max(0, bo.hp / bo.max) * 100)}%`, bx + bw, by + 1); } // HP left
     const barY = by + (compact ? 14 : 19), barH = compact ? 5 : 7;
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(bx, barY, bw, barH);
     if (bo.downed) { // the revive timer drains across the empty bar
@@ -4227,28 +4249,88 @@ function drawHUD() {
   if (paused) drawPause();
 }
 
-function settingsButtons(bx, y, bw, bh, gap) {
-  const onOff = k => settings[k] ? 'ON' : 'OFF', col = k => settings[k] ? '#5dff7a' : '#778';
-  button(`MUSIC:  ${onOff('music')}   [M]`, bx, y, bw, bh, col('music'), () => toggleSetting('music'));
-  button(`SOUND EFFECTS:  ${onOff('sfx')}`, bx, y + gap, bw, bh, col('sfx'), () => toggleSetting('sfx'));
-  button(`SCREEN SHAKE:  ${onOff('shake')}`, bx, y + gap * 2, bw, bh, col('shake'), () => toggleSetting('shake'));
+const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'],
+  ['calm', 'REDUCED FLASHING'], ['fps', 'SHOW FPS']];
+function toggleFullscreen() {
+  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
+}
+// all the settings toggles (two columns on wide screens); returns the y just below them
+function settingsButtons(y) {
+  const cols = W >= 640 ? 2 : 1, gap = 8, bh = cols > 1 ? 42 : 38, bw = Math.min(cols > 1 ? 250 : 300, (W - 32 - gap) / cols);
+  const x0 = (W - (bw * cols + gap * (cols - 1))) / 2;
+  const items = [...SETTING_LIST.map(([k, label]) => [`${label}:  ${settings[k] ? 'ON' : 'OFF'}`, settings[k] ? '#5dff7a' : '#778', () => toggleSetting(k)]),
+    [`FULLSCREEN  [F]:  ${document.fullscreenElement ? 'ON' : 'OFF'}`, document.fullscreenElement ? '#5dff7a' : '#778', toggleFullscreen]];
+  items.forEach(([label, color, act], i) => button(label, x0 + (i % cols) * (bw + gap), y + Math.floor(i / cols) * (bh + gap), bw, bh, color, act));
+  return y + Math.ceil(items.length / cols) * (bh + gap);
 }
 
+let pauseView = 'main'; // 'main' or 'settings'
+function restartRun() {
+  if (net.role === 'guest' || !run) return;
+  paused = false; pauseView = 'main';
+  if (net.role === 'host') startOnline(); else start(mode, run.ships);
+}
 function drawPause() {
-  ctx.fillStyle = 'rgba(3,3,12,0.7)'; ctx.fillRect(0, 0, W, H);
-  if (net.role === 'guest') { title('PAUSED BY HOST', H / 2, '#7df9ff', 44); return; }
-  const cy = Math.max(170, H / 2 - 130), bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
-  title('PAUSED', cy - 70, '#7df9ff', 56);
-  button('RESUME  [P]', bx, cy, bw, bh, '#7df9ff', () => { paused = false; });
-  settingsButtons(bx, cy + gap, bw, bh, gap);
-  button('END RUN  (keeps shards)', bx, cy + gap * 4 + 10, bw, bh, '#ff5a70', () => endRun());
+  ctx.fillStyle = 'rgba(3,3,12,0.78)'; ctx.fillRect(0, 0, W, H);
+  if (net.role === 'guest') { title('PAUSED BY HOST', 90, '#7df9ff', 40); drawBuildPanel((W - Math.min(520, W - 32)) / 2, 130, Math.min(520, W - 32)); return; }
+  if (pauseView === 'settings') {
+    title('SETTINGS', 70, '#7df9ff', 44);
+    const y = settingsButtons(110), bw = Math.min(260, W - 32);
+    button('BACK  [Esc]', (W - bw) / 2, y + 6, bw, 42, '#9ab', () => { pauseView = 'main'; });
+    return;
+  }
+  title('PAUSED', 64, '#7df9ff', 48);
+  // buttons on the left (or on top on phones), your build on the right (or below)
+  const wide = W >= 760, bw = wide ? 240 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
+  const bx = wide ? W / 2 - 280 : (W - bw) / 2, by = 110;
+  button('RESUME  [P]', bx, by, bw, bh, '#7df9ff', () => { paused = false; });
+  button('SETTINGS', bx, by + gap, bw, bh, '#9ab', () => { pauseView = 'settings'; });
+  button('RESTART  [R]', bx, by + gap * 2, bw, bh, '#ffe93d', restartRun);
+  button('END RUN  (keeps shards)', bx, by + gap * 3, bw, bh, '#ff5a70', () => endRun());
+  if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
+  else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * 4 + 6, Math.min(420, W - 32));
+}
+// your stats, your upgrades and how close you are to each evolution
+function drawBuildPanel(x, y, w) {
+  const s = run.s, lines = [];
+  const pct = v => Math.round(v * 100) + '%';
+  const stats = [['Damage', '×' + s.dmg.toFixed(2)], ['Fire rate', (1 / s.fireDelay).toFixed(1) + '/s'], ['Shots', s.shots], ['Pierce', s.pierce],
+    ['Crit', pct(s.crit)], ['Boss dmg', '×' + s.bossDmg.toFixed(2)], ['Speed', Math.round(s.speed)], ['Max lives', s.maxLives]];
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#7df9ff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'left'; ctx.fillText('YOUR BUILD', x, y);
+  y += 20;
+  ctx.font = '12px system-ui';
+  stats.forEach(([k, v], i) => {
+    const cx = x + (i % 2) * (w / 2), cy = y + Math.floor(i / 2) * 17;
+    ctx.textAlign = 'left'; ctx.fillStyle = '#9ab'; ctx.fillText(k, cx, cy);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#fff'; ctx.fillText(String(v), cx + w / 2 - 12, cy);
+  });
+  y += Math.ceil(stats.length / 2) * 17 + 8;
+  const owned = UPGRADES.filter(u => run.owned[u.id]);
+  ctx.textAlign = 'left'; ctx.fillStyle = '#7df9ff'; ctx.font = 'bold 13px system-ui'; ctx.fillText(`UPGRADES (${owned.length})`, x, y); y += 18;
+  ctx.font = '12px system-ui'; ctx.fillStyle = '#cde';
+  const text = owned.map(u => (u.r === 'evo' ? '★ ' : '') + u.name + (run.owned[u.id] > 1 ? ` ×${run.owned[u.id]}` : '')).join(' · ') || 'None yet';
+  for (const l of wrap(text, w).slice(0, 5)) { ctx.fillText(l, x, y); y += 15; }
+  // evolutions you've started on (and ones you've finished)
+  const evo = EVOLUTIONS.filter(e => run.owned[e.id] || e.needs.some(([id]) => run.owned[id]));
+  if (evo.length && y < H - 40) {
+    y += 6; ctx.fillStyle = RARITY.evo.color; ctx.font = 'bold 13px system-ui'; ctx.fillText('EVOLUTIONS', x, y); y += 18;
+    ctx.font = '11px system-ui';
+    for (const e of evo) {
+      if (y > H - 20) break;
+      const done = run.owned[e.id], ready = !done && e.needs.every(([id, lv]) => (run.owned[id] || 0) >= lv);
+      const need = e.needs.map(([id, lv]) => `${UPGRADES.find(u => u.id === id).name} ${Math.min(lv, run.owned[id] || 0)}/${lv}`).join(' + ');
+      ctx.fillStyle = done ? '#5dff7a' : ready ? RARITY.evo.color : '#9ab';
+      ctx.fillText(done ? `✓ ${e.name}` : ready ? `★ ${e.name} — ready! Next boss reward` : `${e.name}: ${need}`, x, y, w);
+      y += 15;
+    }
+  }
 }
 
 function drawSettings() {
-  const cy = Math.max(170, H / 2 - 110), bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
-  title('SETTINGS', cy - 70, '#7df9ff', 52);
-  settingsButtons(bx, cy, bw, bh, gap);
-  button('BACK  [Esc]', bx, cy + gap * 3 + 10, bw, bh, '#9ab', () => go('menu'));
+  title('SETTINGS', 80, '#7df9ff', 52);
+  const y = settingsButtons(130), bw = Math.min(280, W - 32);
+  button('BACK  [Esc]', (W - bw) / 2, y + 10, bw, 42, '#9ab', () => go('menu'));
 }
 
 function title(text, y, color = '#ff3df2', size = 72) {
@@ -4641,7 +4723,8 @@ function drawOver() {
     [`+◆ ${run.earned} shards   (total ◆ ${meta.shards})`, '#ffe93d', 18],
   ];
   lines.forEach(([t, c, s], i) => fitText(t, cy + 56 + i * 30, s, c, i === 2 ? 'bold' : ''));
-  const shipsLine = players.map(p => (mode > 1 ? `P${p.id + 1} ` : 'Ship: ') + p.ship.name).join('  ·  ');
+  // run stats: time, kills and damage, then the ships
+  const shipsLine = `⏱ ${fmtTime(time)}  ·  ${run.kills || 0} kills  ·  ${fmtBig(run.dmgDone || 0)} damage  ·  ` + players.map(p => (mode > 1 ? `P${p.id + 1} ` : '') + p.ship.name).join('  ·  ');
   fitText(shipsLine, cy + 140, 13, '#9ab', 'bold');
   const build = UPGRADES.filter(u => run.owned[u.id]).map(u => run.owned[u.id] > 1 ? `${u.name} ×${run.owned[u.id]}` : u.name).join(' · ');
   ctx.font = '12px system-ui';
@@ -4794,7 +4877,7 @@ function drawBackground() {
 
 // red edges when hit, and a slow pulse while anyone is on their last life
 function drawVignette() {
-  let a = hurtFlash * 0.55;
+  let a = hurtFlash * (settings.calm ? 0.25 : 0.55);
   if (state === 'play' && living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) a = Math.max(a, 0.14 + Math.sin(time * 5) * 0.08);
   if (a <= 0.01) return;
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
@@ -4804,7 +4887,7 @@ function drawVignette() {
 
 function draw() {
   // ZERO turns the world inside out: invert the canvas colors (a CSS filter, so it costs nothing to draw)
-  const inv = inRun() && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)' : '';
+  const inv = inRun() && !settings.calm && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)' : '';
   if (cv.style.filter !== inv) cv.style.filter = inv;
   ctx.shadowBlur = 0;
   const gv = guestView();
@@ -4825,7 +4908,7 @@ function draw() {
   if (inRun()) drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
   ctx.restore();
   ctx.shadowBlur = 0;
-  if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); }
+  if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(settings.calm ? 0.15 : 0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); } // (gentle with REDUCED FLASHING)
   if (state === 'play') drawVignette();
 
   buttons = [];
@@ -4854,6 +4937,7 @@ function draw() {
     ctx.restore();
   }
   drawAchBanner();
+  if (settings.fps) { ctx.save(); ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = fps < 40 ? '#ff5a70' : '#5dff7a'; ctx.fillText(`${Math.round(fps)} FPS`, W / 2, H - 8); ctx.restore(); }
   if (gv) ctx.restore();
 }
 
@@ -5037,7 +5121,7 @@ function packSnap() {
     sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
     of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
-    pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0]),
+    pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
     ev: net.events.splice(0),
   };
 }
@@ -5286,7 +5370,8 @@ function applySnap(s) {
   run.coins = s.cn;
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
-  popups = s.pp.map(a => ({ x: a[0], y: a[1], text: a[2], life: a[3], hot: !!a[4], color: a[5] || undefined }));
+  popups = s.pp.map(a => ({ x: a[0], y: a[1], text: a[2], life: a[3], hot: !!a[4], color: a[5] || undefined, dn: a[6] || 0 }));
+  [run.kills, run.dmgDone] = s.ks || [0, 0];
   for (const ev of s.ev) replayEvent(ev);
   if (net.rewarded && state !== 'over') { net.rewarded = false; run.paid = (run.paid || 0) + run.earned; } // the host carried on into Endless
   if (state === 'over' && !net.rewarded) { // guests earn shards too
@@ -5532,10 +5617,19 @@ function drawLobby() {
   if (host) button(net.public ? 'PUBLIC: anyone can join, even mid-game  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
 }
 
-let last = performance.now();
+let last = performance.now(), fps = 60, beatT = 0;
+// on your last life: a heartbeat you can hear (the red screen edges are in drawVignette)
+function heartbeat(dt) {
+  if (state !== 'play' || paused || !run) return;
+  const mine = net.role ? [players[net.role === 'guest' ? net.myId : 0]] : players;
+  if (!mine.some(p => p?.alive && p.lives === 1 && maxLivesOf(p) > 1)) { beatT = 0; return; }
+  if ((beatT -= dt) <= 0) { beatT = 0.9; beep(58, 0.12, 'sine', 0.09, -8); setTimeout(() => beep(50, 0.14, 'sine', 0.07, -8), 150); }
+}
 function loop(now) {
   // cap big hitches (tab switches) without slowing the game down on 30-50fps machines
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  if (raw > 0) fps += (1 / raw - fps) * 0.05; // (smoothed, for SHOW FPS)
+  heartbeat(dt);
   dirTick(dt); // public lobby list
   if (net.role === 'guest' && net.playing) guestFrame(dt);
   else {

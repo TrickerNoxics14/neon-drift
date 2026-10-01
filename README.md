@@ -14,7 +14,7 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
-- **P / Esc:** pause · **M:** music on/off · **1–4:** quick chat (online)
+- **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
 - Local co-op: 2P = WASD + arrows/mouse · 3P = mouse, WASD, arrows · 4P adds IJKL
 
 ## Features
