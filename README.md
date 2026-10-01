@@ -19,8 +19,8 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 16 enemy types · 12 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 22 enemy types · 12 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 19 cosmetics (trails, bullet colors, kill effects) · 33 achievements · online quick chat (1–4) · procedural music
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 33 achievements · online quick chat (1–4) · procedural music
 
 The whole game is a single file: `index.html`.

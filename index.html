@@ -190,7 +190,7 @@ const META_ITEMS = [
   { id: 'medkit',  name: 'Field Medic',     desc: 'Revive teammates 25% faster',        costs: [120, 300] },
   { id: 'bounty',  name: 'Boss Bounty',     desc: '+20 shards per boss defeated',       costs: [200, 450, 900] },
 ];
-const COS_DEFAULT = { trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default' };
+const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default' };
 let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } } };
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: m.shards || 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } } }; } catch (e) {}
@@ -205,9 +205,21 @@ function buyMeta(item) {
 }
 
 // ---------- cosmetics: bought with shards, purely for looks (sw = the colors shown on the shop tile) ----------
-const COS_CATS = [['trail', 'TRAILS'], ['bullet', 'BULLETS'], ['kill', 'KILL FX']];
+const COS_CATS = [['skin', 'SKINS'], ['trail', 'TRAILS'], ['bullet', 'BULLETS'], ['kill', 'KILL FX']];
 const RAINBOW = ['#ff3d5a', '#ff9a3d', '#ffe93d', '#5dff7a', '#3dd8ff', '#c05dff'];
 const COSMETICS = [
+  // ship skins (req = a trophy you need before you can buy it)
+  { id: 'skin_default',  cat: 'skin', name: 'Standard',      cost: 0 },
+  { id: 'skin_stealth',  cat: 'skin', name: 'Stealth',       cost: 250 },
+  { id: 'skin_wire',     cat: 'skin', name: 'Neon Wire',     cost: 250 },
+  { id: 'skin_candy',    cat: 'skin', name: 'Candy Stripe',  cost: 300 },
+  { id: 'skin_holo',     cat: 'skin', name: 'Hologram',      cost: 350 },
+  { id: 'skin_lava',     cat: 'skin', name: 'Molten',        cost: 400 },
+  { id: 'skin_chrome',   cat: 'skin', name: 'Chrome',        cost: 450 },
+  { id: 'skin_galaxy',   cat: 'skin', name: 'Galaxy',        cost: 500 },
+  { id: 'skin_gold',     cat: 'skin', name: 'Solid Gold',    cost: 750 },
+  { id: 'skin_abyss',    cat: 'skin', name: 'Abyssal',       cost: 500, req: 'omega', reqText: 'Beat THE ABYSS' },
+  { id: 'skin_glitch',   cat: 'skin', name: 'Glitched',      cost: 600, req: 'zero',  reqText: 'Beat the secret boss' },
   { id: 'trail_none',     cat: 'trail',  name: 'None',          cost: 0,   sw: ['#334'] },
   { id: 'trail_comet',    cat: 'trail',  name: 'Comet',         cost: 120, sw: ['#7df9ff', '#3d9dff'] },
   { id: 'trail_fire',     cat: 'trail',  name: 'Afterburn',     cost: 200, sw: ['#ffe93d', '#ff9a3d', '#ff3d3d'] },
@@ -230,8 +242,10 @@ const COSMETICS = [
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
 const cosOwned = c => c.cost === 0 || !!meta.cos.owned[c.id];
+const cosLocked = c => c.req && !meta.ach[c.req] && !meta.cos.owned[c.id];
 // buy it if you can afford it, then equip it (equipping something you own is free)
 function useCosmetic(c) {
+  if (cosLocked(c)) { beep(110, 0.15, 'square', 0.05); showToast(`Locked — ${c.reqText}`); return; }
   if (!cosOwned(c)) {
     if (meta.shards < c.cost) { beep(110, 0.15, 'square', 0.05); return; }
     meta.shards -= c.cost; meta.cos.owned[c.id] = true;
@@ -575,7 +589,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyC') go('cosmetics');
   } else if (state === 'cosmetics') {
     if (e.code === 'Escape') go('hangar');
-    if (num >= 1 && num <= 3) { cosTab = COS_CATS[num - 1][0]; sel = num - 1; }
+    if (num >= 1 && num <= COS_CATS.length) { cosTab = COS_CATS[num - 1][0]; sel = num - 1; }
   } else if (state === 'settings') {
     if (e.code === 'Escape' || e.code === 'KeyO') go('menu');
   } else if (state === 'achievements') {
@@ -1038,6 +1052,14 @@ const TYPES = {
   pylon:    { r: 14, hp: 1, color: '#ff3df2', pts: 250, drop: 0, harmless: true }, // The Warden's shield pylons
   egg:      { r: 15, hp: 1, color: '#d4ff3d', pts: 150, drop: 0, harmless: true }, // The Hive's eggs
   decoy:    { r: 50, hp: 1, color: '#e0b0ff', pts: 100, drop: 0, harmless: true }, // Phantom's fake copies
+  // later additions
+  kamikaze: { r: 12, hp: 1, color: '#ff4d3d', pts: 150, label: 'KAMIKAZE' },
+  spinner:  { r: 17, hp: 3, color: '#ffd23d', pts: 300, label: 'SPINNER' },
+  layer:    { r: 19, hp: 4, color: '#c08dff', pts: 350, label: 'MINELAYER', drop: 0.2 },
+  mine:     { r: 9,  hp: 1, color: '#c08dff', pts: 40 },
+  piker:    { r: 15, hp: 3, color: '#3dffd8', pts: 400, label: 'PIKER' },
+  bulwark:  { r: 22, hp: 7, color: '#8da8ff', pts: 500, label: 'BULWARK', drop: 0.35 },
+  linker:   { r: 13, hp: 3, color: '#ff5d8d', pts: 250, label: 'LINKERS' },
 };
 
 // which enemies can appear from which sector, and how often (relative weight)
@@ -1058,6 +1080,12 @@ const SPAWN_TABLE = [
   { type: 'serpent',  from: 5, w: 1.3 }, // a head plus a trailing body
   { type: 'guardian', from: 6, w: 1.1 },
   { type: 'carrier',  from: 8, w: 0.9 },
+  { type: 'kamikaze', from: 3, w: 2.5 },
+  { type: 'spinner',  from: 4, w: 2 },
+  { type: 'layer',    from: 4, w: 1.6 },
+  { type: 'piker',    from: 5, w: 1.6 },
+  { type: 'bulwark',  from: 6, w: 1.3 },
+  { type: 'linker',   from: 7, w: 1.2 }, // a pair joined by a beam
 ];
 
 function spawnEnemy() {
@@ -1083,6 +1111,10 @@ function spawnEnemy() {
   } else if (type === 'serpent') {
     const x = 80 + Math.random() * (W - 160), head = makeEnemy('serpent', x, -20);
     for (let i = 1; i <= 7; i++) { const s = makeEnemy('segment', x, -20 - i * 12); s.head = head; s.idx = i; s.vx = s.vy = 0; }
+  } else if (type === 'linker') { // two drones joined by a beam that sweeps down the screen
+    const gap = Math.min(W - 80, 160 + Math.random() * 140), cx = gap / 2 + 40 + Math.random() * (W - gap - 80);
+    const [a, b] = [-1, 1].map(side => { const e = makeEnemy('linker', cx + side * gap / 2, -20); e.side = side; e.t = 0; return e; });
+    a.mate = b; b.mate = a;
   } else {
     const r = TYPES[type].r;
     const e = makeEnemy(type, r + Math.random() * (W - r * 2), -r * 2);
@@ -1142,6 +1174,13 @@ function makeEnemy(type, x, y) {
     case 'serpent':  e.vy = speed * 0.55; e.trail = []; break;
     case 'guardian': e.vy = 110; e.stopY = 50 + Math.random() * H * 0.2; e.stay = 15; break;
     case 'carrier':  e.vy = speed * 0.22; e.fire = 1.5; break;
+    case 'kamikaze': e.vy = 150; e.life = 7; break;
+    case 'spinner':  e.vy = speed * 0.35; e.fire = 0.6; break;
+    case 'layer':    e.vy = speed * 0.3; e.fire = 1.2; break;
+    case 'mine':     e.vx = e.vy = 0; e.timer = 0.8; e.life = 9; break; // arms after 0.8s
+    case 'piker':    e.vy = 140; e.stopY = 60 + Math.random() * H * 0.2; e.stay = 12; break;
+    case 'bulwark':  e.vy = speed * 0.3; e.fire = 2; break;
+    case 'linker':   e.vy = speed * 0.28; break;
   }
   enemies.push(e);
   return e;
@@ -1161,6 +1200,16 @@ const turnToward = (a, want, max) => {
   return a + Math.max(-max, Math.min(max, d));
 };
 
+const LINK_WARM = 1, BULWARK_ARC = 1; // linkers' beam warm-up (s); half-width of a bulwark's shield (radians)
+// kamikazes and mines: blow up into a ring of bullets (this isn't a kill, so no score)
+function enemyBoom(e, n, speed) {
+  e.dead = true;
+  const off = Math.random() * Math.PI;
+  for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r: 5, color: e.color }); }
+  burst(e.x, e.y, e.color, 25, 260); if (bossFx.rings.length < 40) fxRing(e.x, e.y, 4, 60, 0.3, e.color, 3);
+  beep(160, 0.2, 'square', 0.05, -100); shake = Math.max(shake, 5);
+}
+const angleDiff = (a, b) => ((a - b) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
 // per-type behavior, run every frame after the enemy moves by its velocity
 const ENEMY_AI = {
   drifter(e, dt) { e.x += Math.sin(e.t) * 40 * dt; },
@@ -1242,6 +1291,68 @@ const ENEMY_AI = {
       popups.push({ x: b.x + (Math.random() - 0.5) * b.r, y: b.y - b.r, text: '+HEAL', life: 0.7, color: '#ff2d55' });
       burst(e.x, e.y, e.color, 8, 120); beep(500, 0.08, 'sine', 0.03, 200);
     }
+  },
+  kamikaze(e, dt) { // locks on and dives, faster and faster, then blows up next to you
+    e.life -= dt;
+    const p = nearestPlayer(e.x, e.y);
+    if (p) {
+      e.aimA = turnToward(Math.atan2(e.vy, e.vx), Math.atan2(p.y - e.y, p.x - e.x), 3 * dt);
+      const sp = Math.min(380, Math.hypot(e.vx, e.vy) + 170 * dt);
+      e.vx = Math.cos(e.aimA) * sp; e.vy = Math.sin(e.aimA) * sp;
+      if (Math.hypot(p.x - e.x, p.y - e.y) < 55) enemyBoom(e, 10, 200);
+    }
+    if (e.life <= 0) enemyBoom(e, 10, 200);
+  },
+  spinner(e, dt) { // a turning pinwheel of bullets
+    if (e.y > H * 0.35) e.vy = Math.max(12, e.vy - 60 * dt);
+    e.aimA += dt * 2.2; e.fire -= dt;
+    if (e.fire <= 0 && e.y > 0) {
+      e.fire = 0.24 * enemyFireScale(); // (a little faster in later sectors)
+      for (let k = 0; k < 4; k++) { const a = e.aimA + k * Math.PI / 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, r: 4, color: e.color }); }
+    }
+  },
+  layer(e, dt) { // drifts along sowing proximity mines
+    e.x += Math.sin(e.t * 1.3) * 60 * dt;
+    if (e.y > H * 0.4) e.vy = Math.max(22, e.vy - 40 * dt); // slows down, but keeps drifting off the screen
+    e.fire -= dt;
+    if (e.fire <= 0 && e.y > 0) { e.fire = 2.3; makeEnemy('mine', e.x, e.y + e.r); beep(150, 0.1, 'triangle', 0.03); }
+  },
+  mine(e, dt) { // arms, then bursts when someone flies close (or when it's been there too long)
+    e.timer -= dt; e.life -= dt;
+    if (e.timer <= 0 && (e.life <= 0 || living().some(p => Math.hypot(p.x - e.x, p.y - e.y) < 75))) enemyBoom(e, 8, 170);
+  },
+  piker(e, dt) { // parks, slides under you while charging, then fires a beam straight down
+    if (e.state === 'enter') { if (e.y >= e.stopY) { e.state = 'cool'; e.vy = 0; e.timer = 0.8; } return; }
+    if (e.state === 'leave') return;
+    e.stay -= dt; e.timer -= dt;
+    if (e.state === 'cool') {
+      if (e.stay <= 0) { e.state = 'leave'; e.vy = 150; }
+      else if (e.timer <= 0) { e.state = 'aim'; e.timer = 1.1; beep(1200, 0.5, 'sine', 0.02, -600); }
+    } else if (e.state === 'aim') {
+      const p = nearestPlayer(e.x, e.y);
+      if (p && e.timer > 0.35) e.x += Math.sign(p.x - e.x) * Math.min(Math.abs(p.x - e.x), 90 * dt); // locks for the last 0.35s
+      if (e.timer <= 0) { e.state = 'fire'; e.timer = 0.35; beep(200, 0.3, 'sawtooth', 0.05, -100); }
+    } else if (e.state === 'fire') {
+      for (const q of living()) if (Math.abs(q.x - e.x) < 9 + q.r * 0.5 && q.y > e.y) hurt(q);
+      if (e.timer <= 0) { e.state = 'cool'; e.timer = 2.2 * enemyFireScale(); }
+    }
+  },
+  bulwark(e, dt) { // its shield slowly turns to face the nearest player: fly around it
+    if (e.y > H * 0.4) e.vy = Math.max(15, e.vy - 80 * dt);
+    const p = nearestPlayer(e.x, e.y);
+    if (p) e.aimA = turnToward(e.aimA, Math.atan2(p.y - e.y, p.x - e.x), 0.9 * dt);
+    e.fire -= dt;
+    if (e.fire <= 0 && p && e.y > 0) {
+      e.fire = 2.2 * enemyFireScale();
+      for (let k = -1; k <= 1; k++) { const a = e.aimA + k * 0.25; eBullets.push({ x: e.x + Math.cos(e.aimA) * e.r, y: e.y + Math.sin(e.aimA) * e.r, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, r: 5, color: e.color }); }
+    }
+  },
+  linker(e, dt) { // the pair sways together; the beam between them hurts once it has warmed up
+    e.x += Math.sin(e.t * 1.2) * 45 * dt;
+    const m = e.mate;
+    e.dest = m && !m.dead ? { x: m.x, y: m.y } : null; // (dest also tells online guests where to draw the beam)
+    if (e.dest && e.side < 0 && e.t > LINK_WARM)
+      for (const p of living()) if (distToSeg(p.x, p.y, e.x, e.y, m.x, m.y) < 6 + p.r * 0.5) hurt(p);
   },
   pylon(e, dt) { // circles its Warden, keeping its shield up, and takes potshots
     const b = e.owner;
@@ -2711,6 +2822,9 @@ function update(dt) {
     ENEMY_AI[e.type]?.(e, edt);
     for (const b of bullets) {
       if (b.dead || e.dead || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
+      if (e.type === 'bulwark' && Math.abs(angleDiff(Math.atan2((b.py ?? b.y) - e.y, (b.px ?? b.x) - e.x), e.aimA)) < BULWARK_ARC) {
+        b.dead = true; e.shieldHit = 0.1; if (Math.random() < 0.4) burst(b.x, b.y, '#dfe8ff', 3, 120); continue; // blocked by its shield
+      }
       if (b.pierce > 0) { b.pierce--; b.hits.push(e); } else b.dead = true;
       if (b.crit) burst(b.x, b.y, '#ffffff', 6, 150);
       e.lastBy = b.owner; // (whose kill effect to show)
@@ -2871,7 +2985,7 @@ const HULLS = {
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
 };
 // mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
-function drawHull(shape, color, thrust = 0, mk2 = false) {
+function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
   const h = HULLS[shape] || HULLS.striker, GOLD = '#ffe93d';
   ctx.save();
   if (mk2) ctx.scale(1.12, 1.12);
@@ -2889,8 +3003,46 @@ function drawHull(shape, color, thrust = 0, mk2 = false) {
       ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 3, y); ctx.closePath(); ctx.fill();
     }
   }
-  glow(color, mk2 ? 32 : 25); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.fillStyle = '#0a1a2a';
-  ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // the body, in the chosen skin (most skins keep your player color on the outline so teams stay readable)
+  const sk = skin || 'skin_default', t = performance.now() / 1000;
+  const hullPath = (k = 1, dx = 0, dy = 0) => { ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * k + dx, y * k + dy); ctx.closePath(); };
+  if (sk === 'skin_glitch') { // offset cyan/magenta ghosts of the hull
+    const j = 2 + (Math.random() < 0.08 ? 5 : 0);
+    ctx.shadowBlur = 0; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(0,255,255,0.7)'; hullPath(1, -j, 0); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,0,255,0.7)'; hullPath(1, j, 1); ctx.stroke();
+  }
+  const grad = (stops) => { const g = ctx.createLinearGradient(-18, -20, 18, 20); stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c)); return g; };
+  ctx.fillStyle = {
+    skin_stealth: '#000', skin_abyss: '#000', skin_lava: '#2a0800', skin_glitch: '#0a0a14', skin_wire: 'rgba(0,0,0,0)',
+    skin_holo: 'rgba(125,249,255,0.12)', skin_candy: '#ffe3f2',
+    skin_chrome: grad(['#ffffff', '#8a95a5', '#eef3f8', '#5a6575']), skin_gold: grad(['#fff3b0', '#ffd23d', '#a87a10', '#ffe58a']),
+    skin_galaxy: grad(['#4a1e8e', '#12063a', '#2a0e5e']),
+  }[sk] || '#0a1a2a';
+  const rim = sk === 'skin_abyss' ? '#ff1f3d' : sk === 'skin_holo' ? '#7df9ff' : color;
+  glow(rim, sk === 'skin_stealth' ? 6 : sk === 'skin_wire' ? 40 : mk2 ? 32 : 25);
+  ctx.strokeStyle = sk === 'skin_stealth' ? hexA(color, 0.55) : rim; ctx.lineWidth = sk === 'skin_stealth' ? 1.5 : 2.5;
+  if (sk === 'skin_holo') ctx.globalAlpha *= 0.65 + Math.sin(t * 20) * 0.1 + (Math.random() < 0.05 ? -0.3 : 0);
+  hullPath(); ctx.fill(); ctx.stroke();
+  // patterns painted inside the hull
+  if (['skin_galaxy', 'skin_lava', 'skin_holo', 'skin_candy'].includes(sk)) {
+    ctx.save(); hullPath(); ctx.clip(); ctx.shadowBlur = 0;
+    if (sk === 'skin_galaxy') for (let i = 0; i < 14; i++) { // drifting stars
+      const sx = ((i * 37.3 + t * 6) % 44) - 22, sy = ((i * 53.7) % 44) - 22;
+      ctx.fillStyle = i % 4 ? '#ffffff' : '#ff9df0'; ctx.globalAlpha = 0.5 + Math.sin(t * 3 + i) * 0.4; ctx.fillRect(sx, sy, 1.6, 1.6);
+    } else if (sk === 'skin_lava') { // glowing cracks that pulse
+      ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.65 + Math.sin(t * 4) * 0.3; glow('#ff5a00', 8);
+      ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(-4, -6); ctx.lineTo(3, 2); ctx.lineTo(-2, 12); ctx.moveTo(-4, -6); ctx.lineTo(-12, 2); ctx.moveTo(3, 2); ctx.lineTo(11, 6); ctx.stroke();
+    } else if (sk === 'skin_holo') { // scanlines
+      ctx.fillStyle = '#7df9ff'; ctx.globalAlpha = 0.35;
+      for (let y = -24 + ((t * 20) % 4); y < 24; y += 4) ctx.fillRect(-24, y, 48, 1);
+    } else { // candy stripes
+      ctx.fillStyle = '#ff5dc8'; ctx.globalAlpha = 0.8;
+      for (let x = -40; x < 40; x += 9) { ctx.beginPath(); ctx.moveTo(x, -24); ctx.lineTo(x + 4, -24); ctx.lineTo(x + 24, 24); ctx.lineTo(x + 20, 24); ctx.fill(); }
+    }
+    ctx.restore();
+  }
+  if (sk === 'skin_wire') { ctx.lineWidth = 1.2; hullPath(0.62, 0, 1); ctx.stroke(); } // a second, inner wireframe
   if (mk2) { // gold inner trim line
     ctx.shadowBlur = 0; ctx.strokeStyle = hexA(GOLD, 0.75); ctx.lineWidth = 1.3;
     ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * 0.62, y * 0.62 + 1); ctx.closePath(); ctx.stroke();
@@ -2900,7 +3052,15 @@ function drawHull(shape, color, thrust = 0, mk2 = false) {
     if (mk2) { ctx.globalAlpha /= 0.7; ctx.fillStyle = '#fff'; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); }
     ctx.fillRect(-1.8, -6, 3.6, 12); ctx.fillRect(-6, -1.8, 12, 3.6);
   }
-  else { ctx.beginPath(); for (const [x, y] of h.cockpit) ctx.lineTo(x, y); ctx.closePath(); ctx.fill(); }
+  else if (sk === 'skin_abyss') { // a red slit eye instead of a cockpit
+    ctx.globalAlpha /= 0.7; glow('#ff1f3d', 12); ctx.fillStyle = '#ff2a3a';
+    ctx.beginPath(); ctx.ellipse(0, -2, 5, 3.2 * ((t % 3) < 0.1 ? 0.15 : 1), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#000'; ctx.fillRect(-0.8, -4.5, 1.6, 5);
+  } else {
+    if (sk === 'skin_chrome' || sk === 'skin_gold' || sk === 'skin_candy') { ctx.fillStyle = '#123'; ctx.globalAlpha /= 0.7; } // dark glass on bright hulls
+    if (sk === 'skin_stealth') ctx.fillStyle = '#ff3d5a';
+    ctx.beginPath(); for (const [x, y] of h.cockpit) ctx.lineTo(x, y); ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -2919,7 +3079,7 @@ function drawShip(p) {
     ctx.save(); glow('#ff3050', 20 + rageLv * 30); ctx.strokeStyle = hexA('#ff3050', 0.3 + rageLv * 0.5); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, 20 + Math.sin(time * 12) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  drawHull(p.ship.shape, p.color, p.thrust || 0, p.ship.mk2 === true);
+  drawHull(p.ship.shape, p.color, p.thrust || 0, p.ship.mk2 === true, cosOf(p).skin);
   ctx.restore();
   if (p.phaseOn > 0) { ctx.save(); ctx.strokeStyle = hexA(p.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.lineDashOffset = time * 40; ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   if (p.shield) { glow(p.color, 20); ctx.strokeStyle = 'rgba(125,249,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, Math.PI * 2); ctx.stroke(); }
@@ -3021,6 +3181,32 @@ function drawEnemy(e) {
     case 'guardian': // tall shield shape
       ctx.moveTo(0, -r); ctx.lineTo(r * 0.9, -r * 0.6); ctx.lineTo(r * 0.8, r * 0.3); ctx.lineTo(0, r * 1.1); ctx.lineTo(-r * 0.8, r * 0.3); ctx.lineTo(-r * 0.9, -r * 0.6);
       break;
+    case 'kamikaze': // a dart pointing where it's diving
+      ctx.rotate(e.aimA - Math.PI / 2);
+      ctx.moveTo(0, r * 1.5); ctx.lineTo(r * 0.8, -r * 0.6); ctx.lineTo(0, -r * 0.2); ctx.lineTo(-r * 0.8, -r * 0.6);
+      break;
+    case 'spinner': // pinwheel
+      ctx.rotate(e.aimA);
+      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a + 0.9) * r * 0.45, Math.sin(a + 0.9) * r * 0.45); }
+      break;
+    case 'layer': // rounded pod with a bay underneath
+      ctx.ellipse(0, 0, r * 1.2, r * 0.75, 0, 0, Math.PI * 2);
+      break;
+    case 'mine': // spiky ball
+      ctx.rotate(e.spin);
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, rr = i % 2 ? r * 0.6 : r * 1.25; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      break;
+    case 'piker': // long diamond pointing down
+      ctx.moveTo(0, r * 1.6); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, -r * 1.1); ctx.lineTo(-r * 0.7, 0);
+      break;
+    case 'bulwark': // heavy octagon
+      ctx.rotate(Math.PI / 8);
+      for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      break;
+    case 'linker': // little hexagon node
+      ctx.rotate(e.t * 2);
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      break;
     case 'pylon': // tall crystal
       ctx.moveTo(0, -r * 1.4); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, r * 1.4); ctx.lineTo(-r * 0.7, 0);
       break;
@@ -3063,6 +3249,12 @@ function drawEnemy(e) {
     case 'healer': ctx.fillStyle = c; ctx.globalAlpha = 0.35 + e.pulse * 0.5; ctx.fill(); break;
     case 'bloodorb': ctx.fillStyle = c; ctx.globalAlpha = 0.6 + Math.sin(e.t * 12) * 0.3; ctx.fill(); break;
     case 'orbiter': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
+    case 'kamikaze': ctx.fillStyle = Math.floor(time * 12) % 2 ? '#fff' : c; ctx.beginPath(); ctx.arc(0, r * 0.2, r * 0.3, 0, Math.PI * 2); ctx.fill(); break; // blinking warhead
+    case 'spinner': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
+    case 'layer': ctx.fillStyle = e.fire < 0.4 ? '#fff' : c; ctx.fillRect(-r * 0.3, r * 0.35, r * 0.6, r * 0.3); break;
+    case 'mine': ctx.fillStyle = e.timer <= 0 && Math.floor(e.t * 8) % 2 ? '#fff' : c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
+    case 'piker': ctx.fillStyle = e.state === 'aim' || e.state === 'fire' ? '#fff' : c; ctx.beginPath(); ctx.arc(0, r * 0.4, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
+    case 'linker': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
     case 'pylon': ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.5 + Math.sin(e.t * 8) * 0.4; ctx.beginPath(); ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
     case 'egg': { // the larva inside blinks faster near hatching
       const left = Math.max(0, e.timer);
@@ -3098,6 +3290,29 @@ function drawEnemy(e) {
 
 // warnings drawn beneath enemies: aim lines and heal pulses
 function drawEnemyTelegraph(e) {
+  if (e.type === 'bulwark') { // its shield: a thick arc facing its aim (bullets from that side bounce off)
+    ctx.save(); glow('#dfe8ff', 14); ctx.strokeStyle = (e.shieldHit || 0) > 0 ? '#ffffff' : '#bcd0ff'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.4, e.aimA - BULWARK_ARC, e.aimA + BULWARK_ARC); ctx.stroke(); ctx.restore();
+    e.shieldHit = Math.max(0, (e.shieldHit || 0) - 1 / 60);
+  }
+  if (e.type === 'piker' && (e.state === 'aim' || e.state === 'fire')) { // warning line, then the beam
+    ctx.save();
+    if (e.state === 'aim') {
+      ctx.strokeStyle = e.color; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]); ctx.globalAlpha = 0.3 + (e.timer < 0.35 ? 0.5 * (Math.floor(time * 20) % 2) : 0.2);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y + e.r); ctx.lineTo(e.x, H); ctx.stroke();
+    } else {
+      glow(e.color, 30); ctx.fillStyle = e.color; ctx.globalAlpha = 0.85; ctx.fillRect(e.x - 8, e.y, 16, H - e.y);
+      ctx.fillStyle = '#fff'; ctx.fillRect(e.x - 3, e.y, 6, H - e.y);
+    }
+    ctx.restore();
+  }
+  if (e.type === 'linker' && e.dest) { // the beam between the pair (thin and dashed while warming up)
+    const live = e.t > LINK_WARM;
+    ctx.save(); ctx.strokeStyle = e.color; ctx.lineCap = 'round';
+    if (live) { glow(e.color, 18); ctx.lineWidth = 4 + Math.sin(time * 30) * 1.5; ctx.globalAlpha = 0.85; }
+    else { ctx.lineWidth = 1.5; ctx.setLineDash([5, 6]); ctx.globalAlpha = 0.5; }
+    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.dest.x, e.dest.y); ctx.stroke(); ctx.restore();
+  }
   if (e.elite) { // a spinning aura in its power's color
     const c = ELITES[e.elite].color;
     ctx.save(); ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.globalAlpha = 0.75; ctx.setLineDash([6, 5]); ctx.lineDashOffset = -time * 40;
@@ -4141,6 +4356,7 @@ const CONTROL_NAMES = { wasd: 'WASD', arrows: 'Arrow keys', mouse: 'Mouse', ijkl
 
 function drawShips() {
   const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? (net.role === 'host' ? 0 : net.myId) : pl];
+  const mySkin = sp.online || pl === 0 ? meta.cos.eq.skin : null; // (your skin shows on P1's picks)
   if (sel < SHIPS.length) sp.view = sel;
   const base = SHIPS[sp.view ?? 0], two = wantsMk2(base), owned2 = mk2Owned(base);
   const view = two ? shipById(base.id + '2') : base; // the version being looked at
@@ -4160,7 +4376,7 @@ function drawShips() {
     buttons.push({ x, y, w: iw, h: ih, action: () => pickShip(i) });
     panel(x, y, iw, ih, showing2 ? '#ffe93d' : pc, sel === i);
     ctx.save(); ctx.translate(x + iw / 2, y + ih * 0.42); ctx.scale(iw / 70, iw / 70);
-    drawHull(s.shape, pc, 0, showing2);
+    drawHull(s.shape, pc, 0, showing2, mySkin);
     ctx.restore();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = '#dfe8ff';
@@ -4178,7 +4394,7 @@ function drawShips() {
   const art = Math.min(110, pw * 0.3);
   ctx.save(); ctx.translate(px + art / 2 + 10, py + ph / 2); ctx.scale(art / 45, art / 45);
   if (locked) ctx.globalAlpha = 0.55;
-  drawHull(view.shape, pc, 0.5, two);
+  drawHull(view.shape, pc, 0.5, two, mySkin);
   ctx.restore();
   const tx = px + art + 22, tw = pw - art - 34;
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -4341,32 +4557,36 @@ function drawShop() {
   else button('LEAVE SHOP  [Esc]', (W - bw) / 2, by, bw, 44, '#7df9ff', leaveShop);
 }
 
-let cosTab = 'trail';
+let cosTab = 'skin';
 function drawCosmetics() {
-  title('COSMETICS', 56, '#ff5dc8', 48);
-  fitText(`◆ ${meta.shards} shards  ·  just for looks — online, your friends see them too`, 100, 14, '#ffe93d', 'bold');
+  title('SKINS & COSMETICS', 56, '#ff5dc8', 40);
+  fitText(`◆ ${meta.shards} shards  ·  just for looks — online, your friends see them too`, 98, 14, '#ffe93d', 'bold');
   // category tabs
-  const tw = Math.min(150, (W - 48) / 3), tx = (W - (tw * 3 + 16)) / 2;
-  COS_CATS.forEach(([cat, label], i) => button(`${label} [${i + 1}]`, tx + i * (tw + 8), 122, tw, 36, cat === cosTab ? '#ff5dc8' : '#667', () => { cosTab = cat; sel = i; }));
-  const items = COSMETICS.filter(c => c.cat === cosTab);
-  const cols = W >= 700 ? 4 : 2, gap = 10, cw = Math.min(170, (W - 32 - gap * (cols - 1)) / cols), ch = 92;
-  const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 176, t = performance.now() / 1000;
+  const nt = COS_CATS.length, tw = Math.min(140, (W - 32 - (nt - 1) * 8) / nt), tx = (W - (tw * nt + (nt - 1) * 8)) / 2;
+  COS_CATS.forEach(([cat, label], i) => button(W < 520 ? label : `${label} [${i + 1}]`, tx + i * (tw + 8), 118, tw, 36, cat === cosTab ? '#ff5dc8' : '#667', () => { cosTab = cat; sel = i; }));
+  const items = COSMETICS.filter(c => c.cat === cosTab), skins = cosTab === 'skin';
+  const cols = W >= 700 ? (skins ? 6 : 4) : skins ? 3 : 2, gap = 10, cw = Math.min(170, (W - 32 - gap * (cols - 1)) / cols), ch = skins ? 104 : 92;
+  const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 168, t = performance.now() / 1000;
   items.forEach((c, i) => {
     const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap);
-    const owned = cosOwned(c), worn = meta.cos.eq[c.cat] === c.id, can = owned || meta.shards >= c.cost;
+    const owned = cosOwned(c), locked = cosLocked(c), worn = meta.cos.eq[c.cat] === c.id, can = owned || (!locked && meta.shards >= c.cost);
     buttons.push({ x, y, w: cw, h: ch, action: () => useCosmetic(c) });
-    panel(x, y, cw, ch, worn ? '#5dff7a' : can ? '#ff5dc8' : '#556', sel === i + 3);
-    // preview: a little animated swatch of its colors
+    panel(x, y, cw, ch, worn ? '#5dff7a' : can ? '#ff5dc8' : '#556', sel === i + nt);
     const sw = c.sw, px = x + 12, pw = cw - 24, py = y + 14;
-    if (c.cat === 'trail') sw.forEach((col, k) => { ctx.fillStyle = col; ctx.globalAlpha = 0.9; ctx.fillRect(px + pw * k / sw.length, py + Math.sin(t * 4 + k) * 3, pw / sw.length - 2, 8); });
+    if (skins) { // the skin on your currently selected ship
+      ctx.save(); ctx.translate(x + cw / 2, y + 30); if (locked) ctx.globalAlpha = 0.35;
+      drawHull(shipById(lastShips[0]).shape, P_COLORS[0], 0.4 + Math.sin(t * 3) * 0.3, false, c.id); ctx.restore();
+    }
+    // the others: a little animated swatch of their colors
+    else if (c.cat === 'trail') sw.forEach((col, k) => { ctx.fillStyle = col; ctx.globalAlpha = 0.9; ctx.fillRect(px + pw * k / sw.length, py + Math.sin(t * 4 + k) * 3, pw / sw.length - 2, 8); });
     else if (c.cat === 'bullet') for (let k = 0; k < 5; k++) { ctx.fillStyle = sw[k % sw.length]; glow(sw[k % sw.length], 8); ctx.beginPath(); ctx.arc(px + 10 + k * (pw - 20) / 4, py + 5 + ((t * 30 + k * 7) % 8) - 4, 4, 0, Math.PI * 2); ctx.fill(); }
     else for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + t, d = 6 + ((t * 20) % 10); ctx.fillStyle = sw[k % sw.length]; ctx.fillRect(x + cw / 2 + Math.cos(a) * d - 2, py + 6 + Math.sin(a) * d * 0.6 - 2, 4, 4); }
     ctx.shadowBlur = 0; ctx.globalAlpha = 1;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px system-ui'; ctx.fillText(c.name, x + cw / 2, y + 46);
-    ctx.font = 'bold 12px system-ui';
-    ctx.fillStyle = worn ? '#5dff7a' : owned ? '#9ab' : can ? '#ffe93d' : '#a55';
-    ctx.fillText(worn ? '✓ EQUIPPED' : owned ? 'OWNED · EQUIP' : `◆ ${c.cost}`, x + cw / 2, y + 72);
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${cw < 120 ? 12 : 14}px system-ui`; ctx.fillText(c.name, x + cw / 2, y + ch - 40);
+    ctx.font = `bold ${cw < 120 ? 10 : 12}px system-ui`;
+    ctx.fillStyle = worn ? '#5dff7a' : owned ? '#9ab' : locked ? '#c88' : can ? '#ffe93d' : '#a55';
+    ctx.fillText(worn ? '✓ EQUIPPED' : owned ? 'OWNED · EQUIP' : locked ? `🔒 ${c.reqText}` : `◆ ${c.cost}`, x + cw / 2, y + ch - 18);
   });
   const rows = Math.ceil(items.length / cols), bw = Math.min(240, W - 32);
   button('BACK  [Esc]', (W - bw) / 2, y0 + rows * (ch + gap) + 10, bw, 44, '#7df9ff', () => go('hangar'));
@@ -4397,7 +4617,7 @@ function drawHangar() {
   });
   const by = 130 + perCol * (rh + gap) + 8, bw = Math.min(240, W - 32);
   const hw = Math.min(200, (W - 40) / 2);
-  button('COSMETICS  [C]', W / 2 - hw - 4, by, hw, 44, '#ff5dc8', () => go('cosmetics'));
+  button(W < 420 ? 'SKINS  [C]' : 'SKINS & COSMETICS  [C]', W / 2 - hw - 4, by, hw, 44, '#ff5dc8', () => go('cosmetics'));
   button('BACK  [Esc]', W / 2 + 4, by, hw, 44, '#7df9ff', () => go('menu'));
 }
 
@@ -5139,7 +5359,7 @@ function drawLobby() {
     ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${i === me ? ' — you' : ''}`, rx + 50, y + 16);
     ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '12px system-ui';
     ctx.fillText(s ? shipById(s.ship).name + (i === me ? '  · click to change' : '') : 'open slot…', rx + 50, y + 33);
-    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c, 0, shipById(s.ship).mk2 === true); ctx.restore(); }
+    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c, 0, shipById(s.ship).mk2 === true, s.cos?.skin); ctx.restore(); }
     if (i === me && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
