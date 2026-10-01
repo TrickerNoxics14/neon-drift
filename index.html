@@ -186,8 +186,9 @@ const SONGS = {
     B: { chords: '1 6 3 7 4 6 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
       'q-------5---3---', 'q-------w-q-6---', '7-------5---3---', '4-------2---7---',
       '6-------4---q---', 'e-------q---6---', 'w-------5---w---', '5---------------'] } } },
-  // the final boss (and the secret one): always in battle mode
-  abyss: { name: 'Into the Abyss', bpm: 146, root: 40, scale: 'phrygian', lead: 64, battle: true, form: ['A', 'B'], parts: {
+  // the final boss (and the secret one): always in battle mode. THE ABYSS's song is a recording (see playRecorded);
+  // the notes below are what plays if the file can't be loaded
+  abyss: { name: 'Flamewall', file: 'abyss.mp3', loop: [1.3, 407.2], gain: 0.8, bpm: 146, root: 40, scale: 'phrygian', lead: 64, battle: true, form: ['A', 'B'], parts: {
     A: { chords: '1 2 1 2 1 2 3 2', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
       '1.1.2.1.5.4.2.1.', '2.2.4.2.6.4.2.1.', '1.1.2.1.5.4.2.1.', '6---4---2---1---',
       '1.1.2.1.5.4.2.1.', '2.2.4.2.6.4.2.1.', '3.3.5.3.7.5.3.2.', '2-------1-------'] },
@@ -341,9 +342,47 @@ function startMusic() {
   music.timer = setInterval(scheduleMusic, 25);
 }
 function scheduleMusic() {
-  if (!ac || ac.state !== 'running') return;
+  if (!ac || ac.state !== 'running') { if (rec.el && !rec.el.paused) rec.el.pause(); return; } // (a recorded song waits while the tab is away)
+  if (run?.zone === ZONE_LAST) prepRecorded(SONGS.abyss); // (THE ABYSS waits in the last zone: start loading its song early)
+  const want = wantedSong();
+  if (recordedOk(want)) { // a recorded song: the band sits out while it plays
+    playRecorded(want);
+    music.song = want; music.pos = 0; music.rage = false; music.next = ac.currentTime + 0.05;
+    return;
+  }
+  stopRecorded();
   if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.05; // woke from sleep: don't play a backlog
   while (music.next < ac.currentTime + 0.15) music.next += musicStep(music.next);
+}
+// Recorded songs (audio files instead of notes, like THE ABYSS's) stream through the music bus, so the music volume,
+// the mute key and the pause muffle all apply. They loop between their `loop` points (skipping the silence at either
+// end) at their own `gain` (matched to the band's loudness). If the file can't load, the song's written-out version plays.
+const rec = { el: null, gain: null, song: null, failed: {} };
+const recordedOk = id => !!SONGS[id]?.file && !rec.failed[SONGS[id].file];
+function prepRecorded(s) {
+  if (rec.el?.dataset.file === s.file) return rec.el;
+  const el = rec.el = new Audio(s.file);
+  el.dataset.file = s.file; el.preload = 'auto';
+  el.addEventListener('error', () => { rec.failed[s.file] = true; });
+  rec.gain = null; // (hooked up to the music bus the first time it plays)
+  return el;
+}
+function playRecorded(id) {
+  const s = SONGS[id], el = prepRecorded(s), t = ac.currentTime;
+  if (!rec.gain) { rec.gain = ac.createGain(); rec.gain.gain.value = 0; ac.createMediaElementSource(el).connect(rec.gain); rec.gain.connect(musicBus); }
+  if (rec.song !== id) { // start it from the top, fading in
+    rec.song = id; el.currentTime = s.loop[0];
+    rec.gain.gain.cancelScheduledValues(t); rec.gain.gain.setValueAtTime(0, t); rec.gain.gain.linearRampToValueAtTime(s.gain, t + 0.5);
+  }
+  if (el.paused) el.play().catch(() => {});
+  if (el.currentTime >= s.loop[1]) el.currentTime = s.loop[0];
+}
+function stopRecorded() {
+  if (!rec.song) return;
+  rec.song = null;
+  const t = ac.currentTime, el = rec.el;
+  rec.gain.gain.cancelScheduledValues(t); rec.gain.gain.setValueAtTime(rec.gain.gain.value, t); rec.gain.gain.linearRampToValueAtTime(0, t + 0.6);
+  setTimeout(() => { if (!rec.song) el.pause(); }, 700);
 }
 // which song should be playing right now
 function wantedSong() {

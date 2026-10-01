@@ -29,7 +29,9 @@ Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
-Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. All the music is played live by the browser from notes written in the code, so there are no audio files.
+THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight.
+
+Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for Flamewall, all the music is played live by the browser from notes written in the code.
 
 ### Bosses
 
