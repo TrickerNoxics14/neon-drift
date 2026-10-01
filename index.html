@@ -37,7 +37,8 @@ const isMine = i => net.mine.includes(i); // online: is this player slot control
 const guestView = () => net.role === 'guest' && net.playing && net.hostW > 0;
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let low = false; try { low = settings.lowfx; } catch (e) {} // (the very first resize runs before settings are loaded)
+  DPR = Math.min(window.devicePixelRatio || 1, low ? 1 : 2); // PERFORMANCE MODE: no extra pixels on sharp screens
   const rw = window.innerWidth, rh = window.innerHeight;
   cv.width = rw * DPR; cv.height = rh * DPR;
   if (guestView()) {
@@ -52,12 +53,14 @@ const toWorld = (cx, cy) => ({ x: (cx - net.vx) / net.vs, y: (cy - net.vy) / net
 window.addEventListener('resize', resize); resize();
 
 // ---------- settings (persist between sessions) ----------
-const settings = { music: true, sfx: true, shake: true, dmgNums: true, calm: false, fps: false }; // (calm = fewer flashes)
+const settings = { music: true, sfx: true, shake: true, dmgNums: true, calm: false, fps: false, lowfx: false }; // (calm = fewer flashes; lowfx = PERFORMANCE MODE)
 try { Object.assign(settings, JSON.parse(localStorage.getItem('neonDriftSettings')) || {}); } catch (e) {}
+resize(); // (again, now that PERFORMANCE MODE's setting is known)
 function toggleSetting(key) {
   settings[key] = !settings[key];
   try { localStorage.setItem('neonDriftSettings', JSON.stringify(settings)); } catch (e) {}
   applyVolumes();
+  if (key === 'lowfx') resize(); // (performance mode renders at a lower resolution)
   beep(600, 0.08, 'triangle', 0.05);
 }
 
@@ -614,7 +617,7 @@ document.addEventListener('visibilitychange', () => {
   else ac?.resume();
 });
 let toast = null;
-function showToast(text) { toast = { text, life: 1.4 }; }
+function showToast(text, life = 1.4) { toast = { text, life }; }
 addEventListener('keyup', e => keys[e.code] = false);
 const hitButton = (x, y) => buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
 // (pointer positions are converted to world coordinates, which differ from the screen for scaled online guests)
@@ -1042,6 +1045,7 @@ function addMutator() {
 const living = () => players.filter(p => p.alive);
 
 function burst(x, y, color, n = 20, speed = 250) {
+  if (settings.lowfx) n = Math.ceil(n / 2); // (PERFORMANCE MODE: half the particles)
   netRec(['b', Math.round(x), Math.round(y), color, n, speed]);
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = Math.random() * speed;
@@ -3309,7 +3313,8 @@ function updateParticles(dt) {
 }
 
 // ---------- draw helpers ----------
-function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = blur; }
+// soft neon glow (the most expensive thing to draw: PERFORMANCE MODE turns it off)
+function glow(color, blur) { ctx.shadowColor = color; ctx.shadowBlur = settings.lowfx ? 0 : blur; }
 
 // Canvas shadowBlur is slow when used on hundreds of things per frame, so bullets and particles
 // fake their glow with soft halo circles instead, batched into one path per color per layer.
@@ -4872,7 +4877,7 @@ function drawHUD() {
 }
 
 const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'],
-  ['calm', 'REDUCED FLASHING'], ['fps', 'SHOW FPS']];
+  ['calm', 'REDUCED FLASHING'], ['fps', 'SHOW FPS'], ['lowfx', 'PERFORMANCE MODE']];
 function toggleFullscreen() {
   try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
 }
@@ -5611,7 +5616,7 @@ function drawBackground() {
   ctx.fillStyle = lin; ctx.fillRect(0, 0, W, H);
   // two slow-drifting nebula clouds
   const t = performance.now() / 1000 * 0.05;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < (settings.lowfx ? 0 : 2); i++) { // (skipped in PERFORMANCE MODE)
     const x = W * (0.5 + Math.sin(t * (i ? 0.7 : 1) + i * 2) * 0.45), y = H * (0.25 + i * 0.45 + Math.cos(t + i) * 0.1);
     const R = Math.max(W, H) * 0.55, rg = ctx.createRadialGradient(x, y, 0, x, y, R);
     rg.addColorStop(0, `rgba(${r},${g},${b},0.22)`); rg.addColorStop(1, `rgba(${r},${g},${b},0)`);
@@ -6404,7 +6409,15 @@ function drawLobby() {
   if (host) button(net.public ? 'PUBLIC: anyone can join, even mid-game  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
 }
 
-let last = performance.now(), fps = 60, beatT = 0;
+let last = performance.now(), fps = 60, beatT = 0, slowT = 0;
+// if the game keeps running slowly, turn PERFORMANCE MODE on by itself (only once: it can be switched back off in Settings)
+function autoPerf(raw) {
+  if (settings.lowfx || settings.autoPerfDone || state !== 'play' || paused || document.hidden) { slowT = 0; return; }
+  slowT = fps < 45 ? slowT + raw : Math.max(0, slowT - raw * 2);
+  if (slowT < 4) return;
+  settings.autoPerfDone = true; toggleSetting('lowfx');
+  showToast('Running slowly: PERFORMANCE MODE is now ON (Settings to change)', 4);
+}
 // on your last life: a heartbeat you can hear (the red screen edges are in drawVignette)
 function heartbeat(dt) {
   if (state !== 'play' || paused || !run) return;
@@ -6416,6 +6429,7 @@ function loop(now) {
   // cap big hitches (tab switches) without slowing the game down on 30-50fps machines
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
   if (raw > 0) fps += (1 / raw - fps) * 0.05; // (smoothed, for SHOW FPS)
+  if (raw < 1) autoPerf(raw); // (ignore the huge gap after switching tabs)
   heartbeat(dt);
   dirTick(dt); // public lobby list
   if (net.role === 'guest' && net.playing) guestFrame(dt);
