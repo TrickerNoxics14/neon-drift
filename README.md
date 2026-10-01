@@ -31,9 +31,11 @@ The style is heavy rock in space: distorted guitars in both ears, a growling bas
 
 Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. All the music is played live by the browser from notes written in the code, so there are no audio files.
 
-### Enraged bosses
+### Bosses
 
-At half health a boss gets **ENRAGED**. It roars, blows away the bullets around it, and transforms: horns, a burning aura, glowing cracks and a furious glare. Every solo boss also learns a new move that it only uses when enraged:
+Every boss has its own shape. The Warden is a fortress shield, Hexcore a hex nut, Stormcaller a storm cloud, The Hive a beehive, Phantom a ghost, Chronos a pocket watch, The Oracle one giant eye, and so on. The team bosses get their own shapes too: stars, a sun and a crescent moon, cut gems, a sword and more.
+
+At half health a boss gets **ENRAGED**. It roars, blows away the bullets around it, and transforms in its own way. The Warden's shield plates burst off and its battlements turn into spikes. Hexcore melts down white-hot. Null Seraph grows blood-red wings and a crown. The Wyrm catches fire from head to tail. The Architect's tiers fly apart. The Singularity collapses to a pinpoint and bursts back out. Every solo boss also learns a new move that it only uses when enraged:
 
 - **The Warden:** swings chains of bullets around itself.
 - **Hexcore:** lobs magma bombs that leave burning pools.
@@ -50,6 +52,8 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
 - **Zero:** deletes half the screen in a checkerboard pattern.
+
+Regular enemies are animated too. They warp in, squash when hit, and break into pieces when destroyed. Ships fly with engine flames, gunners aim their barrels, and slimes blink.
 
 ### Zones
 

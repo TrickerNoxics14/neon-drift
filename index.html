@@ -1299,32 +1299,32 @@ const TEAMS = [
   { name: 'GEMINI TWINS', kind: 'twins',
     hint: 'Soul-linked twins: a fallen twin revives unless you destroy the other one quickly!',
     members: [
-      { name: 'CASTOR', style: 'seraph', color: '#3dd8ff', sides: 6, r: 46, hpShare: 0.6, patterns: ['fan', 'spiral', 'laser'] },
-      { name: 'POLLUX', style: 'seraph', color: '#ff5dc8', sides: 6, r: 46, hpShare: 0.6, patterns: ['ring', 'mines', 'charge'] }] },
+      { name: 'CASTOR', style: 'seraph', shape: 'star', color: '#3dd8ff', sides: 6, r: 46, hpShare: 0.6, patterns: ['fan', 'spiral', 'laser'] },
+      { name: 'POLLUX', style: 'seraph', shape: 'star', color: '#ff5dc8', sides: 6, r: 46, hpShare: 0.6, patterns: ['ring', 'mines', 'charge'] }] },
   { name: 'SOL & LUNA', kind: 'binary',
     hint: 'A burning tether links them as they orbit — never touch the beam!',
     members: [
-      { name: 'SOL', style: 'hexcore', color: '#ffb13d', sides: 10, r: 44, hpShare: 0.6, patterns: ['ring', 'wave'] },
-      { name: 'LUNA', style: 'phantom', color: '#9dbcff', sides: 5, r: 40, hpShare: 0.6, patterns: ['fan', 'rain'] }] },
+      { name: 'SOL', style: 'hexcore', shape: 'sun', color: '#ffb13d', sides: 10, r: 44, hpShare: 0.6, patterns: ['ring', 'wave'] },
+      { name: 'LUNA', style: 'phantom', shape: 'moon', color: '#9dbcff', sides: 5, r: 40, hpShare: 0.6, patterns: ['fan', 'rain'] }] },
   { name: 'AEGIS & BLADE', kind: 'aegis',
     hint: 'AEGIS shields BLADE and runs away. Destroy AEGIS to break the shield — BLADE will hunt you!',
     members: [
-      { name: 'AEGIS', role: 'shielder', style: 'hive', color: '#5dff7a', sides: 6, r: 42, hpShare: 0.45, patterns: ['ring', 'summon'] },
-      { name: 'BLADE', role: 'striker', style: 'lancer', color: '#ff4d4d', sides: 3, r: 50, hpShare: 0.8, patterns: ['charge', 'fan', 'charge'] }] },
+      { name: 'AEGIS', role: 'shielder', style: 'hive', shape: 'kite', color: '#5dff7a', sides: 6, r: 42, hpShare: 0.45, patterns: ['ring', 'summon'] },
+      { name: 'BLADE', role: 'striker', style: 'lancer', shape: 'sword', color: '#ff4d4d', sides: 3, r: 50, hpShare: 0.8, patterns: ['charge', 'fan', 'charge'] }] },
   { name: 'THE TRIAD', kind: 'triad', trio: true,
     hint: 'The Triad regenerates when left alone — keep hitting all three! (Split up in co-op.)',
     members: [
-      { name: 'RUBY',     style: 'warden',  color: '#ff4d6d', sides: 5, r: 40, hpShare: 0.45, patterns: ['fan', 'ring'] },
-      { name: 'EMERALD',  style: 'hive',    color: '#5dff9d', sides: 4, r: 40, hpShare: 0.45, patterns: ['spiral', 'mines'] },
-      { name: 'SAPPHIRE', style: 'storm',   color: '#5d9dff', sides: 7, r: 40, hpShare: 0.45, patterns: ['laser', 'ring'] }] },
+      { name: 'RUBY',     style: 'warden',  shape: 'ruby', color: '#ff4d6d', sides: 5, r: 40, hpShare: 0.45, patterns: ['fan', 'ring'] },
+      { name: 'EMERALD',  style: 'hive',    shape: 'emerald', color: '#5dff9d', sides: 4, r: 40, hpShare: 0.45, patterns: ['spiral', 'mines'] },
+      { name: 'SAPPHIRE', style: 'storm',   shape: 'sapphire', color: '#5d9dff', sides: 7, r: 40, hpShare: 0.45, patterns: ['laser', 'ring'] }] },
   // 4-player only: each boss is bonded to one player (matching colors) and only takes full damage from them
   { name: 'THE QUARTET', kind: 'quartet', quad: true,
     hint: 'One boss per player! Your own color deals full damage — everyone else barely scratches it.',
     members: [
-      { name: 'TIDE',  bond: 0, style: 'seraph',  color: '#7df9ff', sides: 6, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['wave', 'fan'] },
-      { name: 'GALE',  bond: 1, style: 'hexcore', color: '#9dff5d', sides: 5, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['spiral', 'fan'] },
-      { name: 'EMBER', bond: 2, style: 'storm',   color: '#ff9a3d', sides: 7, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['ring', 'mines'] },
-      { name: 'VOID',  bond: 3, style: 'phantom', color: '#c08dff', sides: 8, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['laser', 'fan'] }] },
+      { name: 'TIDE',  bond: 0, style: 'seraph',  shape: 'shell', color: '#7df9ff', sides: 6, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['wave', 'fan'] },
+      { name: 'GALE',  bond: 1, style: 'hexcore', shape: 'swirl', color: '#9dff5d', sides: 5, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['spiral', 'fan'] },
+      { name: 'EMBER', bond: 2, style: 'storm',   shape: 'flame',  color: '#ff9a3d', sides: 7, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['ring', 'mines'] },
+      { name: 'VOID',  bond: 3, style: 'phantom', shape: 'ring', color: '#c08dff', sides: 8, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['laser', 'fan'] }] },
 ];
 const BOND_OFF_COLOR = 0.3; // damage share from players who aren't a Quartet boss's partner
 // how much of a hit from player `owner` a boss actually takes
@@ -2387,7 +2387,8 @@ function killEnemy(e, src) {
   if (combo >= 8) unlockAch('combo8');
   if (combo >= 16) unlockAch('combo16');
   const big = e.r >= 20;
-  killBurst(e, big);
+  killBurst(e, big); enemyShards(e);
+  if ((e.type === 'mine' || e.type === 'kamikaze' || e.type === 'bomber') && bossFx.rings.length < 40) fxRing(e.x, e.y, e.r * 0.5, e.r * 4, 0.35, '#ffb13d', 4); // (the explosive ones go up with a bang)
   shake = Math.max(shake, big ? 10 : 4);
   beep(180 + Math.random() * 100, 0.15, 'sawtooth', 0.05, -120);
   if (e.type === 'splitter') for (let k = -1; k <= 1; k++) { // breaks into three minis
@@ -2687,13 +2688,28 @@ function shatterFx(x, y, color, sides, r, spin) {
       rot: Math.random() * 6, vr: (Math.random() - 0.5) * 16, len: 6 + Math.random() * 16, life: 1.2, max: 1.2, color: Math.random() < 0.3 ? '#ffffff' : color });
   }
 }
+// a destroyed enemy's hull breaks into a few glowing pieces that tumble away
+function enemyShards(e) {
+  const n = e.r >= 20 ? 6 : 4, color = e.type === 'egg' ? '#ffffff' : e.color; // (an egg's shell is white)
+  netRec(['k', Math.round(e.x), Math.round(e.y), color, n, e.r]);
+  shardsAt(e.x, e.y, color, n, e.r);
+}
+function shardsAt(x, y, color, n, r) {
+  if (bossFx.shards.length > 160) return;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU + Math.random() * 0.8, sp = 90 + Math.random() * 180;
+    bossFx.shards.push({ x: x + Math.cos(a) * r * 0.5, y: y + Math.sin(a) * r * 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      rot: a + Math.PI / 2, vr: (Math.random() - 0.5) * 14, len: r * (0.6 + Math.random() * 0.5), life: 0.55, max: 0.55, color });
+  }
+}
 function fxRing(x, y, from, to, life, color, w = 3, delay = 0) {
   netRec(['r', Math.round(x), Math.round(y), from, to, life, color, w, delay]);
   bossFx.rings.push({ x, y, from, to, life, max: life, color, w, delay });
 }
-function fxGhost(b, life = 0.35) {
-  netRec(['g', Math.round(b.x), Math.round(b.y), bossRot(b), b.sides, b.r, b.color, life]);
-  bossFx.ghosts.push({ x: b.x, y: b.y, rot: bossRot(b), sides: b.sides, r: b.r, color: b.color, life, max: life });
+function fxGhost(b, life = 0.35) { // an afterimage of a boss (in its own shape)
+  const rot = r2(bossRot(b)), shape = shapeOf(b), t = r2(b.t || 1);
+  netRec(['g', Math.round(b.x), Math.round(b.y), rot, b.sides, b.r, b.color, life, shape, t]);
+  bossFx.ghosts.push({ x: b.x, y: b.y, rot, sides: b.sides, r: b.r, color: b.color, life, max: life, shape, t });
 }
 function fxText(text, x, y, color, size = 28, life = 1.6) {
   netRec(['t', text, Math.round(x), Math.round(y), color, size, life]);
@@ -2713,8 +2729,6 @@ function updateBossFx(dt) {
   screenFlash = Math.max(0, screenFlash - dt * 2.5);
 }
 const easeOut = p => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 3);
-// the lancer points its tip at you instead of spinning
-const bossRot = b => b.style === 'lancer' ? b.faceA + (b.dying > 0 ? b.spin : 0) : b.spin;
 
 function bossRoar(b, big) {
   beep(70, big ? 1 : 0.6, 'sawtooth', 0.12, -30);
@@ -3270,7 +3284,7 @@ function phantomRejoin(b, fakes, found) {
 }
 
 // ---------- rage moves ----------
-// An ENRAGED solo boss transforms (see the ENRAGED moment in updateBoss, and drawRageLook) and gets a signature move
+// An ENRAGED solo boss transforms (see the ENRAGED moment in updateBoss, and RAGE_FORMS) and gets a signature move
 // it never uses before then: every `cd` seconds once the last one ends. While a move runs the boss goes 'quiet'
 // (no other attacks) or 'hold's still. A move's state lives in b.special, which online guests get and draw.
 const RAGE_TRANSFORM = 1.6, RAGE_CLEAR = 240; // the transformation's length; its shockwave clears bullets this close
@@ -3597,8 +3611,8 @@ function updateBoss(b, dt) {
     return;
   }
 
-  // phase-two transformation at half health: a dramatic pause and a roar, then it bursts into its rage form
-  // (horns, a burning aura, furious eyes: see drawRageLook) with a shockwave that blows away nearby bullets
+  // phase-two transformation at half health: a dramatic pause and a roar, then each boss bursts into its own
+  // rage form (see RAGE_FORMS), with a shockwave that blows away nearby bullets
   if (enraged && !b.wasEnraged) {
     b.wasEnraged = true; b.rage = RAGE_TRANSFORM; b.atkT = Math.max(b.atkT, RAGE_TRANSFORM); b.specialT = 1.2;
     if (b.charge && b.charge.phase === 'aim') b.charge = null;
@@ -4414,6 +4428,18 @@ function drawWreck(p) {
   ctx.restore();
 }
 
+const ENEMY_POP = 0.35; // how long an enemy takes to warp in
+// engines on the enemies that fly like ships: [x, y, half-width] in r, in the enemy's own frame (where it points
+// toward +y, so its flames stream out toward -y)
+const ENEMY_THRUST = { zigzag: [[0, -0.45, 0.25]], swarmer: [[0, -0.15, 0.2]], seeker: [[0, -0.4, 0.25]], kamikaze: [[0, -0.25, 0.3]],
+  dasher: [[0, -0.65, 0.3]], carrier: [[-0.7, -0.8, 0.18], [0.7, -0.8, 0.18]], layer: [[0, -0.75, 0.3]], piker: [[0, -1.1, 0.22]] };
+function enemyFlame(x, y, w, k = 1) { // a flickering engine flame
+  const L = w * (2.2 + Math.random() * 1.4) * k;
+  ctx.save(); ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = 'rgba(255,140,40,0.75)'; ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x, y - L); ctx.lineTo(x + w, y); ctx.fill();
+  ctx.fillStyle = 'rgba(255,240,180,0.85)'; ctx.beginPath(); ctx.moveTo(x - w * 0.45, y); ctx.lineTo(x, y - L * 0.55); ctx.lineTo(x + w * 0.45, y); ctx.fill();
+  ctx.restore();
+}
 function drawEnemy(e) {
   if (e.type === 'shell' || e.type === 'puddle') return; // (drawn under everything, in drawEnemyTelegraph)
   if (e.type === 'meteor') { if (e.state === 'go') drawMeteor(e); return; }
@@ -4459,7 +4485,15 @@ function drawEnemyBody(e) {
   }
   ctx.save(); ctx.translate(e.x, e.y);
   const c = e.flash > 0 ? '#ffffff' : e.healFx > 0 ? '#5dff7a' : e.slow > 0 ? '#9ddcff' : e.color;
-  const r = e.r;
+  const r = e.r, now = performance.now() / 1000, age = now - (e._born ??= now);
+  // every enemy is alive: it warps in when it appears (a ring collapsing onto it), squashes when it's hit,
+  // and breathes the rest of the time
+  if (age < ENEMY_POP) {
+    const p = age / ENEMY_POP; ctx.save(); ctx.globalAlpha *= 1 - p; ctx.strokeStyle = c; ctx.lineWidth = 2; glow(c, 12);
+    ctx.beginPath(); ctx.arc(0, 0, r * (2.6 - p * 1.6), 0, TAU); ctx.stroke(); ctx.restore();
+  }
+  const breath = Math.sin(now * 5 + e.id) * 0.035, pop = age < ENEMY_POP ? easeOut(age / ENEMY_POP) : 1, hit = e.flash > 0;
+  ctx.scale(pop * (1 + breath) * (hit ? 1.18 : 1), pop * (1 - breath) * (hit ? 0.85 : 1));
   glow(c, 12); ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.beginPath();
   switch (e.type) {
@@ -4467,14 +4501,16 @@ function drawEnemyBody(e) {
       ctx.rotate(e.spin);
       for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
       break;
-    case 'zigzag':
+    case 'zigzag': // (banking into its zigzags)
+      ctx.rotate(Math.max(-0.5, Math.min(0.5, (e.vx || 0) / 400)));
       ctx.moveTo(0, r); ctx.lineTo(r, -r); ctx.lineTo(0, -r * 0.4); ctx.lineTo(-r, -r);
       break;
     case 'tank':
       ctx.rotate(e.spin * 0.3);
       for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
       break;
-    case 'swarmer': // little chevron
+    case 'swarmer': // little chevron, its wings beating
+      ctx.scale(1 + Math.sin(now * 32 + e.id) * 0.18, 1);
       ctx.moveTo(0, r); ctx.lineTo(r, -r * 0.6); ctx.lineTo(0, -r * 0.1); ctx.lineTo(-r, -r * 0.6);
       break;
     case 'dasher': // kite pointing where it's aiming
@@ -4490,7 +4526,8 @@ function drawEnemyBody(e) {
       ctx.moveTo(-r * 1.5, -r * 0.2); ctx.lineTo(-r * 0.6, -r * 0.6); ctx.lineTo(r * 0.6, -r * 0.6); ctx.lineTo(r * 1.5, -r * 0.2);
       ctx.lineTo(r * 0.7, r * 0.6); ctx.lineTo(-r * 0.7, r * 0.6);
       break;
-    case 'healer': { // plus sign
+    case 'healer': { // plus sign, rocking gently
+      ctx.rotate(Math.sin(now * 1.6 + e.id) * 0.3);
       const a = r * 0.38;
       ctx.moveTo(-a, -r); ctx.lineTo(a, -r); ctx.lineTo(a, -a); ctx.lineTo(r, -a); ctx.lineTo(r, a); ctx.lineTo(a, a);
       ctx.lineTo(a, r); ctx.lineTo(-a, r); ctx.lineTo(-a, a); ctx.lineTo(-r, a); ctx.lineTo(-r, -a); ctx.lineTo(-a, -a);
@@ -4500,8 +4537,8 @@ function drawEnemyBody(e) {
       ctx.rotate(e.spin * 2);
       for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * 0.45 : r * (e.state === 'marking' ? 1.3 : 1); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
       break;
-    case 'serpent': // arrow-shaped head facing where it swims
-      ctx.rotate(e.aimA - Math.PI / 2);
+    case 'serpent': // arrow-shaped head facing where it swims (and wiggling as it does)
+      ctx.rotate(e.aimA - Math.PI / 2 + Math.sin(now * 9 + e.id) * 0.18);
       ctx.moveTo(0, r * 1.3); ctx.lineTo(r, 0); ctx.lineTo(r * 0.6, -r * 0.8); ctx.lineTo(-r * 0.6, -r * 0.8); ctx.lineTo(-r, 0);
       break;
     case 'guardian': // tall shield shape
@@ -4567,7 +4604,7 @@ function drawEnemyBody(e) {
       break;
     case 'mine': // spiky ball
       ctx.rotate(e.spin);
-      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, rr = i % 2 ? r * 0.6 : r * 1.25; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, rr = i % 2 ? r * 0.6 : r * 1.25 * (e.timer <= 0 ? 1 + Math.sin(now * 14) * 0.08 : 1); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } // (its spikes throb once it's armed)
       break;
     case 'piker': // long diamond pointing down
       ctx.moveTo(0, r * 1.6); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, -r * 1.1); ctx.lineTo(-r * 0.7, 0);
@@ -4598,9 +4635,31 @@ function drawEnemyBody(e) {
   ctx.closePath(); ctx.fill(); ctx.stroke();
 
   // details
+  const thrust = ENEMY_THRUST[e.type]; // engine flames out the back of the ones that fly like ships
+  if (thrust && !(e.type === 'dasher' && e.state !== 'dash')) for (const [x, y, w] of thrust) enemyFlame(x * r, y * r, w * r, e.type === 'dasher' ? 2 : 1);
   switch (e.type) {
-    case 'shooter': ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); break;
-    case 'tank': ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.stroke(); break;
+    case 'shooter': { // a barrel that tracks you, and a core that charges up before it fires
+      const p = nearestPlayer(e.x, e.y), a = p ? Math.atan2(p.y - e.y, p.x - e.x) : Math.PI / 2, charge = Math.max(0, 1 - e.fire / 0.5);
+      ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55); ctx.lineTo(Math.cos(a) * r * 1.3, Math.sin(a) * r * 1.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.4 + charge * 0.15), 0, Math.PI * 2); ctx.fillStyle = charge > 0.5 && Math.floor(now * 20) % 2 ? '#fff' : c; ctx.fill();
+      break;
+    }
+    case 'tank': { // a hub with treads of studs turning around it
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(-e.spin * 1.2); ctx.fillStyle = c;
+      for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ctx.fillRect(Math.cos(a) * r * 0.66 - 2, Math.sin(a) * r * 0.66 - 2, 4, 4); }
+      break;
+    }
+    case 'drifter': // a smaller diamond turning the other way inside it
+      ctx.rotate(-e.spin * 2.5); ctx.lineWidth = 1.5; ctx.beginPath();
+      for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2, rr = r * 0.45 * (1 + Math.sin(now * 6 + e.id) * 0.15); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.stroke();
+      break;
+    case 'magnet': // its field, rippling out between the poles
+      ctx.lineWidth = 1.2;
+      for (let k = 0; k < 2; k++) { const ph = (now * 1.5 + k * 0.5) % 1; ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.ellipse(0, -r, r * (0.75 + ph * 0.6), r * (0.35 + ph * 0.8), 0, Math.PI, 0); ctx.stroke(); }
+      ctx.globalAlpha = 1; ctx.fillStyle = '#dfe8ff'; ctx.fillRect(-r, -r, r * 0.55, r * 0.35); ctx.fillRect(r * 0.45, -r, r * 0.55, r * 0.35); // silver tips
+      break;
     case 'splitter': // the three pieces it will break into
       ctx.lineWidth = 2;
       for (let i = 0; i < 3; i++) {
@@ -4629,8 +4688,13 @@ function drawEnemyBody(e) {
     case 'launcher': ctx.fillStyle = e.fire < 0.5 && Math.floor(e.t * 10) % 2 ? '#fff' : '#000'; for (const k of [-1, 1]) { ctx.beginPath(); ctx.arc(k * r * 0.5, r * 0.2, r * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } break;
     case 'rocket': ctx.fillStyle = '#ffe93d'; ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.5); ctx.lineTo(0, -r * (1.2 + Math.random() * 0.6)); ctx.lineTo(r * 0.3, -r * 0.5); ctx.fill(); break; // flame
     case 'firework': ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, r * 0.4); ctx.lineTo(0, r * 1.8); ctx.stroke(); break; // stick
-    case 'magnet': ctx.fillStyle = '#dfe8ff'; ctx.fillRect(-r, -r, r * 0.55, r * 0.35); ctx.fillRect(r * 0.45, -r, r * 0.55, r * 0.35); break; // silver tips
-    case 'slimer': ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.15, 2.5, 0, Math.PI * 2); ctx.arc(r * 0.3, -r * 0.15, 2.5, 0, Math.PI * 2); ctx.fill(); break;
+    case 'slimer': { // eyes that blink now and then, and goo dripping off it
+      const blink = ((now + e.id * 0.7) % 3.2) < 0.13 ? 0.15 : 1;
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(-r * 0.3, -r * 0.15, 2.5, 2.5 * blink, 0, 0, Math.PI * 2); ctx.ellipse(r * 0.3, -r * 0.15, 2.5, 2.5 * blink, 0, 0, Math.PI * 2); ctx.fill();
+      const ph = (now * 0.9 + e.id * 0.31) % 1; ctx.globalAlpha = 1 - ph; ctx.fillStyle = c;
+      ctx.beginPath(); ctx.arc(r * 0.2, r * (0.85 + ph * 0.9), 2 + (1 - ph) * 1.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      break;
+    }
     case 'block': ctx.lineWidth = 1; ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(19, 0); ctx.moveTo(-6, -13); ctx.lineTo(-6, 0); ctx.moveTo(8, 0); ctx.lineTo(8, 13); ctx.stroke(); break;
     case 'shade': ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-r * 0.25, -r * 0.1, 2, 0, Math.PI * 2); ctx.arc(r * 0.25, -r * 0.1, 2, 0, Math.PI * 2); ctx.fill(); break; // eyes
     case 'vortex': // three swirling arms around the eye
@@ -4889,7 +4953,7 @@ function drawDownedTwin(b) {
   ctx.save(); ctx.translate(b.x, b.y);
   ctx.globalAlpha = 0.3 + Math.sin(t * (6 + (1 - p) * 20)) * 0.15; // flickers faster as it's about to return
   ctx.strokeStyle = b.color; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
-  polygon(b.sides, b.r, b.spin); ctx.stroke();
+  bossPath(b, b.r, bossRot(b)); ctx.stroke();
   ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = 5; glow('#ff5a70', 15); ctx.strokeStyle = '#ff5a70';
   ctx.beginPath(); ctx.arc(0, 0, b.r + 12, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke();
   ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -5085,13 +5149,21 @@ function drawAbyssDark() {
 // THE WYRM's body: armored segments from the tail up to the head, each with a glowing scale
 function drawWyrmBody(b) {
   const body = b.body || [], fade = b.dying > 0 ? b.dying / DEATH_TIME : 1, c = b.flash > 0 ? '#ffffff' : b.color;
+  // INFERNO: enraged, it catches fire segment by segment from the head down as it transforms
+  const fire = isEnraged(b) && b.wasEnraged && b.entered && b.dying <= 0 ? rageTr(b) * body.length : 0;
   ctx.save(); ctx.globalAlpha = (b.entered ? 1 : b.intro) * fade;
   for (let i = body.length - 1; i >= 0; i--) {
-    const [x, y] = body[i], r = wyrmSegR(b, i), next = body[i - 1] || [b.x, b.y], a = Math.atan2(next[1] - y, next[0] - x);
+    const [x, y] = body[i], r = wyrmSegR(b, i), next = body[i - 1] || [b.x, b.y], a = Math.atan2(next[1] - y, next[0] - x), lit = i < fire;
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-    glow(c, 14); ctx.fillStyle = '#140a04'; ctx.strokeStyle = c; ctx.lineWidth = 2.5;
+    if (lit) { // flames licking up off the burning segment
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0; ctx.fillStyle = i % 2 ? 'rgba(255,90,20,0.55)' : 'rgba(255,190,50,0.5)';
+      const L = r * (0.9 + Math.sin(b.t * 12 + i * 1.9) * 0.4);
+      ctx.beginPath(); ctx.moveTo(-r * 0.7, 0); ctx.quadraticCurveTo(-r * 1.3, -L * 0.6, -r * 1.2 - L, Math.sin(b.t * 7 + i) * r * 0.5); ctx.quadraticCurveTo(-r * 1.2, L * 0.5, -r * 0.7, 0); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    glow(lit ? '#ff6a1a' : c, 14); ctx.fillStyle = lit ? '#3a0c02' : '#140a04'; ctx.strokeStyle = lit ? mixHex(b.color, '#ff3a1a', 0.5) : c; ctx.lineWidth = 2.5;
     ctx.beginPath(); for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2; ctx.lineTo(Math.cos(t) * r * 1.15, Math.sin(t) * r * 0.85); } ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.shadowBlur = 0; ctx.fillStyle = hexA(c, 0.5 + Math.sin(b.t * 4 + i) * 0.3); // scale that lights up before a volley
+    ctx.shadowBlur = 0; ctx.fillStyle = lit ? `rgba(255,${150 + Math.round(Math.sin(b.t * 9 + i) * 60)},40,0.9)` : hexA(c, 0.5 + Math.sin(b.t * 4 + i) * 0.3); // scale that lights up before a volley (or burns)
     ctx.beginPath(); ctx.moveTo(-r * 0.5, 0); ctx.lineTo(0, -r * 0.45); ctx.lineTo(r * 0.5, 0); ctx.lineTo(0, r * 0.45); ctx.fill();
     ctx.restore();
   }
@@ -5105,12 +5177,170 @@ function drawWyrmBody(b) {
   ctx.restore();
 }
 
+// ---------- boss shapes ----------
+// Every boss has its own silhouette. `path(r, b, k)` traces it around (0,0) at size r (k: how far into its rage
+// form it is, 0-1). `mode` is how it turns: 'spin' (with b.spin), 'point' (along its heading), 'swing' (like a
+// pendulum), or 'up' (upright, swaying a little). `eye`: where its eye sits and how big [x, y, size]. Most get a
+// smaller copy of their outline inside (the double neon line); `detail` draws something better for some.
+const TAU = Math.PI * 2;
+const poly = (r, pts) => { ctx.beginPath(); for (const [x, y] of pts) ctx.lineTo(x * r, y * r); ctx.closePath(); };
+const shapeOf = b => b.shape || b.style || '';
+const rageTr = b => b.rage > 0 ? 1 - b.rage / RAGE_TRANSFORM : 1; // how far through its rage transformation (1: done)
+const BOSS_SHAPES = {
+  warden: { mode: 'up', eye: [0, 0.08, 1], path(r, b, k) { // a fortress shield with battlements (enraged, they grow into iron spikes)
+    const top = -0.75, merlon = (x0, x1) => k > 0 ? [[x0, top], [(x0 + x1) / 2, top - 0.25 - 0.4 * k], [x1, top]] : [[x0, top], [x0, -1], [x1, -1], [x1, top]];
+    ctx.beginPath(); ctx.moveTo(-0.95 * r, 0.05 * r);
+    for (const [x, y] of [...merlon(-0.95, -0.55), ...merlon(-0.2, 0.2), ...merlon(0.55, 0.95)]) ctx.lineTo(x * r, y * r);
+    ctx.lineTo(0.95 * r, 0.05 * r);
+    ctx.quadraticCurveTo(0.9 * r, 0.75 * r, 0, 1.12 * r); ctx.quadraticCurveTo(-0.9 * r, 0.75 * r, -0.95 * r, 0.05 * r);
+    ctx.closePath();
+  } },
+  hexcore: { mode: 'spin', eye: [0, 0, 1], path(r) { // a hex nut with clipped corners, and a bore through the middle
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) for (const d of [-0.13, 0.13]) { const a = i / 6 * TAU + d; ctx.lineTo(Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97); }
+    ctx.closePath();
+  }, detail(r) { ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, TAU); ctx.stroke(); ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, TAU); ctx.stroke(); ctx.setLineDash([]); } },
+  seraph: { mode: 'up', eye: [0, 0, 0.9], path(r) { // a four-pointed star of light
+    const pts = [[0, -1.35], [0.82, 0], [0, 1.2], [-0.82, 0]];
+    ctx.beginPath(); ctx.moveTo(0, -1.35 * r);
+    for (let i = 1; i <= 4; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i % 4]; ctx.quadraticCurveTo((x0 + x1) * 0.18 * r, (y0 + y1) * 0.18 * r, x1 * r, y1 * r); }
+    ctx.closePath();
+  } },
+  lancer: { mode: 'point', eye: [0.05, 0, 0.9], path: r => poly(r, [[1.4, 0], [0.15, -0.72], [-0.2, -0.38], [-0.95, -0.62], [-0.62, 0], [-0.95, 0.62], [-0.2, 0.38], [0.15, 0.72]]) }, // a barbed spearhead
+  storm: { mode: 'up', eye: [0, 0.02, 1], path(r, b) { // a boiling storm cloud with a flat underside
+    ctx.beginPath();
+    for (let i = 0; i < 48; i++) {
+      const a = i / 48 * TAU, rr = r * (0.8 + 0.22 * Math.abs(Math.sin(a * 2.5 + Math.sin((b.t || 0) * 0.8) * 0.4)));
+      let y = Math.sin(a) * rr * 0.92; if (y > 0.42 * r) y = 0.42 * r + (y - 0.42 * r) * 0.2;
+      ctx.lineTo(Math.cos(a) * rr * 1.22, y);
+    }
+    ctx.closePath();
+  } },
+  hive: { mode: 'up', eye: [0, -0.08, 1], path(r) { // a domed beehive, the entrance at the bottom
+    ctx.beginPath(); ctx.moveTo(-0.92 * r, 0.82 * r); ctx.lineTo(0.92 * r, 0.82 * r);
+    ctx.bezierCurveTo(1.18 * r, 0.05 * r, 0.85 * r, -1.08 * r, 0, -1.12 * r);
+    ctx.bezierCurveTo(-0.85 * r, -1.08 * r, -1.18 * r, 0.05 * r, -0.92 * r, 0.82 * r);
+    ctx.closePath();
+  }, detail(r) { // woven bands around the dome, and the dark entrance
+    ctx.save(); BOSS_SHAPES.hive.path(r); ctx.clip(); ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.55; ctx.beginPath();
+    for (const y of [-0.62, -0.25, 0.12, 0.48]) { ctx.moveTo(-1.2 * r, y * r); ctx.quadraticCurveTo(0, (y + 0.14) * r, 1.2 * r, y * r); }
+    ctx.stroke(); ctx.restore();
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, 0.82 * r, 0.22 * r, 0.17 * r, 0, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } },
+  phantom: { mode: 'up', eye: [0, -0.15, 1], path(r, b, k) { // a sheet ghost with a ragged, fluttering hem
+    ctx.beginPath(); ctx.moveTo(-0.85 * r, 0.7 * r); ctx.lineTo(-0.85 * r, -0.15 * r);
+    ctx.arc(0, -0.15 * r, 0.85 * r, Math.PI, 0); ctx.lineTo(0.85 * r, 0.7 * r);
+    for (let i = 1; i < 8; i++) ctx.lineTo((0.85 - i * 1.7 / 8) * r, (0.7 + (i % 2 ? 0.3 + k * 0.35 : 0) + Math.sin((b.t || 0) * 5 + i) * (0.07 + k * 0.08)) * r);
+    ctx.closePath();
+  } },
+  echo: { mode: 'up', eye: [0, 0, 1], path(r, b, k) { // a rippling ring of sound (enraged: a jagged sawtooth)
+    ctx.beginPath();
+    for (let i = 0; i < 72; i++) {
+      const a = i / 72 * TAU, ph = a * 8 - (b.t || 0) * 5, saw = ((ph / TAU) % 1 + 1) % 1 * 2 - 1, w = Math.sin(ph) * (1 - k) + saw * k;
+      const rr = r * (0.93 + (0.07 + k * 0.1) * w); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+  } },
+  chronos: { mode: 'swing', eye: [0, 0, 0.9], path(r) { // a pocket watch, swinging on its chain
+    ctx.beginPath(); ctx.arc(0, 0, 0.95 * r, -Math.PI / 2 + 0.16, Math.PI * 1.5 - 0.16);
+    ctx.lineTo(-0.13 * r, -1.14 * r); ctx.lineTo(0.13 * r, -1.14 * r); ctx.closePath();
+  }, detail(r) { // its crown and ring, and the hour marks
+    ctx.beginPath(); ctx.arc(0, -1.24 * r, 0.12 * r, 0, TAU); ctx.moveTo(0.2 * r, -1.52 * r); ctx.arc(0, -1.52 * r, 0.2 * r, 0, TAU); ctx.stroke();
+    ctx.beginPath();
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, r1 = r * (i % 3 ? 0.76 : 0.66); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85); }
+    ctx.stroke();
+  } },
+  wyrm: { mode: 'point', eye: [0.15, 0, 0.8], path: r => poly(r, [[1.25, 0], [0.55, -0.42], [0.1, -0.55], [-0.3, -0.95], [-0.5, -0.5], [-0.95, -0.35], [-0.95, 0.35], [-0.5, 0.5], [-0.3, 0.95], [0.1, 0.55], [0.55, 0.42]]) }, // a horned dragon's head
+  architect: { mode: 'up', eye: [0, 0.1, 0.9], path(r, b, k) { // a stepped pyramid of three blocks (enraged, they come apart)
+    const g = k > 0 ? archGap(b, k) : 0;
+    ctx.beginPath();
+    for (const [w, y0, y1, lift] of [[1, 0.35, 0.8, 0], [0.72, -0.15, 0.35, 1], [0.45, -0.65, -0.15, 2]]) ctx.rect(-w * r, (y0 - lift * g) * r, w * 2 * r, (y1 - y0) * r);
+  }, detail(r) { ctx.globalAlpha *= 0.5; ctx.beginPath(); for (const [x, y0, y1] of [[-0.3, 0.35, 0.8], [0.4, 0.35, 0.8], [0.05, -0.15, 0.35]]) { ctx.moveTo(x * r, y0 * r); ctx.lineTo(x * r, y1 * r); } ctx.stroke(); } },
+  oracle: { mode: 'up', eye: [0, 0, 1.7], clipEye: true, path(r, b) { // one great almond eye, which blinks
+    const o = oracleOpen(b);
+    ctx.beginPath(); ctx.moveTo(-1.3 * r, 0); ctx.quadraticCurveTo(0, -1.15 * r * o, 1.3 * r, 0); ctx.quadraticCurveTo(0, 1.15 * r * o, -1.3 * r, 0); ctx.closePath();
+  } },
+  singularity: { mode: 'spin', eye: [0, 0, 1], path(r) { ctx.beginPath(); ctx.arc(0, 0, 0.85 * r, 0, TAU); } }, // a perfect sphere
+  leech: { mode: 'up', eye: [0, 0.25, 1], path(r) { // a swollen drop of blood
+    ctx.beginPath(); ctx.moveTo(0, -1.25 * r);
+    ctx.bezierCurveTo(0.55 * r, -0.7 * r, 0.95 * r, -0.15 * r, 0.9 * r, 0.3 * r);
+    ctx.arc(0, 0.3 * r, 0.9 * r, 0, Math.PI);
+    ctx.bezierCurveTo(-0.95 * r, -0.15 * r, -0.55 * r, -0.7 * r, 0, -1.25 * r); ctx.closePath();
+  }, detail(r) { // the rings of its segmented skin
+    ctx.save(); BOSS_SHAPES.leech.path(r); ctx.clip(); ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.5; ctx.beginPath();
+    for (const y of [-0.55, -0.1, 0.4, 0.85]) { ctx.moveTo(-1.1 * r, y * r); ctx.quadraticCurveTo(0, (y + 0.18) * r, 1.1 * r, y * r); }
+    ctx.stroke(); ctx.restore();
+  } },
+  zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
+  // team bosses
+  star: { mode: 'spin', eye: [0, 0, 0.9], path(r) { ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = r * (i % 2 ? 0.52 : 1.18); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); } }, // GEMINI: stars
+  sun: { mode: 'spin', eye: [0, 0, 1], path(r) { ctx.beginPath(); for (let i = 0; i < 24; i++) { const a = i / 24 * TAU, rr = r * (i % 2 ? 0.78 : 1.18); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); },
+    detail(r) { ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, TAU); ctx.stroke(); } }, // SOL
+  moon: { mode: 'up', eye: [-0.66, 0, 0.8], path(r) { ctx.beginPath(); ctx.arc(0, 0, r, 1.015, TAU - 1.015); ctx.arc(0.5 * r, 0, 0.85 * r, -1.538, 1.538, true); ctx.closePath(); } }, // LUNA: a crescent
+  kite: { mode: 'up', eye: [0, -0.2, 0.9], path(r) { // AEGIS: a kite shield
+    ctx.beginPath(); ctx.moveTo(0, -1.05 * r);
+    ctx.quadraticCurveTo(0.95 * r, -1.0 * r, 0.85 * r, -0.2 * r); ctx.quadraticCurveTo(0.6 * r, 0.6 * r, 0, 1.25 * r);
+    ctx.quadraticCurveTo(-0.6 * r, 0.6 * r, -0.85 * r, -0.2 * r); ctx.quadraticCurveTo(-0.95 * r, -1.0 * r, 0, -1.05 * r); ctx.closePath();
+  } },
+  sword: { mode: 'point', eye: [0.15, 0, 0.8], path: r => poly(r, [[1.6, 0], [0.4, -0.3], [-0.3, -0.22], [-0.3, -0.7], [-0.5, -0.7], [-0.5, -0.14], [-1.05, -0.12], [-1.05, 0.12], [-0.5, 0.14], [-0.5, 0.7], [-0.3, 0.7], [-0.3, 0.22], [0.4, 0.3]]) }, // BLADE
+  ruby: { mode: 'up', eye: [0, -0.18, 0.85], path: r => poly(r, [[-1, -0.3], [-0.55, -0.8], [0.55, -0.8], [1, -0.3], [0, 1.05]]), // a cut gem: its table, crown and pavilion facets
+    detail(r) { ctx.globalAlpha *= 0.6; ctx.beginPath(); ctx.moveTo(-r, -0.3 * r); ctx.lineTo(r, -0.3 * r); for (const x of [-0.55, 0, 0.55]) { ctx.moveTo(x * r, -0.8 * r); ctx.lineTo(x * 0.6 * r, -0.3 * r); ctx.lineTo(0, 1.05 * r); } ctx.stroke(); } },
+  emerald: { mode: 'up', eye: [0, 0, 0.9], path: r => poly(r, [[-0.55, -1], [0.55, -1], [0.82, -0.72], [0.82, 0.72], [0.55, 1], [-0.55, 1], [-0.82, 0.72], [-0.82, -0.72]]) }, // an emerald (step) cut
+  sapphire: { mode: 'up', eye: [0, 0, 0.9], path(r) { ctx.beginPath(); ctx.ellipse(0, 0, 0.8 * r, 1.08 * r, 0, 0, TAU); }, // an oval cut
+    detail(r) { ctx.globalAlpha *= 0.55; ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; ctx.moveTo(Math.cos(a) * 0.35 * r, Math.sin(a) * 0.48 * r); ctx.lineTo(Math.cos(a + 0.39) * 0.8 * r, Math.sin(a + 0.39) * 1.08 * r); } ctx.stroke(); ctx.beginPath(); ctx.ellipse(0, 0, 0.35 * r, 0.48 * r, 0, 0, TAU); ctx.stroke(); } },
+  shell: { mode: 'up', eye: [0, -0.05, 0.85], path(r) { // TIDE: a scallop shell
+    ctx.beginPath(); ctx.moveTo(-0.2 * r, 0.95 * r); ctx.lineTo(-0.5 * r, 0.8 * r); ctx.lineTo(-0.3 * r, 0.62 * r);
+    for (let i = 0; i <= 12; i++) { const a = Math.PI + 0.45 + i / 12 * (Math.PI - 0.9), rr = r * (i % 2 ? 1.28 : 1.4); ctx.lineTo(Math.cos(a) * rr, 0.6 * r + Math.sin(a) * rr); }
+    ctx.lineTo(0.3 * r, 0.62 * r); ctx.lineTo(0.5 * r, 0.8 * r); ctx.lineTo(0.2 * r, 0.95 * r); ctx.closePath();
+  }, detail(r) { ctx.globalAlpha *= 0.5; ctx.beginPath(); for (let i = 0; i <= 6; i++) { const a = Math.PI + 0.45 + i / 6 * (Math.PI - 0.9); ctx.moveTo(0, 0.6 * r); ctx.lineTo(Math.cos(a) * 1.28 * r, 0.6 * r + Math.sin(a) * 1.28 * r); } ctx.stroke(); } },
+  swirl: { mode: 'spin', eye: [0, 0, 0.9], path(r) { // GALE: a whirlwind with three hooked arms
+    ctx.beginPath(); ctx.arc(0, 0, 0.5 * r, 0, TAU);
+    for (let k = 0; k < 3; k++) {
+      const a = k / 3 * TAU, P = (ang, d) => [Math.cos(a + ang) * d * r, Math.sin(a + ang) * d * r];
+      ctx.moveTo(...P(-0.2, 0.45)); ctx.quadraticCurveTo(...P(0.5, 1.35), ...P(1.5, 1.2)); ctx.quadraticCurveTo(...P(0.9, 0.85), ...P(0.6, 0.45));
+    }
+  }, detail(r) { ctx.beginPath(); ctx.arc(0, 0, 0.3 * r, 0, TAU); ctx.stroke(); } },
+  flame: { mode: 'up', eye: [0, 0.3, 0.85], path(r, b) { // EMBER: a flickering flame
+    const t = b.t || 0, f1 = Math.sin(t * 9) * 0.12, f2 = Math.sin(t * 11 + 1) * 0.1;
+    ctx.beginPath(); ctx.moveTo(0, 0.95 * r);
+    ctx.bezierCurveTo(-1.0 * r, 0.7 * r, -0.75 * r, -0.3 * r, (-0.2 + f1) * r, -1.3 * r);
+    ctx.bezierCurveTo(0.05 * r, -0.6 * r, 0.35 * r, -0.75 * r, (0.45 + f2) * r, -0.95 * r);
+    ctx.bezierCurveTo(0.95 * r, -0.2 * r, 1.0 * r, 0.7 * r, 0, 0.95 * r); ctx.closePath();
+  } },
+  ring: { mode: 'spin', eye: [0, 0, 0.8], path(r) { ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.moveTo(0.48 * r, 0); ctx.arc(0, 0, 0.48 * r, 0, TAU, true); } }, // VOID: a dark ring
+};
+// THE ORACLE's eyelids: closed when it blinks, wider when enraged (and flung open as it transforms)
+function oracleOpen(b) {
+  if (((b.t || 0) % 3.7) < 0.12) return 0.1;
+  if (!(b.wasEnraged && b.hp < b.max / 2)) return 1;
+  return 1.15 + (b.rage > 0 ? Math.sin(rageTr(b) * Math.PI) * 0.45 : 0);
+}
+// which way a boss faces, and how its body is turned (see each shape's `mode`)
+const headingOf = b => b.style === 'wyrm' && b.body?.length ? Math.atan2(b.y - b.body[0][1], b.x - b.body[0][0]) : (b.faceA || 0);
+function bossRot(b) {
+  const m = BOSS_SHAPES[shapeOf(b)]?.mode || 'spin', dieP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  if (m === 'point') return headingOf(b) + (b.dying > 0 ? b.spin : 0);
+  if (m === 'spin') return (b.spin || 0) * (b.side > 0 && shapeOf(b) === 'star' ? -1 : 1); // (the twins turn opposite ways)
+  const t = b.t || 0, sway = m === 'swing' ? Math.sin(t * 1.9) * 0.16 : Math.sin(t * 1.2 + (b.slot || 0)) * 0.06;
+  return sway + (dieP ? Math.sin(t * 31) * dieP * 0.35 : 0); // (shaking itself apart as it dies)
+}
+// trace a boss's outline (for its body, afterimages, markers...)
+function bossPath(b, r, rot, k = 0) {
+  const s = BOSS_SHAPES[shapeOf(b)];
+  if (!s) { polygon(b.sides, r, rot); return; }
+  ctx.save(); ctx.rotate(rot); s.path(r, b, k); ctx.restore();
+}
+
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
   if (b.style === 'abyss') { drawAbyss(b); return; }
   if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
   const enraged = isEnraged(b), fury = enraged && b.dying <= 0 && b.entered; // (fury: wearing its rage form)
-  const t = b.t, rot = bossRot(b);
+  const key = shapeOf(b), shape = BOSS_SHAPES[key] || BOSS_SHAPES.hexcore, form = RAGE_FORMS[key] || RAGE_FORMS.generic;
+  const tr = rageTr(b), k = fury ? Math.min(1, tr * 1.5) : 0; // (its rage form grows in as it transforms)
+  const t = b.t;
+  let rot = bossRot(b);
+  if (fury && b.rage > 0 && key === 'lancer') rot += tr * TAU * 2; // (VOID LANCER spins itself into a frenzy)
   const c = b.flash > 0 ? '#ffffff' : fury ? mixHex(b.color, '#ff2a1a', 0.3 + Math.sin(t * 6) * 0.1) : b.color; // (enraged, it burns redder)
   const deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
   const aiming = b.charge && b.charge.phase === 'aim';
@@ -5122,6 +5352,7 @@ function drawBoss(b) {
   if (b.appear > 0) sc *= 1 - b.appear * 0.8;
   if (b.rage > 0) sc *= 1 + Math.sin(b.rage * 30) * 0.07 + (1 - b.rage / RAGE_TRANSFORM) * 0.12; // (swelling up as it transforms)
   if (b.special?.k === 'crunch') sc *= 1 + Math.min(0.5, (b.special.n || 0) * 0.012); // (THE SINGULARITY swells with every bullet it swallows)
+  if (fury && form.scale) sc *= form.scale(b, k, tr); // (some rage forms throb in their own way)
   if (b.dying > 0) sc *= 1 - deathP * 0.2;
   const jitter = b.dying > 0 ? 2 + deathP * 8 : b.rage > 0 ? 6 : aiming ? 4 : enraged ? 1.5 : 0;
 
@@ -5132,29 +5363,25 @@ function drawBoss(b) {
   if (b.dying > 0 && Math.random() < deathP * 0.3) ctx.globalAlpha = 0.35;
   const sp = b.special;
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
+  if (fury && b.rage > 0 && key === 'phantom' && Math.random() < 0.4) ctx.globalAlpha *= 0.15; // (PHANTOM strobes as it's possessed)
   ctx.scale(sc, sc);
+  const a0 = ctx.globalAlpha;
+  const rageLayer = (layer, ...args) => { if (fury && form[layer]) { ctx.save(); form[layer](b, k, tr, b.r, ...args); ctx.restore(); } };
 
-  if (fury) drawRageLook(b, 'back');
+  rageLayer('back');
   drawBossDecor(b, 'back', c, enraged);
 
-  // body
+  // the body, in its own shape (a rage form may fill it with something hotter)
+  ctx.save(); ctx.rotate(rot);
   ctx.lineWidth = 3; ctx.strokeStyle = c; glow(c, 30 + windup * 30);
-  ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  polygon(b.sides, b.r, rot); ctx.fill(); ctx.stroke();
-
-  // spikes grow when enraged and flare during a charge-up
-  const spike = 1.35 + (enraged ? 0.2 : 0) + windup * 0.15 + (b.rage > 0 ? Math.sin(b.rage * 25) * 0.1 : 0);
-  for (let i = 0; i < b.sides; i++) {
-    const a = rot + (i + 0.5) / b.sides * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a - 0.15) * b.r * 0.85, Math.sin(a - 0.15) * b.r * 0.85);
-    ctx.lineTo(Math.cos(a) * b.r * spike, Math.sin(a) * b.r * spike);
-    ctx.lineTo(Math.cos(a + 0.15) * b.r * 0.85, Math.sin(a + 0.15) * b.r * 0.85);
-    ctx.stroke();
-  }
-  if (fury) drawRageLook(b, 'shell', 0, rot);
-  ctx.strokeStyle = c; ctx.lineWidth = 2;
-  polygon(b.sides, b.r * 0.62, -b.spin * 1.5); ctx.stroke();
+  ctx.fillStyle = (fury && form.fill?.(b, k, b.r)) || 'rgba(0,0,0,0.72)';
+  shape.path(b.r, b, k); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 2; ctx.save();
+  if (shape.detail) shape.detail(b.r, b, k);
+  else { ctx.save(); if (shape.mode === 'spin') ctx.rotate(-rot * 2.5); ctx.scale(0.62, 0.62); shape.path(b.r, b, k); ctx.restore(); ctx.stroke(); } // (a smaller outline inside)
+  ctx.restore();
+  rageLayer('shell');
+  ctx.restore();
 
   // cracks spreading across the shell as it dies
   if (b.dying > 0) {
@@ -5170,30 +5397,36 @@ function drawBoss(b) {
 
   // charge-up: a ring collapses into the core
   if (windup > 0) {
-    ctx.globalAlpha = windup; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+    ctx.globalAlpha = a0 * windup; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, b.r * (1.1 - windup * 0.75), 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = a0;
   }
 
-  // core with an eye that follows you (and blinks now and then)
+  // its eye, wherever its shape keeps it: it follows you, and blinks now and then
+  const [ox, oy, es] = shape.eye, ex = (Math.cos(rot) * ox - Math.sin(rot) * oy) * b.r, ey = (Math.sin(rot) * ox + Math.cos(rot) * oy) * b.r;
   const pulse = 1 + Math.sin(t * (enraged ? 12 : 5)) * 0.12;
-  const coreR = b.r * 0.25 * pulse * (1 + windup * 0.7 + b.kick * 0.3) * (1 + deathP);
-  const core = b.dying > 0 ? '#ffffff' : enraged ? '#ff4d4d' : '#ffffff';
-  glow(core, 40 + windup * 30); ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(0, 0, coreR, 0, Math.PI * 2); ctx.fill();
-  if (b.dying <= 0) {
-    const blinking = (t % 3.7) < 0.12;
-    ctx.shadowBlur = 0; ctx.fillStyle = enraged ? '#300' : '#111';
+  const coreR = b.r * 0.25 * es * pulse * (1 + windup * 0.7 + b.kick * 0.3) * (1 + deathP);
+  if (!(fury && form.noEye)) {
     ctx.save();
-    ctx.translate(b.look.x * coreR * 0.45, b.look.y * coreR * 0.45);
-    if (fury) ctx.scale(0.38, blinking ? 0.1 : 1.25); // enraged: a demon's slit pupil
-    else ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
-    ctx.beginPath(); ctx.arc(0, 0, coreR * 0.45, 0, Math.PI * 2); ctx.fill();
+    if (shape.clipEye) { bossPath(b, b.r, rot, k); ctx.clip(); } // (THE ORACLE's iris stays inside its eyelids)
+    ctx.translate(ex, ey);
+    const core = b.dying > 0 ? '#ffffff' : enraged ? '#ff4d4d' : '#ffffff';
+    glow(core, 40 + windup * 30); ctx.fillStyle = core;
+    ctx.beginPath(); ctx.arc(0, 0, coreR, 0, Math.PI * 2); ctx.fill();
+    if (b.dying <= 0) {
+      const blinking = (t % 3.7) < 0.12;
+      ctx.shadowBlur = 0; ctx.fillStyle = enraged ? '#300' : '#111';
+      ctx.translate(b.look.x * coreR * 0.45, b.look.y * coreR * 0.45);
+      if (fury) ctx.scale(0.38, blinking ? 0.1 : 1.25); // enraged: a demon's slit pupil
+      else ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
+      ctx.beginPath(); ctx.arc(0, 0, coreR * 0.45, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
   }
 
   drawBossDecor(b, 'front', c, enraged);
-  if (fury) drawRageLook(b, 'front', coreR);
+  rageLayer('front', coreR, ex, ey);
+  if (fury && !form.noEye) rageBrows(b, coreR, ex, ey);
   if (b.shielded) { // Aegis' bubble — flares where bullets bounce off
     const pulse = 1 + Math.sin(b.t * 4) * 0.03;
     ctx.globalAlpha = 1; glow('#5dff7a', 20 + b.shieldHit * 100);
@@ -5248,8 +5481,8 @@ function drawBossDecor(b, layer, c, enraged) {
   const t = b.t, r = b.r, fast = enraged ? 1.8 : 1;
   ctx.strokeStyle = c; ctx.fillStyle = c; glow(c, 20);
   switch (b.style) {
-    case 'warden': // three shield plates orbiting
-      if (layer !== 'front') break;
+    case 'warden': // three shield plates orbiting (THE WARDEN's burst off when it's enraged)
+      if (layer !== 'front' || (enraged && b.wasEnraged && shapeOf(b) === 'warden')) break;
       ctx.lineWidth = 5; ctx.lineCap = 'round';
       for (let i = 0; i < 3; i++) {
         const a = -t * 1.2 * fast + i * Math.PI * 2 / 3;
@@ -5279,10 +5512,11 @@ function drawBossDecor(b, layer, c, enraged) {
       break;
     case 'lancer': { // a long energy spear extending from its tip
       if (layer !== 'front') break;
-      const a = bossRot(b), charging = b.charge ? 1 : 0;
-      const L = r * (1.9 + charging * 0.6 + Math.sin(t * 10) * 0.08);
+      const tip = shapeOf(b) === 'sword' ? 1.6 : 1.4, charging = b.charge ? 1 : 0;
+      const a = bossRot(b) + (enraged && b.rage > 0 && shapeOf(b) === 'lancer' ? rageTr(b) * TAU * 2 : 0); // (spinning with it as it transforms)
+      const L = r * (tip + 0.55 + charging * 0.6 + Math.sin(t * 10) * 0.08);
       ctx.lineWidth = 3 + charging * 2;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a) * L, Math.sin(a) * L); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * tip, Math.sin(a) * r * tip); ctx.lineTo(Math.cos(a) * L, Math.sin(a) * L); ctx.stroke();
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(Math.cos(a) * L, Math.sin(a) * L, 4 + charging * 3, 0, Math.PI * 2); ctx.fill();
       break;
@@ -5322,13 +5556,14 @@ function drawBossDecor(b, layer, c, enraged) {
       for (let i = 1; i <= 2; i++) {
         ctx.save(); ctx.globalAlpha *= 0.3 / i;
         ctx.translate(Math.sin(t * 2 + i) * 12 * i, Math.cos(t * 1.7 + i) * 8 * i);
-        polygon(b.sides, r * (1 + i * 0.12), -b.spin + i); ctx.stroke();
+        bossPath(b, r * (1 + i * 0.12), bossRot(b)); ctx.stroke();
         ctx.restore();
       }
       break;
     case 'architect': // blueprint lines and a turning gear
       if (layer === 'back') {
         ctx.lineWidth = 1; ctx.globalAlpha *= 0.5; ctx.setLineDash([4, 5]);
+        if (enraged && b.wasEnraged) ctx.strokeStyle = '#ff3a2a'; // (the plans turn red: DEMOLITION)
         ctx.strokeRect(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2); ctx.beginPath(); ctx.moveTo(-r * 1.9, 0); ctx.lineTo(r * 1.9, 0); ctx.moveTo(0, -r * 1.9); ctx.lineTo(0, r * 1.9); ctx.stroke();
         ctx.setLineDash([]); ctx.globalAlpha /= 0.5;
       } else for (const [gx, gy, gr, dir] of [[-r * 1.15, -r * 1.15, r * 0.32, 1], [r * 1.15, r * 1.15, r * 0.32, -1]]) {
@@ -5341,14 +5576,15 @@ function drawBossDecor(b, layer, c, enraged) {
       if (layer === 'back') {
         ctx.lineWidth = 1.5;
         for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2 + t * 0.3, r1 = r * 1.5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * (r1 + (i % 3 ? 5 : 12)), Math.sin(a) * (r1 + (i % 3 ? 5 : 12))); ctx.stroke(); }
-      } else for (let i = 0; i < 6; i++) {
-        const a = i / 6 * Math.PI * 2 - t * 0.5, x = Math.cos(a) * r * 1.9, y = Math.sin(a) * r * 1.9;
-        ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x, y, 6, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x + b.look.x * 2, y + b.look.y * 1.2, 1.6, 0, Math.PI * 2); ctx.fill();
+      } else for (let i = 0; i < 6; i++) { // (enraged, they swell up red and glare, opening one by one as it transforms)
+        const a = i / 6 * Math.PI * 2 - t * 0.5, x = Math.cos(a) * r * 1.9, y = Math.sin(a) * r * 1.9, mad = enraged && b.wasEnraged && i / 6 < rageTr(b);
+        ctx.fillStyle = mad ? '#ff3a4a' : c; ctx.beginPath(); ctx.ellipse(x, y, mad ? 10 : 6, mad ? 6.5 : 3.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x + b.look.x * 2.5, y + b.look.y * 1.5, mad ? 1.4 : 1.6, mad ? 5 : 1.6, 0, 0, Math.PI * 2); ctx.fill();
       }
       break;
-    case 'singularity': // a tilted accretion disk spinning around the black core
+    case 'singularity': // a tilted accretion disk spinning around the black core (enraged: red-hot, and whirling)
       ctx.save(); ctx.lineWidth = 2;
+      if (enraged && b.wasEnraged) { ctx.strokeStyle = '#ff7a3d'; glow('#ff4a1a', 20); ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 90; }
       for (let i = 0; i < 3; i++) {
         ctx.globalAlpha = (layer === 'back' ? 0.35 : 0.7) - i * 0.12;
         ctx.beginPath(); ctx.ellipse(0, 0, r * (1.6 + i * 0.35), r * (0.45 + i * 0.1), -0.35, layer === 'back' ? Math.PI : 0, layer === 'back' ? Math.PI * 2 : Math.PI); ctx.stroke();
@@ -5356,17 +5592,15 @@ function drawBossDecor(b, layer, c, enraged) {
       ctx.restore();
       if (layer === 'front') { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2); ctx.fill(); }
       break;
-    case 'chronos': // a clock face: 12 ticks and two hands (which stop when time does)
-      if (layer === 'back') {
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r1 = r * (i % 3 ? 1.5 : 1.42); ctx.beginPath(); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r * 1.62, Math.sin(a) * r * 1.62); ctx.stroke(); }
-      } else {
+    case 'chronos': // the watch's two hands (which stop when time does; its hour marks are part of its shape)
+      if (layer === 'front') {
         let tt = b.stop > 0 ? b._frozenT ??= t : (b._frozenT = undefined, t);
+        if (enraged && b.wasEnraged) tt = b.rage > 0 ? t * 30 : -t * 3; // (TIME UNBOUND: spinning wildly, then running backwards)
         if (b.special?.k === 'rewind' && b.special.t < REWIND_AT) tt = -t * 6; // (its hands spin backward before time rewinds)
         ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 0.5 - Math.PI / 2) * r * 0.7, Math.sin(tt * 0.5 - Math.PI / 2) * r * 0.7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 0.5 - Math.PI / 2) * r * 0.5, Math.sin(tt * 0.5 - Math.PI / 2) * r * 0.5); ctx.stroke();
         ctx.lineWidth = 2.5; ctx.strokeStyle = c;
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 3 * fast - Math.PI / 2) * r * 1.3, Math.sin(tt * 3 * fast - Math.PI / 2) * r * 1.3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(tt * 3 * fast - Math.PI / 2) * r * 0.8, Math.sin(tt * 3 * fast - Math.PI / 2) * r * 0.8); ctx.stroke();
         ctx.lineCap = 'butt';
         if (b.stopW > 0) { ctx.globalAlpha *= 0.5 + Math.sin(t * 30) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2); ctx.stroke(); }
       }
@@ -5375,8 +5609,8 @@ function drawBossDecor(b, layer, c, enraged) {
       const j = (enraged ? 5 : 3) + (Math.random() < 0.08 ? 12 : 0);
       if (layer === 'back') {
         ctx.save(); ctx.lineWidth = 2; ctx.globalAlpha *= 0.65;
-        ctx.strokeStyle = '#00ffff'; ctx.translate(-j, (Math.random() - 0.5) * j); polygon(b.sides, r * 1.08, b.spin); ctx.stroke();
-        ctx.strokeStyle = '#ff00ff'; ctx.translate(j * 2, (Math.random() - 0.5) * j); polygon(b.sides, r * 1.08, b.spin); ctx.stroke();
+        ctx.strokeStyle = '#00ffff'; ctx.translate(-j, (Math.random() - 0.5) * j); bossPath(b, r * 1.08, bossRot(b)); ctx.stroke();
+        ctx.strokeStyle = '#ff00ff'; ctx.translate(j * 2, (Math.random() - 0.5) * j); bossPath(b, r * 1.08, bossRot(b)); ctx.stroke();
         ctx.restore();
       } else {
         ctx.lineWidth = 2;
@@ -5394,7 +5628,7 @@ function drawBossDecor(b, layer, c, enraged) {
       const reach = b.drain ? 1.4 : 1;
       for (let i = 0; i < 6; i++) {
         const base = Math.PI * (0.15 + i * 0.14), sway = Math.sin(t * 2.5 * fast + i) * 0.35;
-        const x0 = Math.cos(base) * r * 0.8, y0 = Math.sin(base) * r * 0.8;
+        const x0 = Math.cos(base) * r * 0.8, y0 = Math.sin(base) * r * 0.8 + r * 0.3; // (from under its swollen bottom)
         const L = r * (1.3 + (i % 2) * 0.4) * reach;
         ctx.beginPath(); ctx.moveTo(x0, y0);
         ctx.quadraticCurveTo(x0 + Math.cos(base + sway) * L * 0.6, y0 + L * 0.5, x0 + Math.cos(base - sway) * L * 0.4, y0 + L);
@@ -5407,62 +5641,406 @@ function drawBossDecor(b, layer, c, enraged) {
   ctx.lineCap = 'butt';
 }
 
-// an ENRAGED boss's rage form (local space, like drawBossDecor): behind it, a heat haze, flames licking upward,
-// embers and a pair of horns; on its shell, glowing red cracks; over its eye, furious brows
-function drawRageLook(b, layer, coreR, rot) {
-  const t = b.t, r = b.r, swell = b.rage > 0 ? 1 + b.rage / RAGE_TRANSFORM : 1; // (everything flares while it transforms)
-  const a0 = ctx.globalAlpha; // (it may be see-through: PHANTOM fading, ECHO's mirror image)
-  ctx.save();
-  if (layer === 'back') {
-    ctx.shadowBlur = 0;
-    const haze = ctx.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 2.2 * swell);
-    haze.addColorStop(0, 'rgba(255,50,20,0.3)'); haze.addColorStop(1, 'rgba(255,50,20,0)');
-    ctx.fillStyle = haze; ctx.beginPath(); ctx.arc(0, 0, r * 2.2 * swell, 0, Math.PI * 2); ctx.fill();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const [col, k] of [['rgba(255,45,20,0.5)', 1], ['rgba(255,170,40,0.5)', 0.55]]) { // flames: an outer red layer, an inner gold one
-      ctx.fillStyle = col; ctx.beginPath();
-      for (let i = 0; i < 16; i++) {
-        const a = i / 16 * Math.PI * 2, L = r * k * swell * (0.5 + 0.25 * Math.sin(t * 9 + i * 2.3) + 0.12 * Math.sin(t * 23 + i * 5.1));
-        const tx = Math.cos(a) * (r + L), ty = Math.sin(a) * (r + L) - L * 0.7; // (tips bend upward, like fire)
-        ctx.moveTo(Math.cos(a - 0.22) * r * 0.9, Math.sin(a - 0.22) * r * 0.9);
-        ctx.quadraticCurveTo(Math.cos(a - 0.1) * (r + L * 0.5), Math.sin(a - 0.1) * (r + L * 0.5) - L * 0.2, tx, ty);
-        ctx.quadraticCurveTo(Math.cos(a + 0.1) * (r + L * 0.5), Math.sin(a + 0.1) * (r + L * 0.5) - L * 0.2, Math.cos(a + 0.22) * r * 0.9, Math.sin(a + 0.22) * r * 0.9);
-      }
-      ctx.fill();
-    }
-    ctx.globalCompositeOperation = 'source-over';
-    for (let i = 0; i < 10; i++) { // embers drifting up
-      const ph = (t * 0.55 + i * 0.173) % 1, x = Math.sin(i * 7.3) * r * 1.1 + Math.sin(t * 2.2 + i) * 9, y = -r * 0.3 - ph * r * 2.4;
-      ctx.globalAlpha = a0 * (1 - ph) * 0.9; ctx.fillStyle = i % 3 ? '#ff7a2d' : '#ffd23d'; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
-    }
-    ctx.globalAlpha = a0;
-    ctx.lineWidth = 3; ctx.strokeStyle = '#ff5a3a'; ctx.fillStyle = '#2a0607'; glow('#ff3a2a', 22);
-    for (const s of [-1, 1]) { // horns, curling up and out from behind its head
-      ctx.beginPath(); ctx.moveTo(s * r * 0.2, -r * 0.72);
-      ctx.quadraticCurveTo(s * r * 1.25, -r * 0.95, s * r * 1.05, -r * 1.8);
-      ctx.quadraticCurveTo(s * r * 0.85, -r * 1.05, s * r * 0.62, -r * 0.5);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-    }
-  } else if (layer === 'shell') { // cracks in the shell, glowing from inside (they turn with the body)
-    ctx.rotate(rot); ctx.strokeStyle = '#ff3a1a'; ctx.lineWidth = 2; glow('#ff3a1a', 14);
-    ctx.globalAlpha = a0 * (0.6 + Math.sin(t * 11) * 0.25);
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const a = i * 1.26 + 0.4, bend = i % 2 ? 0.3 : -0.3;
-      ctx.moveTo(Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97);
-      ctx.lineTo(Math.cos(a + bend * 0.5) * r * 0.72, Math.sin(a + bend * 0.5) * r * 0.72);
-      ctx.lineTo(Math.cos(a - bend * 0.3) * r * 0.5, Math.sin(a - bend * 0.3) * r * 0.5);
-    }
-    ctx.stroke();
-  } else { // furious brows in a hard V
-    const k = Math.max(coreR, r * 0.2), twitch = b.rage > 0 ? Math.sin(t * 40) * 1.5 : 0;
-    ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; glow('#ff2a1a', 16); ctx.lineWidth = Math.max(3, k * 0.32);
-    ctx.beginPath();
-    ctx.moveTo(-k * 1.75, -k * 1.55 + twitch); ctx.lineTo(-k * 0.2, -k * 0.62);
-    ctx.moveTo(k * 1.75, -k * 1.55 + twitch); ctx.lineTo(k * 0.2, -k * 0.62);
-    ctx.stroke();
+// ---------- rage forms ----------
+// What each boss turns into once ENRAGED, drawn around its body (local space): `back` behind it, `shell` on its
+// body (turned with it), `front` over its eye; `fill` repaints its body and `scale` makes it throb its own way.
+// Each gets (b, k, tr, r): k = how far into its rage form (0-1), tr = how far through the transformation (1: done).
+// Bosses without their own (the team bosses) get a burning aura, horns and glowing cracks.
+function rageHaze(r, R, rgb, a) {
+  const g = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, R);
+  g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.shadowBlur = 0; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+}
+function rageEmbers(b, r, n, cols) { // sparks drifting up off it
+  const A = ctx.globalAlpha;
+  for (let i = 0; i < n; i++) {
+    const ph = (b.t * 0.55 + i * 0.173) % 1, x = Math.sin(i * 7.3) * r * 1.1 + Math.sin(b.t * 2.2 + i) * 9, y = -r * 0.3 - ph * r * 2.4;
+    ctx.globalAlpha = A * (1 - ph) * 0.9; ctx.fillStyle = cols[i % cols.length]; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
   }
-  ctx.restore();
+  ctx.globalAlpha = A;
+}
+function drip(x, y, s, color) { // a falling drop
+  ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(x, y - s * 1.8);
+  ctx.quadraticCurveTo(x + s, y, x, y + s); ctx.quadraticCurveTo(x - s, y, x, y - s * 1.8); ctx.fill();
+}
+const archGap = (b, k) => k * (0.08 + Math.sin(rageTr(b) * Math.PI) * 0.45 + Math.sin((b.t || 0) * 3) * 0.02); // THE ARCHITECT's tiers lifting apart
+// furious brows in a hard V over its eye
+function rageBrows(b, coreR, ex, ey) {
+  const k = Math.max(coreR, b.r * 0.2), twitch = b.rage > 0 ? Math.sin(b.t * 40) * 1.5 : 0;
+  ctx.save(); ctx.translate(ex, ey);
+  ctx.lineCap = 'round'; ctx.strokeStyle = '#ffffff'; glow('#ff2a1a', 16); ctx.lineWidth = Math.max(3, k * 0.32);
+  ctx.beginPath();
+  ctx.moveTo(-k * 1.75, -k * 1.55 + twitch); ctx.lineTo(-k * 0.2, -k * 0.62);
+  ctx.moveTo(k * 1.75, -k * 1.55 + twitch); ctx.lineTo(k * 0.2, -k * 0.62);
+  ctx.stroke(); ctx.restore();
+}
+const RAGE_FORMS = {
+  generic: {
+    back(b, k, tr, r) {
+      const swell = 2 - tr;
+      rageHaze(r, r * 2.2 * swell, '255,50,20', 0.3 * k);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const [col, f] of [['rgba(255,45,20,0.5)', 1], ['rgba(255,170,40,0.5)', 0.55]]) { // flames: an outer red layer, an inner gold one
+        ctx.fillStyle = col; ctx.beginPath();
+        for (let i = 0; i < 16; i++) {
+          const a = i / 16 * TAU, L = r * f * k * swell * (0.5 + 0.25 * Math.sin(b.t * 9 + i * 2.3) + 0.12 * Math.sin(b.t * 23 + i * 5.1));
+          ctx.moveTo(Math.cos(a - 0.22) * r * 0.9, Math.sin(a - 0.22) * r * 0.9);
+          ctx.quadraticCurveTo(Math.cos(a - 0.1) * (r + L * 0.5), Math.sin(a - 0.1) * (r + L * 0.5) - L * 0.2, Math.cos(a) * (r + L), Math.sin(a) * (r + L) - L * 0.7);
+          ctx.quadraticCurveTo(Math.cos(a + 0.1) * (r + L * 0.5), Math.sin(a + 0.1) * (r + L * 0.5) - L * 0.2, Math.cos(a + 0.22) * r * 0.9, Math.sin(a + 0.22) * r * 0.9);
+        }
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      rageEmbers(b, r, 10, ['#ffd23d', '#ff7a2d', '#ff7a2d']);
+      ctx.lineWidth = 3; ctx.strokeStyle = '#ff5a3a'; ctx.fillStyle = '#2a0607'; glow('#ff3a2a', 22);
+      for (const s of [-1, 1]) { // horns
+        ctx.beginPath(); ctx.moveTo(s * r * 0.2, -r * 0.72);
+        ctx.quadraticCurveTo(s * r * 1.25, -r * 0.95, s * r * (0.62 + 0.43 * k), -r * (0.5 + 1.3 * k));
+        ctx.quadraticCurveTo(s * r * 0.85, -r * 1.05, s * r * 0.62, -r * 0.5);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    },
+    shell(b, k, tr, r) { // cracks glowing from inside
+      ctx.strokeStyle = '#ff3a1a'; ctx.lineWidth = 2; glow('#ff3a1a', 14); ctx.globalAlpha *= k * (0.6 + Math.sin(b.t * 11) * 0.25);
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.26 + 0.4, bend = i % 2 ? 0.3 : -0.3;
+        ctx.moveTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9);
+        ctx.lineTo(Math.cos(a + bend * 0.5) * r * 0.68, Math.sin(a + bend * 0.5) * r * 0.68);
+        ctx.lineTo(Math.cos(a - bend * 0.3) * r * 0.48, Math.sin(a - bend * 0.3) * r * 0.48);
+      }
+      ctx.stroke();
+    } },
+
+  warden: { // UNCHAINED: its shield plates burst off, broken chains swing from its sides, and its battlements become spikes (see its shape)
+    back(b, k, tr, r) {
+      ctx.strokeStyle = '#d6d6e6'; ctx.lineWidth = 2.5; glow('#ff3a2a', 10);
+      for (const s of [-1, 1]) { // broken chains swinging from its sides
+        const sw = Math.sin(b.t * 2.2 + s) * 0.35;
+        for (let i = 0; i < 6; i++) {
+          const L = (i + 0.6) * 0.22 * r * k;
+          ctx.save(); ctx.translate(s * 0.92 * r + Math.sin(sw) * L, 0.1 * r + Math.cos(sw) * L); ctx.rotate(-sw + (i % 2 ? Math.PI / 2 : 0));
+          ctx.beginPath(); ctx.ellipse(0, 0, 0.065 * r, 0.11 * r, 0, 0, TAU); ctx.stroke(); ctx.restore();
+        }
+      }
+      if (tr < 1) { // the shield plates flying off, tumbling
+        ctx.strokeStyle = b.color; ctx.lineWidth = 5; ctx.globalAlpha *= 1 - tr; glow(b.color, 20);
+        for (let i = 0; i < 3; i++) {
+          const a = -b.t * 1.2 + i * TAU / 3, d = r * (1.6 + tr * 2.6);
+          ctx.save(); ctx.translate(Math.cos(a) * d, Math.sin(a) * d); ctx.rotate(tr * 5 * (i - 1));
+          ctx.beginPath(); ctx.arc(-Math.cos(a) * r * 1.6, -Math.sin(a) * r * 1.6, r * 1.6, a - 0.35, a + 0.35); ctx.stroke(); ctx.restore();
+        }
+      }
+    } },
+
+  hexcore: { // MELTDOWN: white-hot inside, dripping molten metal, and venting steam from every corner as it transforms
+    fill(b, k, r) {
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, `rgba(255,245,190,${0.95 * k})`); g.addColorStop(0.45, `rgba(255,130,30,${0.85 * k})`); g.addColorStop(1, `rgba(110,20,0,${0.7 + 0.25 * k})`);
+      return g;
+    },
+    back(b, k, tr, r) {
+      const A = ctx.globalAlpha;
+      rageHaze(r, r * 2.1, '255,120,30', 0.3 * k);
+      rageEmbers(b, r, 12, ['#ffd23d', '#ff7a2d', '#fff3b0']);
+      for (let i = 0; i < 4; i++) { const ph = (b.t * 0.7 + i * 0.29) % 1; ctx.globalAlpha = A * k * (1 - ph); drip((i - 1.5) * 0.4 * r, 0.8 * r + ph * 1.2 * r, 0.07 * r * (1 + ph), '#ffb13d'); }
+      if (tr < 1) for (let i = 0; i < 6; i++) { // steam blasting out of its corners
+        const a = (b.spin || 0) + i / 6 * TAU;
+        for (let j = 0; j < 3; j++) { const d = r * (1 + tr * 1.6 + j * 0.25); ctx.globalAlpha = A * (1 - tr) * 0.45; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r * (0.12 + j * 0.06 + tr * 0.1), 0, TAU); ctx.fill(); }
+      }
+    } },
+
+  seraph: { // ASCENDED: light pours out of it as it transforms, then a second pair of blood-red wings and a burning crown
+    back(b, k, tr, r) {
+      if (tr < 1) {
+        ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,255,255,${0.35 * (1 - tr)})`;
+        for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + b.t * 0.8, L = r * (1.5 + tr * 5); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - 0.05) * L, Math.sin(a - 0.05) * L); ctx.lineTo(Math.cos(a + 0.05) * L, Math.sin(a + 0.05) * L); ctx.fill(); }
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.strokeStyle = '#ff3a3a'; glow('#ff1a1a', 16); ctx.lineWidth = 2.5;
+      for (const side of [-1, 1]) { // the lower wings
+        const flap = Math.sin(b.t * 7) * 0.3;
+        for (let f = 0; f < 3; f++) {
+          const a = (side < 0 ? Math.PI : 0) + side * (0.35 + f * 0.28 + flap), L = r * (1.9 - f * 0.25) * k;
+          ctx.beginPath(); ctx.moveTo(side * r * 0.4, r * 0.25); ctx.quadraticCurveTo(side * r * 1.1, r * 0.75, Math.cos(a) * L, Math.sin(a) * L + r * 0.2); ctx.stroke();
+        }
+      }
+    },
+    front(b, k, tr, r) { // a crown of red spikes floating over it
+      const y = -r * (1.62 + Math.sin(b.t * 2) * 0.06), w = r * 0.55 * k;
+      ctx.strokeStyle = '#ff4a3a'; glow('#ff2a1a', 18); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(0, y, w, w * 0.28, 0, 0, TAU); ctx.stroke();
+      ctx.beginPath(); for (let i = 0; i < 7; i++) { const x = -w + i * w * 2 / 6; ctx.moveTo(x, y - w * 0.1); ctx.lineTo(x * 0.92, y - w * (i % 2 ? 0.45 : 0.8)); } ctx.stroke();
+    } },
+
+  lancer: { // BERSERK: it spins itself into a frenzy (see drawBoss), grows saw teeth, and a jet of fire roars out its back
+    shell(b, k, tr, r) {
+      ctx.fillStyle = '#ff3a2a'; glow('#ff2a1a', 12);
+      for (const s of [-1, 1]) for (let i = 1; i <= 4; i++) { // teeth along both front edges
+        const f = i / 5, x = 1.4 - f * 1.25, y = s * f * 0.72;
+        ctx.beginPath(); ctx.moveTo(x * r, y * r); ctx.lineTo((x - 0.14) * r, (y + s * 0.03) * r); ctx.lineTo((x - 0.02) * r, (y + s * 0.2 * k) * r); ctx.closePath(); ctx.fill();
+      }
+      const L = r * (0.7 + Math.random() * 0.5) * k; // the jet
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,80,30,0.75)'; ctx.beginPath(); ctx.moveTo(-0.62 * r, -0.24 * r); ctx.lineTo(-0.62 * r - L, 0); ctx.lineTo(-0.62 * r, 0.24 * r); ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,120,0.85)'; ctx.beginPath(); ctx.moveTo(-0.62 * r, -0.1 * r); ctx.lineTo(-0.62 * r - L * 0.55, 0); ctx.lineTo(-0.62 * r, 0.1 * r); ctx.fill();
+    } },
+
+  storm: { // TEMPEST: a black thunderhead lit from inside, rain pouring out beneath it, and bolts slamming into it as it transforms
+    fill(b, k) { return Math.random() < 0.07 * k ? 'rgba(190,215,255,0.6)' : `rgba(3,5,16,${0.75 + 0.22 * k})`; },
+    back(b, k, tr, r) {
+      const A = ctx.globalAlpha;
+      ctx.strokeStyle = '#9db8ff'; ctx.lineWidth = 1.5; ctx.globalAlpha = A * 0.55 * k; ctx.beginPath();
+      for (let i = 0; i < 16; i++) { const x = Math.sin(i * 12.9) * 1.1 * r, ph = (b.t * 1.7 + i * 0.137) % 1, y = 0.45 * r + ph * 1.7 * r; ctx.moveTo(x, y); ctx.lineTo(x - 0.06 * r, y + 0.22 * r); }
+      ctx.stroke(); ctx.globalAlpha = A;
+      if (tr < 1 && Math.random() < 0.55) { // a bolt from the sky
+        ctx.strokeStyle = '#ffffff'; glow('#7df9ff', 30); ctx.lineWidth = 4;
+        let x = (Math.random() - 0.5) * r * 3, y = -r * 9; ctx.beginPath(); ctx.moveTo(x, y);
+        for (let i = 1; i <= 10; i++) { x += -x / (11 - i) + (Math.random() - 0.5) * r * 0.6; y += (-0.4 * r - y) / (11 - i); ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+    } },
+
+  hive: { // QUEEN'S WRATH: a furious swarm that bursts out of it and buzzes around, honey dripping, and a golden crown
+    back(b, k, tr, r) {
+      const A = ctx.globalAlpha, out = tr < 1 ? Math.sin(tr * Math.PI) * 2.2 : 0;
+      for (let i = 0; i < 16; i++) {
+        const a = b.t * (1.5 + (i % 5) * 0.3) * (i % 2 ? 1 : -1) + i * 1.7, R = r * ((1.35 + (i % 4) * 0.18 + Math.sin(b.t * 7 + i) * 0.08) * k + out);
+        const x = Math.cos(a) * R, y = Math.sin(a) * R * 0.8;
+        ctx.globalAlpha = A * k; ctx.fillStyle = '#ffe93d'; ctx.beginPath(); ctx.ellipse(x, y, 3.5, 2.2, a, 0, TAU); ctx.fill();
+        if (Math.floor(b.t * 30 + i) % 2) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(x - 1, y - 3.5, 2, 2); } // (beating wings)
+      }
+      for (let i = 0; i < 2; i++) { const ph = (b.t * 0.6 + i * 0.5) % 1; ctx.globalAlpha = A * k * (1 - ph); drip((i - 0.5) * 0.2 * r, 0.88 * r + ph * 0.9 * r, 0.06 * r, '#ffc23d'); }
+    },
+    front(b, k, tr, r) {
+      const y = -1.12 * r - 0.05 * r * Math.sin(b.t * 3), w = 0.42 * r, h = 0.34 * r * k;
+      ctx.fillStyle = '#ffd23d'; ctx.strokeStyle = '#fff3b0'; glow('#ffd23d', 16); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-w, y); ctx.lineTo(-w, y - h * 0.6); ctx.lineTo(-w * 0.5, y - h * 0.25); ctx.lineTo(0, y - h); ctx.lineTo(w * 0.5, y - h * 0.25); ctx.lineTo(w, y - h * 0.6); ctx.lineTo(w, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } },
+
+  phantom: { noEye: true, // POSSESSED: it strobes as it's taken over (see drawBoss), then hollow sockets burn where its eye was, and soul-fire streams off it
+    back(b, k, tr, r) {
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0;
+      for (let i = 0; i < 6; i++) {
+        const ph = (b.t * 1.2 + i * 0.19) % 1, x = (i - 2.5) * 0.28 * r + Math.sin(b.t * 4 + i) * 6, y = -0.85 * r - ph * r;
+        ctx.fillStyle = `rgba(190,90,255,${(1 - ph) * 0.55 * k})`; ctx.beginPath(); ctx.arc(x, y, (1 - ph) * 0.2 * r, 0, TAU); ctx.fill();
+      }
+    },
+    front(b, k, tr, r, coreR, ex, ey) {
+      for (const s of [-1, 1]) {
+        const x = ex + s * 0.32 * r, y = ey;
+        ctx.shadowBlur = 0; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(x, y, 0.17 * r * k, 0.25 * r * k, s * 0.3, 0, TAU); ctx.fill();
+        glow('#ff2a2a', 14); ctx.fillStyle = '#ff3a3a'; ctx.beginPath(); ctx.arc(x + b.look.x * 0.06 * r, y + b.look.y * 0.08 * r, 0.055 * r * k * (0.8 + Math.random() * 0.4), 0, TAU); ctx.fill();
+      }
+    } },
+
+  echo: { // FEEDBACK: its outline turns to a jagged sawtooth (see its shape), a red audio meter thrashes around it, and it blasts out sound rings as it transforms
+    back(b, k, tr, r) {
+      ctx.fillStyle = '#ff3a4a'; glow('#ff2a3a', 10);
+      for (let i = 0; i < 28; i++) {
+        const a = i / 28 * TAU, h = r * (0.15 + Math.abs(Math.sin(b.t * 9 + i * 1.7) * Math.sin(b.t * 3.3 + i)) * 0.7) * k;
+        ctx.save(); ctx.rotate(a); ctx.fillRect(r * 1.12, -0.05 * r, h, 0.1 * r); ctx.restore();
+      }
+      if (tr < 1) {
+        const A = ctx.globalAlpha; ctx.lineWidth = 4;
+        for (let j = 0; j < 4; j++) { const p = (tr * 2 + j * 0.25) % 1; ctx.strokeStyle = j % 2 ? '#ffffff' : '#ff3a4a'; ctx.globalAlpha = A * (1 - p); ctx.beginPath(); ctx.arc(0, 0, r * (1 + p * 4), 0, TAU); ctx.stroke(); }
+      }
+    } },
+
+  chronos: { // TIME UNBOUND: its hands spin wildly, then run backwards (see its decor), its glass cracks, and cogs tear loose to orbit it
+    back(b, k, tr, r) {
+      ctx.strokeStyle = b.color; ctx.lineWidth = 2; glow(b.color, 12);
+      for (let i = 0; i < 2; i++) {
+        const a = -b.t * 0.9 + i * Math.PI, R = r * 1.6 * k;
+        ctx.save(); ctx.translate(Math.cos(a) * R, Math.sin(a) * R * 0.85); ctx.rotate(b.t * 3 * (i ? -1 : 1));
+        ctx.beginPath(); for (let j = 0; j < 20; j++) { const aa = j / 20 * TAU, rr = r * (j % 2 ? 0.22 : 0.3); ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); } ctx.closePath(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.08, 0, TAU); ctx.stroke(); ctx.restore();
+      }
+    },
+    shell(b, k, tr, r) { // cracks spreading across its glass
+      const g = Math.min(1, tr * 1.3);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; glow('#ffffff', 8); ctx.beginPath();
+      for (const [a, l, bend] of [[0.6, 0.9, 0.4], [2.4, 0.8, -0.5], [4.1, 0.85, 0.3], [5.3, 0.6, -0.4]]) {
+        ctx.moveTo(Math.cos(a) * r * 0.12, Math.sin(a) * r * 0.12);
+        ctx.lineTo(Math.cos(a + bend * 0.3) * r * l * 0.55 * g, Math.sin(a + bend * 0.3) * r * l * 0.55 * g);
+        ctx.lineTo(Math.cos(a + bend) * r * l * g, Math.sin(a + bend) * r * l * g);
+      }
+      ctx.stroke();
+    } },
+
+  wyrm: { // INFERNO: a mane of fire streams back off its head, and its whole body catches fire, head to tail (see drawWyrmBody)
+    shell(b, k, tr, r) {
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0;
+      for (let i = 0; i < 6; i++) {
+        const y = (i - 2.5) * 0.3 * r, L = r * (0.8 + Math.sin(b.t * 14 + i * 2) * 0.3) * k;
+        ctx.fillStyle = i % 2 ? 'rgba(255,200,60,0.6)' : 'rgba(255,70,20,0.65)';
+        ctx.beginPath(); ctx.moveTo(-0.45 * r, y - 0.13 * r);
+        ctx.quadraticCurveTo(-0.9 * r - L * 0.5, y + Math.sin(b.t * 9 + i) * 0.25 * r, -0.95 * r - L, y + Math.sin(b.t * 6 + i) * 0.2 * r);
+        ctx.quadraticCurveTo(-0.9 * r - L * 0.4, y, -0.45 * r, y + 0.13 * r); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,150,40,0.7)'; // smoke and sparks from its nostrils
+      for (let i = 0; i < 3; i++) { const ph = (b.t * 2 + i / 3) % 1; ctx.beginPath(); ctx.arc((1.2 + ph * 0.6) * r, (i - 1) * 0.12 * r * (1 + ph), (1 - ph) * 0.1 * r, 0, TAU); ctx.fill(); }
+    } },
+
+  architect: { // DEMOLITION: its tiers fly apart and slam back together, then hover apart (see its shape), with hazard stripes and a warning beacon
+    shell(b, k, tr, r) {
+      ctx.save(); ctx.beginPath(); ctx.rect(-r, 0.35 * r, 2 * r, 0.45 * r); ctx.clip(); ctx.shadowBlur = 0; ctx.fillStyle = `rgba(255,210,40,${0.55 * k})`;
+      for (let x = -1.5; x < 1.2; x += 0.3) { ctx.beginPath(); ctx.moveTo(x * r, 0.8 * r); ctx.lineTo((x + 0.15) * r, 0.8 * r); ctx.lineTo((x + 0.4) * r, 0.35 * r); ctx.lineTo((x + 0.25) * r, 0.35 * r); ctx.fill(); }
+      ctx.restore();
+    },
+    front(b, k, tr, r) { // a warning beacon spinning on top
+      const y = (-0.65 - 2 * archGap(b, k)) * r, a = b.t * 6, on = Math.cos(a) > 0;
+      ctx.fillStyle = on ? '#ff3a2a' : '#7a1010'; glow('#ff2a1a', on ? 25 : 5);
+      ctx.beginPath(); ctx.arc(0, y, 0.12 * r, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,60,40,0.25)';
+      for (const s of [-1, 1]) { const d = s * Math.cos(a); if (d <= 0) continue; ctx.beginPath(); ctx.moveTo(0, y - 0.06 * r); ctx.lineTo(s * r * 1.6 * d, y - 0.35 * r); ctx.lineTo(s * r * 1.6 * d, y + 0.2 * r); ctx.fill(); }
+    } },
+
+  oracle: { // ALL-SEEING: its eyelids snap wide open (see oracleOpen), it turns bloodshot, a third eye opens above it, and its little eyes swell up red (see its decor)
+    shell(b, k, tr, r) {
+      ctx.save(); BOSS_SHAPES.oracle.path(r, b); ctx.clip();
+      ctx.strokeStyle = '#ff2a3a'; ctx.lineWidth = 1.5; ctx.shadowBlur = 0; ctx.globalAlpha *= 0.8 * k; ctx.beginPath();
+      for (let i = 0; i < 9; i++) { // veins creeping in from the corners
+        const s = i % 2 ? 1 : -1, y0 = (Math.sin(i * 3.1) * 0.4) * r;
+        ctx.moveTo(s * 1.3 * r, y0 * 0.2); ctx.quadraticCurveTo(s * 0.95 * r, y0 + Math.sin(b.t + i) * 4, s * (0.55 + (i % 3) * 0.06) * r, y0 * 0.7);
+        ctx.lineTo(s * (0.48 + (i % 3) * 0.05) * r, y0 * 0.7 + (i % 2 ? 6 : -6));
+      }
+      ctx.stroke(); ctx.restore();
+    },
+    front(b, k, tr, r) { // the third eye
+      const y = -1.25 * r, w = 0.38 * r, h = 0.2 * r * k * (((b.t + 1.3) % 3.1) < 0.12 ? 0.1 : 1);
+      ctx.fillStyle = '#ffe0f0'; ctx.strokeStyle = b.color; ctx.lineWidth = 2; glow(b.color, 14);
+      ctx.beginPath(); ctx.moveTo(-w, y); ctx.quadraticCurveTo(0, y - h * 2, w, y); ctx.quadraticCurveTo(0, y + h * 2, -w, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.save(); ctx.clip(); ctx.fillStyle = '#ff2a3a'; ctx.beginPath(); ctx.arc(b.look.x * w * 0.3, y + b.look.y * h * 0.3, w * 0.42, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(b.look.x * w * 0.3, y + b.look.y * h * 0.3, w * 0.1, w * 0.3, 0, 0, TAU); ctx.fill(); ctx.restore();
+    } },
+
+  singularity: { // COLLAPSE: it shrinks to a pinpoint and bursts back (see scale), its disk burns red (see its decor), jets blast from its poles, and a photon ring blazes around it
+    scale: (b, k, tr) => tr >= 1 ? 1 : tr < 0.625 ? 1 - Math.sin(tr / 0.625 * Math.PI) * 0.6 : 1 + Math.sin((tr - 0.625) / 0.375 * Math.PI) * 0.25,
+    back(b, k, tr, r) {
+      ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0;
+      for (const s of [-1, 1]) {
+        const L = r * (2.6 + Math.sin(b.t * 13) * 0.25) * k, g = ctx.createLinearGradient(0, 0, 0, s * L);
+        g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.3, 'rgba(255,120,60,0.6)'); g.addColorStop(1, 'rgba(255,60,30,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-0.12 * r, 0); ctx.lineTo(-0.04 * r, s * L); ctx.lineTo(0.04 * r, s * L); ctx.lineTo(0.12 * r, 0); ctx.fill();
+      }
+    },
+    front(b, k, tr, r) {
+      ctx.strokeStyle = '#ffd2a0'; glow('#ff7a3d', 22); ctx.lineWidth = 2 + Math.sin(b.t * 20) * 0.8; ctx.globalAlpha *= k;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, TAU); ctx.stroke();
+    } },
+
+  leech: { // BLOODLUST: swollen with blood and throbbing like a heart, dark veins over its skin, blood dripping from its tendrils
+    scale(b, k) { const ph = (b.t * 1.3) % 1; return 1 + k * (0.06 + 0.1 * Math.exp(-ph * 16) + (ph > 0.2 ? 0.06 * Math.exp(-(ph - 0.2) * 16) : 0)); }, // (lub-dub)
+    fill(b, k, r) {
+      const g = ctx.createRadialGradient(0, 0.2 * r, 0, 0, 0.2 * r, r * 1.2);
+      g.addColorStop(0, `rgba(170,0,30,${0.85 * k})`); g.addColorStop(1, `rgba(40,0,8,${0.75 + 0.2 * k})`);
+      return g;
+    },
+    shell(b, k, tr, r) {
+      ctx.save(); BOSS_SHAPES.leech.path(r); ctx.clip();
+      ctx.strokeStyle = '#3a0008'; ctx.lineWidth = 2.5; ctx.shadowBlur = 0; ctx.globalAlpha *= k; ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU + 0.3, x0 = Math.cos(a) * 0.9 * r, y0 = 0.3 * r + Math.sin(a) * 0.9 * r;
+        ctx.moveTo(x0, y0); ctx.quadraticCurveTo(x0 * 0.5 + 6, y0 * 0.6, x0 * 0.25, y0 * 0.35 + 0.15 * r); ctx.moveTo(x0 * 0.55, y0 * 0.6); ctx.lineTo(x0 * 0.55 + (i % 2 ? 9 : -9), y0 * 0.6 - 7);
+      }
+      ctx.stroke(); ctx.restore();
+    },
+    back(b, k, tr, r) {
+      const A = ctx.globalAlpha;
+      for (let i = 0; i < 6; i++) { // blood dripping off the ends of its tendrils
+        const base = Math.PI * (0.15 + i * 0.14), ph = (b.t * 0.8 + i * 0.37) % 1, x = Math.cos(base) * r * 0.8 + Math.cos(base) * r * 0.3;
+        ctx.globalAlpha = A * k * (1 - ph); drip(x, Math.sin(base) * r * 0.8 + r * (1.6 + (i % 2) * 0.4) + ph * r * 1.2, 0.06 * r, '#ff2d55');
+      }
+      if (tr < 1) { // blood spraying out as it swells
+        ctx.globalAlpha = A * (1 - tr); ctx.fillStyle = '#ff2d55';
+        for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + i, d = r * (1 + tr * 2.2 * (0.6 + (i % 3) * 0.2)); ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 0.06 * r, 0, TAU); ctx.fill(); }
+      }
+    } },
+
+  zero: { // FATAL ERROR: it tears into glitching red and blue copies of itself, corrupted blocks flicker around it, and ERROR flashes as it transforms
+    back(b, k, tr, r) {
+      const A = ctx.globalAlpha, j = r * (0.12 + (tr < 1 ? (1 - tr) * 0.6 : 0)) * k, seed = Math.floor(b.t * 14);
+      ctx.lineWidth = 2;
+      for (const [col, s] of [['#ff2a3a', -1], ['#2a6aff', 1]]) {
+        ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = A * 0.7; ctx.translate(s * j * (0.6 + ((seed * 7 + s) % 5) / 6), ((seed % 3) - 1) * j * 0.3);
+        bossPath(b, r * 1.05, bossRot(b)); ctx.stroke(); ctx.restore();
+      }
+      ctx.shadowBlur = 0;
+      for (let i = 0; i < 9; i++) { // corrupted blocks
+        const h = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453, f = h - Math.floor(h);
+        if (f < 0.35) continue;
+        ctx.globalAlpha = A * k * 0.7; ctx.fillStyle = ['#ff2a3a', '#2a6aff', '#ffffff'][i % 3];
+        ctx.fillRect(Math.cos(i * 2.4 + seed) * r * (1.2 + f), Math.sin(i * 1.7 + seed) * r * (1.1 + f * 0.6), r * (0.1 + f * 0.25), r * (0.05 + f * 0.1));
+      }
+    },
+    front(b, k, tr, r) {
+      if (tr >= 1 || Math.random() < 0.4) return;
+      ctx.fillStyle = Math.random() < 0.5 ? '#ff2a3a' : '#ffffff'; ctx.font = `900 ${Math.round(r * 0.45)}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('ERROR', (Math.random() - 0.5) * r, -r * 1.4 + (Math.random() - 0.5) * r * 0.3);
+    } },
+
+  // ----- team bosses -----
+  star: { fill: (b, k, r) => litFill(r, b.color, k), // GEMINI: white-hot inside, blazing rays and sparks wheeling around it
+    back(b, k, tr, r) { rays(b, r, 10, b.color, 2.1 * k, b.t * 0.6 * (b.side > 0 ? -1 : 1)); orbiters(b, r, 8, '#ffffff', 1.55, 3, b.side > 0 ? -2 : 2); } },
+  sun: { fill: (b, k, r) => litFill(r, '#ffb13d', k), // SOL: solar flares looping off its surface
+    back(b, k, tr, r) {
+      rageHaze(r, r * 2.3, '255,150,40', 0.35 * k);
+      ctx.strokeStyle = '#ffe9a0'; glow('#ff8d2d', 18); ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const a = i / 5 * TAU + b.t * 0.3, h = r * (0.5 + Math.abs(Math.sin(b.t * 2 + i * 1.7)) * 0.7) * k;
+        ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.25) * r, Math.sin(a - 0.25) * r);
+        ctx.quadraticCurveTo(Math.cos(a) * (r + h * 2), Math.sin(a) * (r + h * 2), Math.cos(a + 0.25) * r, Math.sin(a + 0.25) * r); ctx.stroke();
+      }
+    } },
+  moon: { fill(b, k, r) { const g = ctx.createRadialGradient(-0.4 * r, 0, 0, -0.4 * r, 0, r); g.addColorStop(0, `rgba(200,30,40,${0.85 * k})`); g.addColorStop(1, `rgba(50,0,8,${0.7 + 0.2 * k})`); return g; }, // LUNA: a blood moon
+    back(b, k, tr, r) { ctx.strokeStyle = '#ff3a4a'; glow('#ff1a2a', 25); ctx.lineWidth = 2; ctx.globalAlpha *= k * (0.6 + Math.sin(b.t * 3) * 0.3); ctx.beginPath(); ctx.arc(0, 0, r * (1.25 + Math.sin(b.t * 2) * 0.05), 0, TAU); ctx.stroke(); orbiters(b, r, 6, '#ff5a6a', 1.5, 2.5, -1); } },
+  kite: { shell: (b, k, tr, r) => RAGE_FORMS.generic.shell(b, k, tr, r), // AEGIS: its shield cracks, and shards of green force spin around it
+    back(b, k, tr, r) { shards(b, r, 6, b.color, 1.7 * k + 0.3, 1.5); } },
+  sword: { // BLADE: red-hot along its edge, leaving a trail of slashes
+    shell(b, k, tr, r) { ctx.strokeStyle = '#fff3e0'; glow('#ff3a1a', 20); ctx.lineWidth = 2 + Math.sin(b.t * 20); ctx.globalAlpha *= k; ctx.beginPath(); ctx.moveTo(1.5 * r, 0); ctx.lineTo(-0.25 * r, 0); ctx.stroke(); },
+    back(b, k, tr, r) { ctx.strokeStyle = '#ff4d4d'; glow('#ff1a1a', 14); ctx.lineCap = 'round'; for (let i = 0; i < 3; i++) { const a = b.t * 4 + i * TAU / 3; ctx.lineWidth = 3 - i * 0.6; ctx.globalAlpha = k * (0.7 - i * 0.18); ctx.beginPath(); ctx.arc(0, 0, r * (1.5 + i * 0.25), a, a + 1.1); ctx.stroke(); } } },
+  ruby: { fill: (b, k, r) => litFill(r, b.color, k), back: (b, k, tr, r) => { shards(b, r, 5, b.color, 1.6 * k, 1); glints(b, r, b.color); } }, // the gems light up from inside,
+  emerald: { fill: (b, k, r) => litFill(r, b.color, k), back: (b, k, tr, r) => { shards(b, r, 5, b.color, 1.6 * k, -1); glints(b, r, b.color); } }, // with splinters of crystal
+  sapphire: { fill: (b, k, r) => litFill(r, b.color, k), back: (b, k, tr, r) => { shards(b, r, 5, b.color, 1.6 * k, 1.4); glints(b, r, b.color); } }, // spinning around them
+  shell: { fill: (b, k, r) => litFill(r, b.color, k), // TIDE: bubbles streaming up off it
+    back(b, k, tr, r) { ctx.strokeStyle = '#bff8ff'; ctx.lineWidth = 1.5; for (let i = 0; i < 9; i++) { const ph = (b.t * 0.7 + i * 0.13) % 1; ctx.globalAlpha = k * (1 - ph); ctx.beginPath(); ctx.arc(Math.sin(i * 5.1 + b.t) * r * 0.9, -ph * r * 2.2, 2 + (i % 3) * 2 + ph * 3, 0, TAU); ctx.stroke(); } } },
+  swirl: { // GALE: a howling wind whipping around it
+    back(b, k, tr, r) { ctx.strokeStyle = '#d8ffb0'; ctx.lineCap = 'round'; glow(b.color, 10); for (let i = 0; i < 7; i++) { const a = b.t * (5 + i % 3) + i * 0.9, R = r * (1.2 + (i % 4) * 0.22) * k; ctx.lineWidth = 2; ctx.globalAlpha = 0.7 * k; ctx.beginPath(); ctx.arc(0, 0, R, a, a + 0.8 + (i % 2) * 0.5); ctx.stroke(); } } },
+  flame: { fill: (b, k, r) => litFill(r, '#ff9a3d', k), back: (b, k, tr, r) => RAGE_FORMS.generic.back(b, k, tr, r) }, // EMBER: it just burns hotter
+  ring: { // VOID: dark matter spiralling into its hollow middle
+    back(b, k, tr, r) { ctx.strokeStyle = b.color; glow('#7a2aff', 16); ctx.lineWidth = 2; ctx.globalAlpha *= k; for (let i = 0; i < 5; i++) { ctx.beginPath(); for (let j = 0; j <= 16; j++) { const d = r * (2.1 - j / 16 * 1.6), a = i / 5 * TAU + j * 0.22 - b.t * 2; ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d); } ctx.stroke(); } } },
+};
+// helpers for the rage forms
+function litFill(r, color, k) { // lit up from inside: white-hot in the middle, its own color, dark at the rim
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  g.addColorStop(0, `rgba(255,255,255,${0.8 * k})`); g.addColorStop(0.45, hexA(color, 0.7 * k)); g.addColorStop(1, `rgba(0,0,0,${0.72 + 0.1 * k})`);
+  return g;
+}
+function rays(b, r, n, color, len, a0) { // thin rays of light fanning out
+  ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0; ctx.fillStyle = hexA(color, 0.35);
+  for (let i = 0; i < n; i++) { const a = a0 + (i + 0.5) / n * TAU, L = r * len * (0.8 + Math.sin(b.t * 5 + i) * 0.2); ctx.beginPath(); ctx.moveTo(Math.cos(a - 0.08) * r * 0.5, Math.sin(a - 0.08) * r * 0.5); ctx.lineTo(Math.cos(a) * L, Math.sin(a) * L); ctx.lineTo(Math.cos(a + 0.08) * r * 0.5, Math.sin(a + 0.08) * r * 0.5); ctx.fill(); }
+  ctx.globalCompositeOperation = 'source-over';
+}
+function orbiters(b, r, n, color, R, size, speed) { // sparks circling it
+  ctx.fillStyle = color; glow(color, 10);
+  for (let i = 0; i < n; i++) { const a = b.t * speed + i / n * TAU, d = r * R * (1 + Math.sin(b.t * 3 + i) * 0.08); ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d * 0.85, size, 0, TAU); ctx.fill(); }
+}
+function shards(b, r, n, color, R, speed) { // splinters of crystal (or force) spinning around it
+  ctx.strokeStyle = color; ctx.fillStyle = hexA(color, 0.35); glow(color, 12); ctx.lineWidth = 1.5;
+  for (let i = 0; i < n; i++) {
+    const a = b.t * speed + i / n * TAU, d = r * R;
+    ctx.save(); ctx.translate(Math.cos(a) * d, Math.sin(a) * d); ctx.rotate(a + b.t * 3);
+    ctx.beginPath(); ctx.moveTo(0, -r * 0.22); ctx.lineTo(r * 0.09, 0); ctx.lineTo(0, r * 0.22); ctx.lineTo(-r * 0.09, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+}
+function glints(b, r, color) { // twinkles of light on its facets
+  ctx.strokeStyle = '#ffffff'; glow(color, 12); ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    const tw = Math.max(0, Math.sin(b.t * 3 + i * 2.1)), x = Math.sin(i * 4.7) * r * 0.5, y = Math.cos(i * 3.3) * r * 0.5, s = r * 0.22 * tw;
+    if (s < 1) continue;
+    ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke();
+  }
 }
 
 // rage moves in world space: warnings, beams, magma, the mirror image... (b.special; see RAGE_MOVES)
@@ -5530,7 +6108,7 @@ function drawRageMove(b) {
         ctx.strokeStyle = b.color; ctx.lineWidth = 2; glow(b.color, 15);
         ctx.globalAlpha = 0.3 + ph * 0.5; ctx.setLineDash([6, 6]);
         ctx.beginPath(); ctx.arc(s.x, s.y, b.r * (2 - ph), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-        ctx.globalAlpha = ph * 0.5; ctx.save(); ctx.translate(s.x, s.y); polygon(b.sides, b.r, b.spin); ctx.stroke(); ctx.restore();
+        ctx.globalAlpha = ph * 0.5; ctx.save(); ctx.translate(s.x, s.y); bossPath(b, b.r, bossRot(b)); ctx.stroke(); ctx.restore();
       }
       break;
     case 'mirror': // the mirror image, on the far side of the screen: see-through, flickering
@@ -5753,7 +6331,7 @@ function drawBossFx(layer) {
       const p = g.life / g.max;
       ctx.save(); ctx.translate(g.x, g.y); ctx.scale(1 + (1 - p) * 0.25, 1 + (1 - p) * 0.25);
       ctx.globalAlpha = p * 0.45; ctx.strokeStyle = g.color; ctx.lineWidth = 2; glow(g.color, 15);
-      polygon(g.sides, g.r, g.rot); ctx.stroke();
+      bossPath({ shape: g.shape, sides: g.sides, t: g.t }, g.r, g.rot); ctx.stroke();
       ctx.restore();
     }
     return;
@@ -7849,12 +8427,13 @@ function replayEvent(ev) {
     case 'e': if (!isMine(ev[1])) showEmote(ev[1], ev[2]); break; // a teammate's quick chat
     case 'r': fxRing(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6], ev[7], ev[8]); break;
     case 't': fxText(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
-    case 'g': bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: ev[4], r: ev[5], color: ev[6], life: ev[7], max: ev[7] }); break;
+    case 'g': bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: ev[4], r: ev[5], color: ev[6], life: ev[7], max: ev[7], shape: ev[8], t: ev[9] }); break;
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
     case 's': beep(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
     case 'o': showToast(ev[1]); break;
     case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
+    case 'k': shardsAt(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
   }
 }
 // a guest's frame: move my own ship, glide everything else along until the next snapshot, run local effects
