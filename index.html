@@ -335,7 +335,7 @@ const ACHIEVEMENTS = [
   { id: 'quartet',     cat: 'team', name: 'Four of a Kind',       reward: 200, desc: 'Defeat The Quartet in a 4-player run.' },
   { id: 'endless2',    cat: 'progress', name: 'Beyond the End',   reward: 150, desc: 'Reach cycle 2 in Endless mode.' },
   { id: 'endless4',    cat: 'progress', name: 'Infinite Drift',   reward: 300, desc: 'Reach cycle 4 in Endless mode.' },
-  { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 5 zones (all-time).', progress: () => [ZONES.filter(z => meta.stats.zones?.[z.id]).length, ZONES.length] },
+  { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 8 zones (all-time).', progress: () => [ZONES.filter(z => meta.stats.zones?.[z.id]).length, ZONES.length] },
   { id: 'glass',       cat: 'build', name: 'Glass Act',           reward: 100, desc: 'Defeat a boss while holding Glass Cannon.' },
   { id: 'phoenix',     cat: 'build', name: 'Rise from the Ashes', reward: 50,  desc: 'Get saved by Phoenix Core.' },
   { id: 'arsenal',     cat: 'build', name: 'Arsenal',             reward: 100, desc: 'Hold 12 different upgrades in one run.' },
@@ -1115,6 +1115,8 @@ const TYPES = {
   meteor:   { r: 22, hp: 1, color: '#ff9a3d', pts: 0, drop: 0, harmless: true, ghost: true }, // SHATTERED BELT: tears across a lane
   bolt:     { r: 10, hp: 1, color: '#ff5dc8', pts: 0, drop: 0, harmless: true, ghost: true }, // CRIMSON NEBULA: a lightning strike
   ice:      { r: 26, hp: 5, color: '#bfefff', pts: 60, drop: 0, harmless: true },           // FROZEN RINGS: drifting cover
+  turret:   { r: 20, hp: 7, color: '#ffb13d', pts: 300, drop: 0.5, harmless: true },        // DERELICT FLEET: shoots at anything
+  prism:    { r: 22, hp: 1, color: '#e0d0ff', pts: 0, drop: 0, harmless: true, ghost: true }, // PRISM REACH: splits shots in three
 };
 
 // which enemies can appear from which sector, and how often (relative weight)
@@ -1268,6 +1270,8 @@ function makeEnemy(type, x, y) {
     case 'meteor':   e.vx = e.vy = 0; e.state = 'warn'; e.timer = METEOR_WARN; break;
     case 'bolt':     e.vx = e.vy = 0; e.state = 'warn'; e.timer = BOLT_WARN; break;
     case 'ice':      e.vy = 32 + Math.random() * 26; e.vx = (Math.random() - 0.5) * 30; e.r = Math.round(20 + Math.random() * 12); break;
+    case 'turret':   e.vy = 30 + Math.random() * 12; e.fire = 1.5; break;
+    case 'prism':    e.vy = 34 + Math.random() * 12; e.vx = (Math.random() - 0.5) * 20; break;
   }
   enemies.push(e);
   return e;
@@ -1617,6 +1621,24 @@ const ENEMY_AI = {
   },
   ice(e, dt) { // FROZEN RINGS: drifts slowly down the screen, soaking up enemy shots
     if (e.x < e.r || e.x > W - e.r) e.vx = Math.abs(e.vx) * (e.x < e.r ? 1 : -1);
+  },
+  prism(e, dt) { // PRISM REACH: drifts down; the splitting happens in the bullet loops (see prismSplit)
+    if (e.x < e.r || e.x > W - e.r) e.vx = Math.abs(e.vx) * (e.x < e.r ? 1 : -1);
+  },
+  turret(e, dt) { // DERELICT FLEET: an old auto-turret aims at whatever is closest (a ship or an enemy) and fires
+    let tgt = null, bd = TURRET_RANGE;
+    for (const p of living()) { const d = Math.hypot(p.x - e.x, p.y - e.y); if (d < bd) { bd = d; tgt = p; } }
+    for (const o of enemies) {
+      if (o === e || o.dead || TYPES[o.type].harmless || TYPES[o.type].ghost) continue;
+      const d = Math.hypot(o.x - e.x, o.y - e.y); if (d < bd) { bd = d; tgt = o; }
+    }
+    if (!tgt) return;
+    e.aimA = turnToward(e.aimA, Math.atan2(tgt.y - e.y, tgt.x - e.x), 3 * dt);
+    if ((e.fire -= dt) > 0 || e.y < 0) return;
+    e.fire = 1.4;
+    const sp = 230;
+    eBullets.push({ x: e.x + Math.cos(e.aimA) * 22, y: e.y + Math.sin(e.aimA) * 22, vx: Math.cos(e.aimA) * sp, vy: Math.sin(e.aimA) * sp, r: 5, color: '#ffb13d', wild: true });
+    beep(330, 0.08, 'square', 0.025, -120);
   },
   block(e, dt) { // a wall brick: slides down, hurts if you fly into it (shoot it to break through)
     const b = e.owner;
@@ -3186,6 +3208,7 @@ function update(dt) {
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
+  prisms = enemies.filter(e => e.type === 'prism' && !e.dead);
   const vortexes = [...enemies.filter(e => e.type === 'vortex' && !e.dead).map(e => ({ x: e.x, y: e.y, r: VORTEX_R })),
     ...bosses.filter(o => o.gimmick === 'gravity' && bossAlive(o)).map(o => ({ x: o.x, y: o.y, r: SINGULARITY_PULL }))];
   for (const b of bullets) {
@@ -3208,6 +3231,7 @@ function update(dt) {
     // remember where it was, so hits are checked along the whole path (fast shots at low fps can't skip small targets)
     b.px = b.x; b.py = b.y;
     b.x += b.vx * dt; b.y += b.vy * dt;
+    if (prisms.length) prismSplit(b, bullets); // (PRISM REACH: the two new shots fly on from here)
     if (b.missile && Math.random() < dt * 40) particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.25, max: 0.25, color: '#ff9a3d', size: 2 });
     if (b.bounces > 0) { // Ricochet: bounce off the edges (and allow re-hitting the same enemy)
       if (b.x < 0 || b.x > W) { b.vx = -b.vx; b.x = Math.max(0, Math.min(W, b.x)); b.bounces--; b.hits = []; }
@@ -3250,6 +3274,11 @@ function update(dt) {
   for (const b of eBullets) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
     if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by THE SINGULARITY)
+    if (prisms.length) prismSplit(b, shrapnel);
+    if (b.wild && !b.dead) for (const o of enemies) { // a derelict turret's shot hits enemies too
+      if (o.dead || TYPES[o.type].ghost || o.type === 'turret' || Math.hypot(b.x - o.x, b.y - o.y) >= o.r + (b.r || 5)) continue;
+      b.dead = true; damageEnemy(o, 3 + level * 0.4, 'turret'); burst(b.x, b.y, b.color, 4, 100); break;
+    }
     if (b.fuse !== undefined) { // boss mine: slows down, then bursts into a ring
       if (flow) { b.vx *= 0.97; b.vy *= 0.97; b.fuse -= dt; }
       if (b.fuse <= 0 && !b.dead) {
@@ -3263,7 +3292,14 @@ function update(dt) {
   if (state !== 'play') return;
 
   for (const l of lasers) {
-    if (l.warn > 0) { l.warn -= dt; if (l.warn <= 0) { beep(150, 0.4, 'sawtooth', 0.06, -60); shake = Math.max(shake, 6); } }
+    if (l.warn > 0) {
+      l.warn -= dt;
+      if (l.warn <= 0) {
+        beep(150, 0.4, 'sawtooth', 0.06, -60); shake = Math.max(shake, 6);
+        if (l.flare) for (const o of enemies) // a solar flare burns up whatever is in its column
+          if (!o.dead && !TYPES[o.type].ghost && Math.abs(o.x - l.x) < l.w / 2 + o.r) damageEnemy(o, 99, 'flare');
+      }
+    }
     else { l.fire -= dt; for (const p of living()) if (Math.abs(p.x - l.x) < l.w / 2 + p.r * 0.5) hurt(p); }
   }
   lasers = lasers.filter(l => l.warn > 0 || l.fire > 0);
@@ -3591,6 +3627,8 @@ function drawEnemy(e) {
   if (e.type === 'meteor') { if (e.state === 'go') drawMeteor(e); return; }
   if (e.type === 'bolt') return; // (drawn in drawEnemyTelegraph)
   if (e.type === 'ice') { drawIce(e); return; }
+  if (e.type === 'turret') { drawTurret(e); return; }
+  if (e.type === 'prism') { drawPrism(e); return; }
   if (e.type === 'mirror') { // an upside-down chrome copy of a ship
     ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(Math.PI);
     drawHull('striker', e.flash > 0 ? '#ffffff' : '#ff5a70', 0.5, false, 'skin_chrome'); ctx.restore();
@@ -4786,6 +4824,7 @@ const PICK = { power: ['#ffe93d', 'P'], shield: ['#7df9ff', 'S'], life: ['#ff6fb
 
 function drawWorld() {
   for (const l of lasers) {
+    if (l.flare) { drawFlare(l); continue; }
     ctx.save();
     if (l.warn > 0) { // blinking telegraph line
       ctx.globalAlpha = Math.floor(l.warn * 10) % 2 ? 0.7 : 0.25;
@@ -5468,6 +5507,18 @@ const ZONES = [
     hazard: 'ICE FIELD', hazardDesc: 'Ice drifts by: it blocks enemy shots, and breaks into coins',
     hint: 'FROZEN RINGS: hide behind the drifting ice (it blocks enemy shots), or shoot it apart for coins!',
     bosses: ['CHRONOS', 'THE ORACLE', 'ECHO', 'NULL SERAPH'], bias: { sniper: 2.2, sentry: 2, mirror: 2, orbiter: 1.8, piker: 1.8, spinner: 1.5 } },
+  { id: 'corona', name: 'SOLAR CORONA', sub: 'Skimming the fire of a dying star', color: '#ff8d2d', tints: ['#6e2a0d', '#5e1a0d'],
+    hazard: 'SOLAR FLARES', hazardDesc: 'Pillars of fire burst down from the sun (they burn enemies too)',
+    hint: 'SOLAR CORONA: when a column glows, a solar flare is about to blast down it. Move out of the way!',
+    bosses: ['HEXCORE', 'STORMCALLER', 'VOID LANCER', 'THE WYRM'], bias: { firework: 2.2, kamikaze: 2, bomber: 2, launcher: 2, dasher: 1.6 } },
+  { id: 'derelict', name: 'DERELICT FLEET', sub: 'A graveyard of warships from a forgotten war', color: '#9db4c8', tints: ['#2a3a4e', '#3a2a2e'],
+    hazard: 'OLD TURRETS', hazardDesc: 'Broken turrets drift by and shoot at anything, enemies too',
+    hint: 'DERELICT FLEET: the old turrets still fire at whatever is closest, you or the enemies. Shoot them down, or let them help!',
+    bosses: ['THE WARDEN', 'THE ARCHITECT', 'ECHO', 'THE HIVE'], bias: { carrier: 2.2, sentry: 2, guardian: 2, layer: 1.8, linker: 1.8, shooter: 1.5 } },
+  { id: 'prism', name: 'PRISM REACH', sub: 'Living crystal that bends the light', color: '#d08dff', tints: ['#3a1a6e', '#0d4a5e'],
+    hazard: 'PRISMS', hazardDesc: 'Any shot through a prism splits in three, yours AND theirs',
+    hint: 'PRISM REACH: shoot through a prism to split your shots in three. Careful: enemy shots split too!',
+    bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
   { id: 'horizon', name: 'EVENT HORIZON', sub: 'Where not even light escapes', color: '#ff3d4d', tints: ['#3a0a1a', '#2a0612'], final: true,
     bosses: ['THE SINGULARITY', 'ECHO', 'CHRONOS', 'PHANTOM'], bias: { vortex: 2.2, magnet: 2, kamikaze: 2, swarm: 1.6, carrier: 1.4 } },
 ];
@@ -5499,8 +5550,9 @@ function assignZoneBosses(z) {
 // ---------- the route map: after a zone is cleared, choose where to go next ----------
 function routeOptions() {
   if (run.route.length >= ZONES_PER_CYCLE - 1) return [ZONE_LAST]; // every route ends at the EVENT HORIZON
-  return shuffle(MIDDLE_ZONES.filter(id => !run.route.includes(id))).slice(0, 2);
+  return shuffle(MIDDLE_ZONES.filter(id => !run.route.includes(id))).slice(0, ROUTE_CHOICES);
 }
+const ROUTE_CHOICES = 3; // zones offered at each fork
 function openRoute() {
   // each choice shows who might be waiting there: bosses from its list you haven't fought this cycle
   const cycleStart = Math.floor(bossCount / BOSS_CYCLE) * BOSS_CYCLE + 1, fought = new Set();
@@ -5614,8 +5666,35 @@ function updateHazards(dt) {
   } else if (id === 'rings') { // another chunk of ice drifts in from the top
     run.hazardT = (boss ? 7 : 3.5) + Math.random() * 3;
     if (enemies.filter(e => e.type === 'ice').length < 5) makeEnemy('ice', 40 + Math.random() * (W - 80), -40);
+  } else if (id === 'corona') { // solar flares: a column glows, then fire blasts down it (one aimed near someone)
+    run.hazardT = (boss ? 11 : 6.5) + Math.random() * 3;
+    const alive = living(), p = alive[Math.floor(Math.random() * alive.length)], xs = [];
+    if (p) xs.push(Math.max(FLARE_W / 2, Math.min(W - FLARE_W / 2, p.x + (Math.random() - 0.5) * 60)));
+    if (level >= 8 || !p) { let x; do x = FLARE_W / 2 + Math.random() * (W - FLARE_W); while (xs.some(o => Math.abs(o - x) < FLARE_W * 1.6)); xs.push(x); }
+    for (const x of xs) lasers.push({ x, warn: FLARE_WARN, fire: FLARE_FIRE, w: FLARE_W, color: '#ff8d2d', flare: true });
+    beep(180, 0.5, 'sawtooth', 0.04, 260);
+  } else if (id === 'derelict') { // an old turret drifts in, still shooting at whatever is closest
+    run.hazardT = (boss ? 12 : 7) + Math.random() * 4;
+    if (enemies.filter(e => e.type === 'turret').length < 2) makeEnemy('turret', 50 + Math.random() * (W - 100), -30);
+  } else if (id === 'prism') { // a prism drifts in: every shot through it splits in three
+    run.hazardT = (boss ? 15 : 8) + Math.random() * 4;
+    if (enemies.filter(e => e.type === 'prism').length < 2) makeEnemy('prism', 60 + Math.random() * (W - 120), -30);
   }
 }
+const FLARE_W = 64, FLARE_WARN = 1.4, FLARE_FIRE = 0.8, TURRET_RANGE = 430, PRISM_R = 26, PRISM_SPREAD = 0.3;
+// PRISM REACH: a shot passing through a prism splits into three (each shot only once); returns the two new ones
+function prismSplit(b, list) {
+  if (b.prismed || b.fuse !== undefined || b.orb || list.length > 1200) return;
+  for (const pr of prisms) {
+    if (Math.hypot(b.x - pr.x, b.y - pr.y) > PRISM_R) continue;
+    b.prismed = true;
+    const sp = Math.hypot(b.vx, b.vy), a = Math.atan2(b.vy, b.vx);
+    for (const d of [-PRISM_SPREAD, PRISM_SPREAD]) list.push({ ...b, vx: Math.cos(a + d) * sp, vy: Math.sin(a + d) * sp, hits: b.hits ? [...b.hits] : undefined });
+    if (Math.random() < 0.3) burst(b.x, b.y, ['#ff5d8d', '#ffe93d', '#5dffc8', '#5d8dff'][Math.floor(Math.random() * 4)], 2, 80);
+    return;
+  }
+}
+let prisms = []; // (this frame's prisms, so the bullet loops don't search every enemy)
 // an enemy shot cracks a chunk of ice a little; enough of them and it breaks (with no reward)
 function chipIce(c) {
   c.hp -= c.maxHp * 0.07; c.flash = 0.05;
@@ -5655,6 +5734,62 @@ function drawIce(e) { // a chunk of translucent ice that cracks as it takes hits
   ctx.restore();
 }
 
+function drawFlare(l) { // a solar flare: its column glows and flickers, then fire pours down it from the sun
+  const c = l.color, hw = l.w / 2;
+  ctx.save();
+  if (l.warn > 0) {
+    const k = Math.max(0, Math.min(1, 1 - l.warn / FLARE_WARN)), blink = Math.floor(l.warn * 10) % 2;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, hexA(c, 0.22 + k * 0.25)); g.addColorStop(1, hexA(c, 0.03 + k * 0.08));
+    ctx.fillStyle = g; ctx.fillRect(l.x - hw, 0, l.w, H);
+    ctx.strokeStyle = c; ctx.globalAlpha = blink ? 0.85 : 0.35; ctx.lineWidth = 1.5; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -time * 120;
+    ctx.beginPath(); ctx.moveTo(l.x - hw, 0); ctx.lineTo(l.x - hw, H); ctx.moveTo(l.x + hw, 0); ctx.lineTo(l.x + hw, H); ctx.stroke(); ctx.setLineDash([]);
+    if (blink) { ctx.globalAlpha = 1; ctx.fillStyle = c; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('FLARE!', l.x, Math.max(96, H * 0.13)); }
+  } else {
+    const k = Math.min(1, l.fire / FLARE_FIRE), w = l.w * (0.7 + 0.3 * k), t = performance.now() / 1000, steps = 16;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#fff6c0'); g.addColorStop(0.3, '#ffb13d'); g.addColorStop(1, '#ff4d1d');
+    glow(c, 40); ctx.fillStyle = g; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); // a pillar of fire with flickering edges
+    for (let i = 0; i <= steps; i++) ctx.lineTo(l.x - w / 2 + Math.sin(t * 20 + i * 1.3) * 6, H * i / steps);
+    for (let i = steps; i >= 0; i--) ctx.lineTo(l.x + w / 2 + Math.sin(t * 17 + i * 1.7) * 6, H * i / steps);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#fffbe0'; ctx.globalAlpha = 0.8; ctx.fillRect(l.x - w / 8, 0, w / 4, H);
+  }
+  ctx.restore();
+}
+function drawTurret(e) { // a scorched old gun platform with a blinking red eye
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.spin * 0.1);
+  ctx.fillStyle = e.flash > 0 ? '#ffffff' : '#2a3038'; ctx.strokeStyle = '#7a8898'; ctx.lineWidth = 2;
+  ctx.beginPath(); // an octagonal base with a corner blown off
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 8, rr = e.r * (i === 3 ? 0.65 : 1); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,177,61,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, e.r * 0.62, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.aimA);
+  ctx.fillStyle = '#4a5260'; ctx.strokeStyle = '#ffb13d'; ctx.lineWidth = 1.5;
+  ctx.fillRect(4, -4, e.r + 6, 8); ctx.strokeRect(4, -4, e.r + 6, 8); // the barrel
+  ctx.beginPath(); ctx.arc(0, 0, e.r * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  const on = Math.sin(time * 6 + e.id) > 0;
+  glow('#ff3d3d', on ? 14 : 0); ctx.fillStyle = on ? '#ff3d3d' : '#7a1a1a'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  if (e.hp < e.maxHp) { ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(e.x - 16, e.y - e.r - 10, 32, 3); ctx.fillStyle = '#ffb13d'; ctx.fillRect(e.x - 16, e.y - e.r - 10, 32 * e.hp / e.maxHp, 3); }
+}
+function drawPrism(e) { // a slowly turning triangle of crystal, scattering rainbow light around it
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.spin * 0.25);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; ctx.fillStyle = hexA(RAINBOW[i], 0.13); ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, PRISM_R * 2.1, a, a + Math.PI / 6); ctx.fill(); }
+  const R = e.r, g = ctx.createLinearGradient(-R, -R, R, R);
+  RAINBOW.forEach((c, i) => g.addColorStop(i / (RAINBOW.length - 1), hexA(c, 0.5)));
+  const pts = [0, 1, 2].map(i => { const a = i / 3 * Math.PI * 2 - Math.PI / 2; return [Math.cos(a) * R, Math.sin(a) * R]; });
+  glow('#e0d0ff', 16); ctx.fillStyle = g; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+  ctx.beginPath(); for (const [x, y] of pts) ctx.lineTo(x, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1;
+  ctx.beginPath(); for (const [x, y] of pts) { ctx.moveTo(0, 0); ctx.lineTo(x, y); } ctx.stroke();
+  ctx.restore();
+  ctx.save(); ctx.strokeStyle = hexA('#e0d0ff', 0.3); ctx.lineWidth = 1.5; ctx.setLineDash([3, 6]); ctx.lineDashOffset = time * 20; // where shots split
+  ctx.beginPath(); ctx.arc(e.x, e.y, PRISM_R, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+}
+
 // ---------- the route screen ----------
 function drawZoneIcon(id, x, y, r) { // a tiny picture of each zone
   const z = zoneDef(id);
@@ -5675,6 +5810,17 @@ function drawZoneIcon(id, x, y, r) { // a tiny picture of each zone
   } else if (id === 'rings') {
     ctx.fillStyle = 'rgba(160,215,255,0.55)'; ctx.beginPath(); ctx.arc(-r * 0.45, r * 0.55, r * 0.75, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#dff6ff'; ctx.lineWidth = r * 0.05; for (const k of [1.0, 1.2]) { ctx.beginPath(); ctx.ellipse(-r * 0.45, r * 0.55, r * k, r * k * 0.3, -0.5, 0, Math.PI * 2); ctx.stroke(); }
+  } else if (id === 'corona') {
+    ctx.fillStyle = 'rgba(255,141,45,0.75)'; ctx.beginPath(); ctx.arc(-r * 0.2, -r * 1.1, r * 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.arc(r * 0.15, r * 0.2, r * 0.22, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+  } else if (id === 'derelict') {
+    ctx.save(); ctx.rotate(-0.5); ctx.fillStyle = '#5a6878'; ctx.fillRect(-r * 0.85, -r * 0.14, r * 0.75, r * 0.28); ctx.fillRect(0, -r * 0.1, r * 0.8, r * 0.26);
+    ctx.fillRect(-r * 0.6, -r * 0.34, r * 0.2, r * 0.2); ctx.restore();
+    ctx.fillStyle = '#ff3d3d'; ctx.fillRect(r * 0.3, -r * 0.3, 2.5, 2.5);
+  } else if (id === 'prism') {
+    const g = ctx.createLinearGradient(-r, -r, r, r); RAINBOW.forEach((c, i) => g.addColorStop(i / (RAINBOW.length - 1), c));
+    ctx.fillStyle = g; ctx.globalAlpha *= 0.8; ctx.beginPath(); ctx.moveTo(0, -r * 0.6); ctx.lineTo(r * 0.55, r * 0.4); ctx.lineTo(-r * 0.55, r * 0.4); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
   } else if (id === 'horizon') {
     ctx.strokeStyle = '#ffb13d'; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, r * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,150,80,0.7)'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.arc(0, 0, r * 0.42, Math.PI, Math.PI * 2); ctx.stroke();
@@ -5692,11 +5838,11 @@ function drawRoute() {
   ctx.textAlign = 'center';
   fitText(last ? 'Every route ends here. Something is waiting in the dark.' : `ZONE ${run.route.length} CLEARED. Where to next?`, 84, 14, '#9ab');
   // the map: one column per zone of this cycle, with the path you took lit up
-  const cols = ZONES_PER_CYCLE, cw = Math.min(170, (W - 40) / cols), mx = W / 2 - cw * (cols - 1) / 2, my = 150, nr = W < 500 ? 14 : 18;
+  const cols = ZONES_PER_CYCLE, cw = Math.min(170, (W - 40) / cols), mx = W / 2 - cw * (cols - 1) / 2, nr = W < 500 ? 14 : 18, sp = nr * 2 + 10, my = 150 + (opts.length > 2 ? sp / 2 : 0);
   const nodes = [];
   for (let c = 0; c < cols; c++) {
     if (c < run.route.length) nodes.push({ c, id: run.route[c], y: my, kind: 'done' });
-    else if (c === run.route.length) opts.forEach((o, i) => nodes.push({ c, id: o.id, y: my + (i - (opts.length - 1) / 2) * (nr * 2 + 14), kind: 'opt', i }));
+    else if (c === run.route.length) opts.forEach((o, i) => nodes.push({ c, id: o.id, y: my + (i - (opts.length - 1) / 2) * sp, kind: 'opt', i }));
     else nodes.push({ c, id: c === cols - 1 ? ZONE_LAST : null, y: my, kind: 'future' });
   }
   ctx.save(); ctx.lineWidth = 2;
@@ -5709,7 +5855,7 @@ function drawRoute() {
   }
   ctx.restore();
   ctx.textAlign = 'center';
-  for (let c = 0; c < cols; c++) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#567'; ctx.textBaseline = 'bottom'; ctx.fillText(`ZONE ${c + 1}`, mx + c * cw, my - nr * 2 - 18); }
+  for (let c = 0; c < cols; c++) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#567'; ctx.textBaseline = 'bottom'; ctx.fillText(`ZONE ${c + 1}`, mx + c * cw, my - Math.max(0, opts.length - 1) / 2 * sp - nr - 6); }
   for (const n of nodes) {
     const x = mx + n.c * cw;
     if (!n.id) { // not decided yet
@@ -5725,7 +5871,7 @@ function drawRoute() {
     if (n.kind === 'done' && n.c === run.route.length - 1) { ctx.font = 'bold 10px system-ui'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#fff'; ctx.fillText('YOU ARE HERE', x, n.y - nr - 4); }
   }
   // the choices, as cards
-  const wide = W >= 700, n = opts.length, gap = wide ? 16 : 10;
+  const wide = W >= 700 || H < 560, n = opts.length, gap = wide ? 16 : 10;
   const cw2 = wide ? Math.min(330, (W - 64 - (n - 1) * gap) / n) : Math.min(440, W - 32), ch = wide ? 206 : 128;
   const top = my + Math.max(70, (opts.length - 1) * (nr + 7) + nr + 34);
   const x0 = wide ? (W - (n * cw2 + (n - 1) * gap)) / 2 : (W - cw2) / 2;
@@ -5785,6 +5931,8 @@ function updateBackground(dt) {
     const R = holeR();
     for (const m of scenery.embers) { m.a += (0.15 + 40 / m.d) * sd; m.d -= (12 + 3000 / m.d) * sd; if (m.d < R * 1.1) Object.assign(m, makeEmber()); }
   }
+  for (const w of scenery.wrecks) { w.y += w.vy * sd; w.ang += w.vr * sd; if (w.y - w.len > H) Object.assign(w, makeWreck(true)); }
+  for (const c of scenery.crystals) { c.y += c.vy * sd; if (c.y - c.s * 2 > H) Object.assign(c, makeCrystal(true)); }
   // an occasional shooting star
   scenery.cometT -= dt;
   if (scenery.cometT <= 0) {
@@ -5809,8 +5957,10 @@ function makePlanet(anywhere) {
     ring: Math.random() < 0.45, tilt: (Math.random() - 0.5) * 0.6, bands: Math.random() < 0.5 };
 }
 function makeRock(top, zone) {
-  if (zone === 'rings') // a glittering fleck of ice
-    return { x: Math.random() * W, y: top ? -5 - Math.random() * H * 0.3 : Math.random() * H, r: 0.8 + Math.random() * 1.6, vy: 15 + Math.random() * 40, vx: (Math.random() - 0.5) * 6, rot: 0, vr: 0, tw: Math.random() * 10 };
+  if (FLECK_ZONES.includes(zone)) // a glittering fleck: ice (rings), a spark of the solar wind (corona), or rainbow dust (prism)
+    return { x: Math.random() * W, y: top ? -5 - Math.random() * H * 0.3 : Math.random() * H, r: 0.8 + Math.random() * 1.6,
+      vy: (15 + Math.random() * 40) * (zone === 'corona' ? 2.2 : 1), vx: (Math.random() - 0.5) * (zone === 'corona' ? 30 : 6), rot: 0, vr: 0, tw: Math.random() * 10,
+      color: zone === 'prism' ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)] : zone === 'corona' ? (Math.random() < 0.5 ? '#ffb13d' : '#ff6a2d') : '#e8f8ff' };
   const belt = zone === 'belt', depth = belt ? 0.35 + Math.random() * 0.65 : 1, r = belt ? 3 + Math.random() ** 2 * 30 * depth + 2 : 4 + Math.random() * 16, n = 7;
   return { x: Math.random() * W, y: top ? -r - Math.random() * H * 0.5 : Math.random() * H, r, depth,
     vy: (25 + Math.random() * 45) * (belt ? depth * 1.3 : 1), vx: (Math.random() - 0.5) * (belt ? 24 : 10), rot: Math.random() * 6, vr: (Math.random() - 0.5) * 1.2,
@@ -5819,11 +5969,26 @@ function makeRock(top, zone) {
 const holeR = () => Math.min(W, H) * 0.09;
 function makeEmber() { return { a: Math.random() * Math.PI * 2, d: Math.max(W, H) * (0.5 + Math.random() * 0.5), hot: Math.random() }; }
 const NEBULA_COLORS = ['#ff2d55', '#c0306e', '#7a1f8e', '#ff5d8d', '#a0203e'];
-const scenery = { zone: null, planets: [], rocks: [], comets: [], clouds: [], embers: [], cometT: 2, sector: -1 };
+const FLECK_ZONES = ['rings', 'corona', 'prism'];
+// DERELICT FLEET: a huge broken warship drifting past (further ones are smaller, dimmer and slower)
+function makeWreck(top) {
+  const depth = 0.35 + Math.random() * 0.65, len = Math.max(W, H) * (0.3 + Math.random() * 0.3) * depth;
+  return { x: W * (0.1 + Math.random() * 0.8), y: top ? -len * 0.6 : Math.random() * H, len, depth, vy: 5 + 12 * depth,
+    ang: (Math.random() - 0.5) * 1.2 + (Math.random() < 0.5 ? Math.PI : 0), vr: (Math.random() - 0.5) * 0.02, brk: (Math.random() - 0.5) * 0.3, seed: Math.random() * 100 };
+}
+// PRISM REACH: a cluster of giant crystals
+function makeCrystal(top) {
+  const depth = 0.4 + Math.random() * 0.6, s = Math.min(W, H) * (0.12 + Math.random() * 0.12) * depth;
+  return { x: Math.random() * W, y: top ? -s * 2 : Math.random() * H, s, depth, vy: 6 + 14 * depth, hue: Math.floor(Math.random() * RAINBOW.length),
+    shards: Array.from({ length: 4 + Math.floor(Math.random() * 3) }, () => ({ a: -Math.PI / 2 + (Math.random() - 0.5) * 2.2, len: 0.6 + Math.random() * 0.8, w: 0.12 + Math.random() * 0.1 })) };
+}
+const scenery = { zone: null, planets: [], rocks: [], comets: [], clouds: [], embers: [], wrecks: [], crystals: [], cometT: 2, sector: -1 };
 function initScenery(zone) {
   scenery.zone = zone;
   scenery.planets = zone === 'deep' ? [makePlanet(true)] : [];
-  const nRocks = { deep: 14, belt: 34, nebula: 5, rings: 46, horizon: 4 }[zone] ?? 14;
+  scenery.wrecks = zone === 'derelict' ? Array.from({ length: 4 }, () => makeWreck(false)).sort((a, b) => a.depth - b.depth) : [];
+  scenery.crystals = zone === 'prism' ? Array.from({ length: 5 }, () => makeCrystal(false)).sort((a, b) => a.depth - b.depth) : [];
+  const nRocks = { deep: 14, belt: 34, nebula: 5, rings: 46, corona: 40, derelict: 10, prism: 50, horizon: 4 }[zone] ?? 14;
   scenery.rocks = Array.from({ length: nRocks }, () => makeRock(false, zone)).sort((a, b) => (a.depth || 1) - (b.depth || 1)); // (far rocks first)
   scenery.clouds = zone === 'nebula' ? Array.from({ length: 6 }, (_, i) => ({ x: Math.random(), y: i / 6 * 1.4 - 0.2, R: 0.22 + Math.random() * 0.2,
     color: NEBULA_COLORS[i % NEBULA_COLORS.length], vy: 0.006 + Math.random() * 0.008, flash: 0 })) : [];
@@ -5967,13 +6132,93 @@ function drawBlackHole(t) {
   ctx.globalAlpha = 1;
 }
 
+// SOLAR CORONA: the edge of an enormous sun hangs over the top of the screen, with loops of plasma rising off it
+function drawSun(t) {
+  const S = Math.max(W, H), R = S * 0.8, x = W * 0.5, y = H * 0.15 - R;
+  ctx.save(); ctx.globalAlpha = 0.55;
+  const halo = ctx.createRadialGradient(x, y, R * 0.95, x, y, R * 1.3);
+  halo.addColorStop(0, 'rgba(255,170,60,0.6)'); halo.addColorStop(1, 'rgba(255,90,20,0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, W, Math.min(H, y + R * 1.3));
+  const body = ctx.createRadialGradient(x, y, R * 0.6, x, y, R);
+  body.addColorStop(0, '#ffd27a'); body.addColorStop(0.85, '#ff8d2d'); body.addColorStop(1, '#c0400a');
+  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(120,30,0,0.35)'; // sunspots
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI / 2 + (i - 2) * 0.13 + Math.sin(t * 0.03 + i) * 0.02, d = R * (0.94 - (i % 2) * 0.03), s = R * 0.012 * (1 + i % 3);
+    ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, s * 2, s * 0.8, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,150,60,0.85)'; ctx.lineCap = 'round'; // prominences: loops of plasma arcing off the edge
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 2 + (i - 1.5) * 0.17, h = R * (0.035 + 0.03 * Math.sin(t * 0.5 + i * 2)), nx = Math.cos(a), ny = Math.sin(a), tx = -ny, ty = nx, s = R * 0.03;
+    const px = x + nx * R, py = y + ny * R;
+    ctx.lineWidth = 3 + (i % 2) * 2;
+    ctx.beginPath(); ctx.moveTo(px - tx * s, py - ty * s);
+    ctx.bezierCurveTo(px - tx * s + nx * h * 2.4, py - ty * s + ny * h * 2.4, px + tx * s + nx * h * 2.4, py + ty * s + ny * h * 2.4, px + tx * s, py + ty * s); ctx.stroke();
+  }
+  ctx.restore();
+}
+// DERELICT FLEET: huge broken warships, snapped in two, with a few lights still blinking
+function drawWrecks(t) {
+  for (const w of scenery.wrecks) {
+    const L = w.len, D = L * 0.15, b = L * w.brk, d = w.depth, gap = D * 0.6;
+    ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(w.ang); ctx.globalAlpha = 0.22 + d * 0.33;
+    ctx.fillStyle = `rgb(${16 + d * 22 | 0},${20 + d * 24 | 0},${28 + d * 28 | 0})`; ctx.strokeStyle = `rgba(157,180,200,${0.2 + d * 0.25})`; ctx.lineWidth = 1;
+    const shape = pts => { ctx.beginPath(); for (const [px, py] of pts) ctx.lineTo(px, py); ctx.closePath(); ctx.fill(); ctx.stroke(); };
+    // the front half (nose to the break)
+    shape([[L / 2, 0], [L * 0.3, -D / 2], [b + D * 0.25, -D / 2], [b, -D * 0.15], [b + D * 0.18, D * 0.1], [b - D * 0.05, D / 2], [L * 0.3, D / 2]]);
+    // the back half, knocked a little out of line
+    ctx.save(); ctx.translate(-gap, D * 0.12); ctx.rotate(0.07);
+    shape([[b - D * 0.05, -D / 2], [b - D * 0.15, -D * 0.1], [b + D * 0.05, D * 0.2], [b - D * 0.1, D / 2], [-L / 2 + D * 0.3, D / 2], [-L / 2, D * 0.3], [-L / 2, -D * 0.3], [-L / 2 + D * 0.3, -D / 2]]);
+    shape([[-L * 0.3, -D / 2], [-L * 0.3, -D * 0.85], [-L * 0.17, -D * 0.85], [-L * 0.14, -D / 2]]); // the bridge tower
+    ctx.strokeStyle = `rgba(157,180,200,${0.1 + d * 0.15})`; // hull plating
+    ctx.beginPath(); for (let k = 1; k < 5; k++) { const px = -L / 2 + (b + L / 2) * k / 5; ctx.moveTo(px, -D / 2); ctx.lineTo(px, D / 2); } ctx.stroke();
+    ctx.fillStyle = `rgba(255,140,60,${0.2 + d * 0.3})`; ctx.fillRect(-L / 2 - D * 0.18, -D * 0.25, D * 0.18, D * 0.15); ctx.fillRect(-L / 2 - D * 0.18, D * 0.1, D * 0.18, D * 0.15); // dead engines
+    ctx.restore();
+    for (let k = 0; k < 3; k++) { // a few lights still blinking
+      if (Math.sin(t * (1.5 + k) + w.seed + k * 2) < 0.6) continue;
+      ctx.fillStyle = k === 1 ? '#ffb13d' : '#ff3d3d'; ctx.globalAlpha = 0.9;
+      ctx.fillRect(L * (0.35 - k * 0.3) - 1.5, (k - 1) * D * 0.3 - 1.5, 3, 3);
+    }
+    if (Math.sin(t * 9 + w.seed * 3) > 0.92) { ctx.fillStyle = '#fff2c0'; ctx.globalAlpha = 1; ctx.fillRect(b - gap / 2, (Math.random() - 0.5) * D, 2, 2); } // sparks at the break
+    ctx.restore();
+  }
+}
+// PRISM REACH: giant crystal clusters, and soft beams of colored light sweeping through the dark
+function drawCrystals(t) {
+  ctx.save();
+  for (let i = 0; i < (settings.lowfx ? 1 : 3); i++) { // light shafts
+    const x = ((i * 0.37 + t * 0.012 * (1 + i * 0.3)) % 1.4 - 0.2) * W;
+    ctx.save(); ctx.translate(x, H / 2); ctx.rotate(0.35);
+    ctx.fillStyle = hexA(RAINBOW[(i * 2 + 1) % RAINBOW.length], 0.05); ctx.fillRect(-W * 0.06, -H, W * 0.12, H * 2);
+    ctx.restore();
+  }
+  for (const c of scenery.crystals) {
+    const col = RAINBOW[c.hue], col2 = RAINBOW[(c.hue + 2) % RAINBOW.length];
+    ctx.globalAlpha = 0.3 + c.depth * 0.4;
+    for (const s of c.shards) { // each crystal: a long, thin, faceted point
+      const len = c.s * s.len * 2, w = c.s * s.w * 2, ca = Math.cos(s.a), sa = Math.sin(s.a), nx = -sa, ny = ca;
+      const tipX = c.x + ca * len, tipY = c.y + sa * len, midX = c.x + ca * len * 0.7, midY = c.y + sa * len * 0.7;
+      const g = ctx.createLinearGradient(c.x, c.y, tipX, tipY);
+      g.addColorStop(0, hexA(col, 0.05)); g.addColorStop(1, hexA(col2, 0.45));
+      ctx.fillStyle = g; ctx.strokeStyle = hexA('#ffffff', 0.35); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(c.x + nx * w * 0.4, c.y + ny * w * 0.4); ctx.lineTo(midX + nx * w / 2, midY + ny * w / 2); ctx.lineTo(tipX, tipY);
+      ctx.lineTo(midX - nx * w / 2, midY - ny * w / 2); ctx.lineTo(c.x - nx * w * 0.4, c.y - ny * w * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(tipX, tipY); ctx.stroke(); // the center ridge
+    }
+  }
+  ctx.restore();
+}
+
 function drawScenery(zone) {
   for (const p of scenery.planets) drawPlanet(p);
   ctx.save();
-  if (zone === 'rings') { // twinkling flecks of ice
+  if (FLECK_ZONES.includes(zone)) { // twinkling flecks: ice, solar sparks or rainbow dust
     const t = performance.now() / 1000;
-    ctx.fillStyle = '#e8f8ff';
-    for (const a of scenery.rocks) { ctx.globalAlpha = 0.25 + 0.6 * (0.5 + 0.5 * Math.sin(t * 3 + a.tw)); ctx.fillRect(a.x, a.y, a.r, a.r); }
+    for (const a of scenery.rocks) {
+      ctx.fillStyle = a.color || '#e8f8ff'; ctx.globalAlpha = 0.25 + 0.6 * (0.5 + 0.5 * Math.sin(t * 3 + a.tw));
+      if (zone === 'corona') ctx.fillRect(a.x, a.y, a.r, a.r * 4); // (streaking in the solar wind)
+      else ctx.fillRect(a.x, a.y, a.r, a.r);
+    }
     ctx.globalAlpha = 1;
   } else { // asteroids: dark tumbling rocks with a faint rim (in the belt, further ones are smaller and dimmer)
     ctx.lineWidth = 1;
@@ -6017,6 +6262,9 @@ function drawBackground() {
   else if (z === 'nebula') drawNebulaClouds(t);
   else if (z === 'rings') drawGasGiant(t);
   else if (z === 'horizon') drawBlackHole(t);
+  else if (z === 'corona') drawSun(t);
+  else if (z === 'derelict') drawWrecks(t);
+  else if (z === 'prism') drawCrystals(t);
   drawScenery(z);
 }
 // hyperspace: a glow of the destination's color rushing toward you (the stars stretch into streaks in draw)
@@ -6290,7 +6538,7 @@ function packSnap() {
       e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0]),
     ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
-    lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color]),
+    lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color, l.flare ? 1 : 0]),
     bo: bosses.map(packBoss),
     ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether } : null,
     sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
@@ -6530,7 +6778,7 @@ function applySnap(s) {
   eBullets = [];
   for (let i = 0; i < s.eb.length; i += 7) { const a = s.eb; eBullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, r: a[i + 4], color: cl[a[i + 5]], ...(a[i + 6] >= 0 ? { fuse: a[i + 6] } : {}) }); }
   pickups = s.pk.map(a => ({ x: a[0], y: a[1], y0: a[1], t0: s.ts, kind: a[2], t: a[3] }));
-  lasers = s.lz.map(a => ({ x: a[0], warn: a[1], fire: a[2], w: a[3], color: a[4] }));
+  lasers = s.lz.map(a => ({ x: a[0], warn: a[1], fire: a[2], w: a[3], color: a[4], flare: !!a[5] }));
   // bosses: take the fresh state, but keep gliding their positions
   const oldB = new Map(bosses.map(b => [b.name, b]));
   bosses = s.bo.map(o => {

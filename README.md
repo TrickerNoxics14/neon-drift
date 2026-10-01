@@ -25,10 +25,13 @@ Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 
 
 ### Zones
 
-Every run travels through space, zone by zone. You always start in **Deep Space**. After a zone's last boss you choose your next zone on a **route map**. All routes end at the **Event Horizon**, where THE ABYSS waits. Every zone has its own sky, its own bosses and enemies, and a hazard:
+Every run travels through space, zone by zone. You always start in **Deep Space**. After a zone's last boss you choose your next zone from three on a **route map**. All routes end at the **Event Horizon**, where THE ABYSS waits. Every zone has its own sky, its own bosses and enemies, and a hazard:
 
 - **Shattered Belt:** meteors tear across flashing lanes.
 - **Crimson Nebula:** lightning strikes pink circles.
 - **Frozen Rings:** drifting ice blocks enemy shots.
+- **Solar Corona:** solar flares blast down glowing columns.
+- **Derelict Fleet:** old turrets shoot at everything, enemies included.
+- **Prism Reach:** prisms split every shot in three, yours and theirs.
 
 The whole game is a single file: `index.html`.
