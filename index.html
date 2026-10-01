@@ -206,7 +206,7 @@ const ACHIEVEMENTS = [
   { id: 'score250k',   cat: 'combat', name: 'Living Legend',      reward: 200, desc: 'Score 250,000 in a single run.' },
   { id: 'sector5',     cat: 'progress', name: 'Deep Space',       reward: 50,  desc: 'Reach sector 5.' },
   { id: 'sector10',    cat: 'progress', name: 'Void Walker',      reward: 100, desc: 'Reach sector 10.' },
-  { id: 'omega',       cat: 'progress', name: 'The End?',         reward: 300, desc: 'Destroy OMEGA CORE.' },
+  { id: 'omega',       cat: 'progress', name: 'The End?',         reward: 300, desc: 'Destroy THE ABYSS.' },
   { id: 'hoarder',     cat: 'progress', name: 'Hoarder',          reward: 50,  desc: 'Have 1,000 shards at once.', progress: () => [meta.shards, 1000] },
   { id: 'first_boss',  cat: 'boss', name: 'Giant Slayer',         reward: 50,  desc: 'Defeat your first boss.' },
   { id: 'flawless',    cat: 'boss', name: 'Flawless',             reward: 150, desc: 'Defeat a boss without anyone taking a hit.' },
@@ -460,7 +460,7 @@ function readPad(i) {
 }
 
 // ---------- run state ----------
-// run type: 'standard' ends in victory after OMEGA CORE; 'endless' keeps cycling with stacking mutators
+// run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators
 let runType = 'standard';
 try { if (localStorage.getItem('neonDriftRunType') === 'endless') runType = 'endless'; } catch (e) {}
 function toggleRunType() {
@@ -504,10 +504,10 @@ const BOSSES = [
   { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true,
     hint: 'THE LEECH heals by draining you — shoot the blood orbs before they reach it, and outrun its drain beam!',
     patterns: ['drain', 'fan', 'drain', 'ring'] },
-  // armored: only the rotating breach takes full damage, so it has less hp than before
-  { name: 'OMEGA CORE',  style: 'omega',   color: '#ffd23d', sides: 12, r: 74, hpMult: 0.7, final: true, gimmick: 'breach',
-    hint: 'OMEGA CORE is armored — fly around it and shoot through the rotating BREACH for bonus damage!',
-    patterns: ['ring', 'fan', 'spiral', 'laser', 'charge', 'rain', 'wave', 'mines', 'blink', 'summon'] },
+  // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
+  { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
+    hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
+    patterns: ['lash', 'ink', 'eruption', 'lash', 'maw', 'spiral', 'lash', 'eruption'] },
 ];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
@@ -548,7 +548,7 @@ const bondMult = (bo, owner) => bo.bond === undefined || owner === bo.bond ? 1 :
 const TRIAD_REGEN_DELAY = 3, TRIAD_REGEN_RATE = 0.04; // seconds untouched before healing; share of max hp per second
 const TWIN_REVIVE = () => mode === 1 ? 10 : 8; // seconds to finish off the second twin
 
-// each run fights 5 of the solo bosses and 2 team fights, then OMEGA CORE.
+// each run fights 5 of the solo bosses and 2 team fights, then THE ABYSS.
 // the first team fight is always a duo; the second is the trio or another duo
 function buildBossOrder() {
   const soloIdx = BOSSES.map((b, i) => i).filter(i => !BOSSES[i].final), omega = BOSSES.findIndex(b => b.final);
@@ -740,7 +740,7 @@ const CONTROL_HINTS = {
 };
 let popups = [], hurtFlash = 0, hint = null;
 
-// victory: a Standard run that destroyed OMEGA CORE (pays a bonus on top of the usual shards)
+// victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
   paused = false;
   run.victory = victory;
@@ -1114,6 +1114,7 @@ function fire(x, y, a, color, kind, p) {
   const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
   const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? 3 : 1) * (m.dmg || 1) * rage;
+  if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
     pierce: kind === 'rail' ? 999 : kind === 'missile' ? 0 : s.pierce + (m.pierce || 0),
     bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : 0),
@@ -1267,9 +1268,16 @@ function makeBoss(def, x, hp, loop, side) {
     downed: false, reviveT: 0, shielded: false, shieldHit: 0, forceRage: false,
     // animation state
     intro: 0, introRingT: 0, kick: 0, hitKick: 0, rage: 0, wasEnraged: false, appear: 0,
-    look: { x: 0, y: 1 }, faceA: Math.PI / 2, ghostT: 0, bigAtk: true, cracks: [] };
+    look: { x: 0, y: 1 }, faceA: Math.PI / 2, ghostT: 0, bigAtk: true, cracks: [],
+    // THE ABYSS: tentacles [aim, reach 0-1, state 0 idle/1 warn/2 strike/3 retract, timer, lash length], eruptions, darkness
+    ...(def.gimmick === 'abyss' && { tents: Array.from({ length: TENT_N }, () => [0, 0, 0, 0, 0]), erupt: [], dark: 0, darkR: 175,
+      phase: 1, maw: 0, mawN: 0, wasEnraged: true }) }; // (no generic ENRAGED moment: it has its own phases)
 }
 
+// Boss HP floor: strong builds used to melt bosses in seconds, so every boss has at least enough HP to last
+// this long against the team's measured firepower (roughly 60% of shots land on a boss in a real fight)
+const BOSS_MIN_SECS = 18, TEAM_MIN_SECS = 24, FINAL_MIN_SECS = 70, BOSS_HIT_RATE = 0.6;
+const firepowerHp = secs => (run.dpsEst || 0) * BOSS_HIT_RATE * secs * (1 + 0.3 * mut('titans'));
 function spawnEncounter() {
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
@@ -1278,14 +1286,16 @@ function spawnEncounter() {
   if (e.single !== undefined) {
     const def = BOSSES[e.single];
     encounter = { kind: 'single', name: def.name, final: def.final };
-    bosses = [makeBoss(def, W / 2, baseHp * (def.hpMult || 1), loop, 0)];
+    // the curve above, or enough to survive your team's actual firepower for a while — whichever is bigger
+    bosses = [makeBoss(def, W / 2, Math.max(baseHp * (def.hpMult || 1), firepowerHp(def.final ? FINAL_MIN_SECS : BOSS_MIN_SECS)), loop, 0)];
     if (def.hint) hint = { text: def.hint, life: 6 };
   } else {
     const team = TEAMS[e.team], n = team.members.length;
+    const teamHp = Math.max(baseHp, firepowerHp(TEAM_MIN_SECS) / team.members.reduce((t, m) => t + m.hpShare, 0));
     encounter = { kind: team.kind, name: team.name, angle: -Math.PI / 2, tether: 0 };
     bosses = team.members.map((m, i) => {
       const slot = i - (n - 1) / 2; // -0.5/+0.5 for a pair, -1/0/+1 for a trio
-      const b = makeBoss(m, W / 2 + slot * W * (n > 3 ? 0.2 : n > 2 ? 0.28 : 0.44), baseHp * m.hpShare, loop, Math.sign(slot));
+      const b = makeBoss(m, W / 2 + slot * W * (n > 3 ? 0.2 : n > 2 ? 0.28 : 0.44), teamHp * m.hpShare, loop, Math.sign(slot));
       b.slot = i; b.lastHit = time;
       // two or three bosses firing at full rate is much denser than a solo boss, so each attacks slower
       // (Sol & Luna's tether is a hazard on its own, so they get the trio treatment)
@@ -1378,6 +1388,7 @@ function updateEncounter(dt) {
 // where each boss drifts to when it isn't charging
 function bossHome(b, enraged, hoverY) {
   if (b.slotX !== undefined) return { x: b.slotX, y: b.slotY + Math.sin(b.t * 1.3) * 14 }; // Phantom hiding among its copies
+  if (b.style === 'abyss') return { x: W / 2 + Math.sin(b.t * 0.25) * W * 0.18, y: hoverY + 30 + Math.sin(b.t * 0.7) * 14 }; // a slow, looming drift
   const amp = Math.max(0, W / 2 - b.r - 20);
   const sweep = { x: W / 2 + Math.sin(b.t * (enraged ? 0.9 : 0.6)) * amp, y: b.hoverLow ? Math.max(hoverY, H * 0.33) : hoverY };
   if (!encounter || encounter.kind === 'single') return sweep;
@@ -1468,7 +1479,7 @@ function nearestPlayer(x, y) {
 
 function bossShot(b, a, speed, r = 6) {
   eBullets.push({ x: b.x + Math.cos(a) * b.r * 0.6, y: b.y + Math.sin(a) * b.r * 0.6,
-    vx: Math.cos(a) * speed * BOSS_BULLET_SPEED, vy: Math.sin(a) * speed * BOSS_BULLET_SPEED, r, color: b.color, src: b });
+    vx: Math.cos(a) * speed * BOSS_BULLET_SPEED, vy: Math.sin(a) * speed * BOSS_BULLET_SPEED, r, color: b.ink ? ABYSS_INK : b.color, src: b });
 }
 
 // every attack a boss can use; each boss picks a few of these
@@ -1548,6 +1559,34 @@ const BOSS_ATTACKS = {
     b.drain = { target, t: 0, fill: 0, range: enraged ? 420 : 380 };
     b.atkT = 3.4 * rate; beep(90, 0.8, 'sawtooth', 0.06, 60);
   },
+  // ----- THE ABYSS -----
+  lash(b, enraged, rate) { // tentacles lock onto players (red warning line), then whip out at them
+    const targets = living(); if (!targets.length) return;
+    const n = (b.phase || 1) + (enraged ? 1 : 0);
+    for (let i = 0; i < n; i++) abyssLash(b, targets[i % targets.length], i >= targets.length);
+    b.atkT = 1.5 * rate;
+  },
+  ink(b, enraged, rate, target) { // two staggered rings of black ink, plus a spread at you
+    const off = Math.random() * Math.PI;
+    for (let i = 0; i < 18; i++) bossShot(b, off + i / 18 * Math.PI * 2, 140, 8);
+    for (let i = 0; i < 12; i++) bossShot(b, off + (i + 0.5) / 12 * Math.PI * 2, 205, 6);
+    if (target && (enraged || b.phase >= 2)) {
+      const a = Math.atan2(target.y - b.y, target.x - b.x);
+      for (let i = -2; i <= 2; i++) bossShot(b, a + i * 0.12, 300, 6);
+    }
+    b.atkT = 1.3 * rate; beep(70, 0.4, 'sawtooth', 0.07, -20);
+  },
+  eruption(b, enraged, rate) { // tentacles burst up from below, under every player (warning cracks first)
+    if (b.patternT > 0.8 && b.erupt.length) return;
+    for (const p of living()) b.erupt.push([Math.round(p.x), 0]);
+    for (let i = 0; i < (b.phase >= 3 ? 3 : b.phase >= 2 ? 2 : 1); i++) b.erupt.push([Math.round(30 + Math.random() * (W - 60)), -Math.random() * 0.4]);
+    b.atkT = 2.4 * rate; beep(45, 0.9, 'sawtooth', 0.08, 30);
+  },
+  maw(b, enraged, rate) { // its mouth tears open, then breathes out rings of ink (each with a gap to slip through)
+    b.maw = 1.1; b.mawN = b.phase >= 3 ? 4 : 3; b.mawGap = Math.random() * Math.PI * 2;
+    shake = Math.max(shake, 10); bossRoar(b, true);
+    b.atkT = 3 * rate;
+  },
   blink(b, enraged, rate) { // teleport somewhere new and burst
     fxGhost(b, 0.6); fxRing(b.x, b.y, b.r * 1.4, 4, 0.3, b.color, 3); // implode where it was
     b.appear = 1;
@@ -1567,7 +1606,7 @@ const BOSS_ATTACKS = {
 // dmg() scales damage taken (fx, fy = where the hit landed, when known)
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
-const BREACH_HALF = 0.6;
+
 const ownerOf = (e, gimmick) => e.owner || bosses.find(b => b.gimmick === gimmick);
 const GIMMICKS = {
   pylons: {
@@ -1588,7 +1627,7 @@ const GIMMICKS = {
       fxText('PYLONS RAISED — SHIELD UP', b.x, b.y + b.r + 40, b.color, 20, 1.6);
       beep(300, 0.5, 'square', 0.05, 300);
     },
-    dmg: b => b.guard > 0 ? 0.25 : 1,
+    dmg: b => b.guard > 0 ? 0.35 : 1,
   },
   overheat: {
     update(b, dt) {
@@ -1670,6 +1709,62 @@ const GIMMICKS = {
     },
   },
   brood: {}, // all in the 'eggs' attack and the egg AI
+  abyss: {
+    update(b, dt) {
+      // three phases: at 66% the lights go out, at 33% it fully awakens
+      const ph = b.hp > b.max * 0.66 ? 1 : b.hp > b.max * 0.33 ? 2 : 3;
+      if (ph > b.phase) {
+        b.phase = ph; b.rage = 1.6; b.atkT = Math.max(b.atkT, 1.6);
+        shake = Math.max(shake, 28); bossRoar(b, true); beep(40, 2, 'sawtooth', 0.12, 20);
+        fxText(ph === 2 ? 'THE LIGHTS GO OUT' : 'IT AWAKENS', W / 2, H * 0.45, b.color, 38, 2.6);
+        for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (4 + i * 2), 0.9, i % 2 ? '#ffffff' : b.color, 6, i * 0.2);
+        const ps = living(); // every tentacle lashes out at once
+        if (ps.length) for (let i = 0; i < TENT_N; i++) if (!b.tents[i][2]) abyssLash(b, ps[i % ps.length], true, i);
+      }
+      b.dark += ((b.phase >= 2 ? 1 : 0) - b.dark) * Math.min(1, dt * 0.7);
+      b.darkR = b.phase >= 3 ? 140 : 180;
+      if (b.phase >= 3) { // a heartbeat you can feel
+        b.beatT = (b.beatT ?? 0) - dt;
+        if (b.beatT <= 0) { b.beatT = 0.85; shake = Math.max(shake, 5); beep(52, 0.18, 'sine', 0.14, -10); setTimeout(() => beep(46, 0.2, 'sine', 0.1, -10), 160); }
+      }
+      // tentacles: warn -> strike -> retract, and they hurt to touch the whole time
+      for (const T of b.tents) {
+        if (!T[2]) continue;
+        T[3] -= dt;
+        if (T[2] === 1) { if (T[3] <= 0) { T[2] = 2; T[3] = LASH_OUT + LASH_HOLD; beep(90, 0.25, 'sawtooth', 0.06, -50); } }
+        else if (T[2] === 2) { T[1] = Math.min(1, T[1] + dt / LASH_OUT); if (T[3] <= 0) { T[2] = 3; T[3] = LASH_BACK; shake = Math.max(shake, 6); } }
+        else { T[1] = Math.max(0, T[3] / LASH_BACK); if (T[3] <= 0) { T[2] = 0; T[1] = 0; } }
+      }
+      const ps = living();
+      for (let i = 0; i < TENT_N; i++) {
+        const pts = tentPoints(b, i);
+        for (let k = 3; k < pts.length; k++) for (const p of ps)
+          if (Math.hypot(p.x - pts[k][0], p.y - pts[k][1]) < tentWidth(b, k) * 0.5 + p.r * 0.55) hurt(p);
+      }
+      // eruptions from below
+      for (const e of b.erupt) {
+        const before = e[1]; e[1] += dt;
+        if (before < ERUPT_WARN && e[1] >= ERUPT_WARN) { shake = Math.max(shake, 9); burst(e[0], H, b.color, 25, 300); beep(60, 0.3, 'square', 0.07, -30); }
+        const h = eruptHeight(e[1]);
+        if (h > 0) for (const p of ps) if (Math.abs(p.x - e[0]) < ERUPT_W * 0.5 + p.r * 0.45 && p.y > H - h) hurt(p);
+      }
+      b.erupt = b.erupt.filter(e => e[1] < ERUPT_END);
+      // the maw: opens, then breathes out rings
+      if (b.maw > 0) b.maw -= dt;
+      else if (b.mawN > 0) {
+        b.maw = 0.32; b.mawN--;
+        const n = 28, gap = b.mawGap + (b.mawN % 2 ? 0.5 : -0.5);
+        for (let i = 0; i < n; i++) {
+          const a = i / n * Math.PI * 2, d = Math.abs(((a - gap) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+          if (d > 0.42) bossShot(b, a, 165, 7);
+        }
+        beep(60, 0.25, 'sawtooth', 0.08, -20);
+        if (!b.mawN) b.maw = 0;
+      }
+      if (b.maw > 0 || b.mawN > 0) return 'quiet';
+    },
+    rate: b => b.phase >= 3 ? 0.7 : b.phase >= 2 ? 0.85 : 1,
+  },
   decoys: {
     update(b, dt, enraged) {
       const fakes = enemies.filter(e => e.type === 'decoy' && !e.dead && e.owner === b);
@@ -1704,15 +1799,58 @@ const GIMMICKS = {
       if (b.splitDmg > b.max * 0.04) phantomRejoin(b, enemies.filter(e => e.type === 'decoy' && e.owner === b), true);
     },
   },
-  breach: {
-    update(b, dt, enraged) { b.breachA = (b.breachA ?? Math.PI / 2) + dt * (enraged ? 0.75 : 0.45); },
-    dmg(b, fx, fy) {
-      if (fx === undefined) return 0.6;
-      const d = Math.abs(((Math.atan2(fy - b.y, fx - b.x) - b.breachA) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
-      return d < BREACH_HALF ? 1.5 : 0.35;
-    },
-  },
 };
+// ----- THE ABYSS: tentacles, eruptions -----
+const ABYSS_INK = '#0b0006'; // its bullets: black, with a red rim (see drawWorld)
+const TENT_N = 10, TENT_SEG = 12;
+const LASH_WARN = 0.75, LASH_OUT = 0.16, LASH_HOLD = 0.3, LASH_BACK = 0.55;
+const ERUPT_WARN = 1.0, ERUPT_END = 1.9, ERUPT_W = 30;
+const tentRoot = (b, i) => i / TENT_N * Math.PI * 2 + Math.sin(b.t * 0.3) * 0.25;
+const tentWidth = (b, k) => b.r * 0.24 * (1 - k / (TENT_SEG + 2)) + 3;
+// tentacle i as points from its root on the body to its tip
+function tentPoints(b, i) {
+  const T = b.tents[i], root = tentRoot(b, i), limp = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  let x = b.x + Math.cos(root) * b.r * 0.75, y = b.y + Math.sin(root) * b.r * 0.75;
+  // idle: hanging outward and down, like a squid; lashing: straight at its target
+  const idleDir = Math.atan2(Math.sin(root) + 0.7 + limp * 3, Math.cos(root));
+  const idleLen = b.r * (1.5 + Math.sin(b.t * 1.1 + i * 1.7) * 0.35) * (1 + limp * 0.3), reach = T[1];
+  const len = idleLen + Math.max(0, T[4] - idleLen) * reach;
+  const dir = idleDir + (((T[0] - idleDir + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * reach;
+  const pts = [[x, y]], step = len / TENT_SEG, writhe = (b.phase >= 3 ? 0.8 : 0.55) * (1 - reach * 0.85);
+  for (let k = 1; k <= TENT_SEG; k++) {
+    const a = dir + Math.sin(b.t * (b.phase >= 3 ? 3.4 : 2.4) + i * 1.3 - k * 0.55) * writhe * k / TENT_SEG;
+    x += Math.cos(a) * step; y += Math.sin(a) * step;
+    pts.push([x, y]);
+  }
+  return pts;
+}
+// send the idle tentacle that points most toward the target (or tentacle `only`) lashing at it
+function abyssLash(b, target, wild, only) {
+  let best = only ?? -1;
+  if (best < 0) {
+    const want = Math.atan2(target.y - b.y, target.x - b.x);
+    let bd = 9;
+    b.tents.forEach((T, i) => {
+      if (T[2]) return;
+      const d = Math.abs(((want - tentRoot(b, i) + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (d < bd) { bd = d; best = i; }
+    });
+  }
+  if (best < 0) return;
+  const T = b.tents[best], root = tentRoot(b, best);
+  const rx = b.x + Math.cos(root) * b.r * 0.75, ry = b.y + Math.sin(root) * b.r * 0.75;
+  // extra lashes ("wild") aim a little off, to cut off escape routes
+  const tx = target.x + (wild ? (Math.random() - 0.5) * 220 : 0), ty = target.y + (wild ? (Math.random() - 0.5) * 120 : 0);
+  T[0] = Math.atan2(ty - ry, tx - rx); T[4] = Math.min(Math.hypot(tx - rx, ty - ry) + 90, Math.max(W, H));
+  T[2] = 1; T[3] = LASH_WARN * (b.phase >= 3 ? 0.8 : 1); T[1] = 0;
+}
+// how tall an eruption tentacle is at a given age (0 while the warning cracks show)
+function eruptHeight(age) {
+  if (age < ERUPT_WARN) return 0;
+  const up = Math.min(1, (age - ERUPT_WARN) / 0.12), down = Math.min(1, Math.max(0, (ERUPT_END - age) / 0.35));
+  return H * 0.58 * up * down;
+}
+
 const DECOY_FIRE = 1.5;
 function decoyFan(b, x, y) {
   const p = nearestPlayer(x, y); if (!p) return;
@@ -1759,7 +1897,7 @@ function updateBoss(b, dt) {
       screenFlash = 1;
       for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r * 0.5, b.r * (4 + i * 2), 0.8 + i * 0.2, i === 1 ? '#ffffff' : b.color, 6 - i * 1.5, i * 0.12);
       shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
-      fxText(b.final ? 'OMEGA CORE DESTROYED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      fxText(b.final ? 'THE ABYSS IS SILENCED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
       bosses = bosses.filter(o => o !== b);
       // the last boss of an encounter drops the full set; a partner that falls first drops one pickup
       const drops = bosses.length ? [['power', 'shield', 'life'][Math.floor(Math.random() * 3)]] : ['power', 'shield', 'life'];
@@ -1767,7 +1905,7 @@ function updateBoss(b, dt) {
       if (!bosses.length) {
         run.bossKills++;
         const title = encounter.kind !== 'single' ? `${encounter.name} DEFEATED — CHOOSE A REWARD`
-          : b.final ? 'OMEGA CORE DESTROYED — CHOOSE A REWARD' : 'BOSS DEFEATED — CHOOSE A REWARD';
+          : b.final ? 'THE ABYSS IS SILENCED — CHOOSE A REWARD' : 'BOSS DEFEATED — CHOOSE A REWARD';
         onEncounterBeaten(encounter, b);
         encounter = null;
         if (b.final && !run.endless) {
@@ -1872,7 +2010,7 @@ function updateBoss(b, dt) {
     b.y += (home.y - b.y) * k;
   }
 
-  // cycle attack patterns (OMEGA picks at random)
+  // cycle attack patterns (the final boss picks at random)
   b.patternT += dt;
   if (b.patternT > 4.5) {
     b.patternT = 0; b.atkT = 0.6;
@@ -2047,7 +2185,9 @@ function update(dt) {
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   for (const s of stars) { s.y += s.z * dt * (state === 'play' && !paused ? 0.25 : 0.08); if (s.y > 1) { s.y = 0; s.x = Math.random(); } }
   if (state !== 'play' || paused) { updateParticles(dt); return; }
-
+  time += dt;
+  // how much boss damage the team is putting out per second, smoothed over a few seconds (see firepowerHp)
+  run.dpsEst = (run.dpsEst || 0) + ((run.fireAcc || 0) / dt - (run.dpsEst || 0)) * Math.min(1, dt / 5); run.fireAcc = 0;
   const s = run.s;
   time += dt;
   if (hint) { hint.life -= dt; if (hint.life <= 0) hint = null; }
@@ -2768,8 +2908,194 @@ function drawDownedTwin(b) {
   ctx.restore();
 }
 
+// ----- THE ABYSS -----
+// overall scale: warp-in, slow breathing, recoil, flinch, phase-change throb, death shrink
+function abyssScale(b) {
+  let sc = 1 + Math.sin(b.t * 1.4) * 0.035 + b.kick * 0.08 - b.hitKick * 0.04;
+  if (!b.entered) sc *= 0.3 + 0.7 * easeOut(b.intro);
+  if (b.rage > 0) sc *= 1 + Math.sin(b.rage * 30) * 0.06;
+  if (b.dying > 0) sc *= 1 - (1 - b.dying / DEATH_TIME) * 0.35;
+  return sc;
+}
+// the body's ragged outline: a lumpy, slowly heaving mass
+function abyssBlob(b, r, t) {
+  ctx.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const a = i / 48 * Math.PI * 2;
+    const rr = r * (1 + Math.sin(a * 5 + t * 1.7) * 0.06 + Math.sin(a * 9 - t * 2.3) * 0.04 + Math.sin(a * 3 - t * 0.8) * 0.05);
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+}
+// eyes all over its body: a few at first, more open each phase; they all stare at you
+const ABYSS_EYES = [[-0.55, -0.45, 0.13], [0.55, -0.45, 0.13], [-0.68, 0.08, 0.1], [0.68, 0.08, 0.1],
+  [-0.38, 0.55, 0.09], [0.38, 0.55, 0.09], [0, -0.72, 0.1], [-0.2, -0.62, 0.07], [0.2, -0.62, 0.07]];
+function drawAbyssEyes(b) {
+  const t = b.t, sc = abyssScale(b), r = b.r, deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  const open = b.dying > 0 ? Math.max(0, 1 - deathP * 1.5) : b.entered ? 1 : b.intro;
+  const small = b.phase >= 3 ? ABYSS_EYES.length : b.phase >= 2 ? 6 : 2;
+  ctx.save(); ctx.translate(b.x, b.y); ctx.scale(sc, sc);
+  const eye = (x, y, rad, k, main) => {
+    const blink = (t * (0.4 + k * 0.07) + k * 0.37) % 4 < 0.12 ? 0.08 : 1;
+    const h = rad * 0.62 * open * blink * (main && b.rage > 0 ? 1.3 : 1);
+    if (h < 0.5) return;
+    glow(b.color, main ? 40 : 18); ctx.fillStyle = b.flash > 0 ? '#ffffff' : main ? '#ff2a3a' : '#d0102a';
+    ctx.beginPath(); ctx.ellipse(x, y, rad, h, 0, 0, Math.PI * 2); ctx.fill();
+
+    // a glowing ring, then a black slit pupil that follows you
+    ctx.shadowBlur = 0; ctx.fillStyle = '#ffb3a0';
+    ctx.beginPath(); ctx.ellipse(x + b.look.x * rad * 0.3, y + b.look.y * h * 0.3, rad * 0.45, Math.min(h, rad * 0.45), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(x + b.look.x * rad * 0.35, y + b.look.y * h * 0.35, rad * (main ? 0.1 : 0.14), Math.min(h * 0.9, rad * 0.5), 0, 0, Math.PI * 2); ctx.fill();
+  };
+  ABYSS_EYES.slice(0, small).forEach(([ex, ey, er], k) => eye(ex * r, ey * r, er * r, k + 1, false));
+  eye(0, -r * 0.08, r * 0.36, 0, true);
+  // the maw: a ragged mouth of teeth tearing open beneath the great eye
+  const mawOpen = b.maw > 0 || b.mawN > 0 ? Math.min(1, b.mawN > 0 && b.maw <= 0.32 ? 1 : 1.1 - b.maw) : 0;
+  if (mawOpen > 0) {
+    const mw = r * 0.55, mh = r * 0.3 * mawOpen, my = r * 0.42;
+    glow(b.color, 30); ctx.fillStyle = '#000'; ctx.strokeStyle = b.color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffe8e0'; ctx.shadowBlur = 0;
+    for (let i = 0; i < 9; i++) { // fangs, top and bottom
+      const x = -mw * 0.85 + i / 8 * mw * 1.7, tw = mw * 0.09;
+      ctx.beginPath(); ctx.moveTo(x - tw, my - mh * 0.9); ctx.lineTo(x + tw, my - mh * 0.9); ctx.lineTo(x, my - mh * 0.9 + mh * 0.75); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x - tw, my + mh * 0.9); ctx.lineTo(x + tw, my + mh * 0.9); ctx.lineTo(x, my + mh * 0.9 - mh * 0.75); ctx.fill();
+    }
+    glow(b.color, 25); ctx.fillStyle = hexA(b.color, 0.5 + Math.sin(t * 30) * 0.2);
+    ctx.beginPath(); ctx.ellipse(0, my, mw * 0.35, mh * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawAbyss(b) {
+  const t = b.t, r = b.r, sc = abyssScale(b), deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  const rim = b.flash > 0 ? '#ffffff' : b.color;
+  ctx.save();
+  ctx.globalAlpha = b.entered ? 1 : 0.3 + 0.7 * b.intro;
+  // a shadow that swallows the light around it
+  const aura = ctx.createRadialGradient(b.x, b.y, r * 0.5, b.x, b.y, r * 3.2 * sc);
+  aura.addColorStop(0, 'rgba(0,0,0,0.85)'); aura.addColorStop(0.6, 'rgba(10,0,4,0.45)'); aura.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(b.x, b.y, r * 3.2 * sc, 0, Math.PI * 2); ctx.fill();
+  // tentacles: a red-rimmed silhouette, then black flesh, suckers and a hooked claw
+  ctx.lineCap = 'round';
+  for (let i = 0; i < TENT_N; i++) {
+    const pts = tentPoints(b, i), T = b.tents[i], hot = T[2] === 2 || T[2] === 1;
+    ctx.strokeStyle = hexA(hot ? '#ff4d5d' : rim, hot ? 0.9 : 0.6);
+    for (let k = 1; k < pts.length; k++) {
+      ctx.lineWidth = tentWidth(b, k) + (hot ? 6 : 4);
+      ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
+    }
+    ctx.strokeStyle = '#000';
+    for (let k = 1; k < pts.length; k++) {
+      ctx.lineWidth = tentWidth(b, k);
+      ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
+    }
+    ctx.fillStyle = hexA(b.color, 0.75);
+    for (let k = 2; k < pts.length - 1; k += 2) { ctx.beginPath(); ctx.arc(pts[k][0], pts[k][1], tentWidth(b, k) * 0.16 + 0.8, 0, Math.PI * 2); ctx.fill(); }
+    const [tx, ty] = pts[pts.length - 1], [px, py] = pts[pts.length - 2], ta = Math.atan2(ty - py, tx - px);
+    ctx.strokeStyle = '#ffd0c8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + Math.cos(ta) * 9, ty + Math.sin(ta) * 9, tx + Math.cos(ta + 1.9) * 7, ty + Math.sin(ta + 1.9) * 7); ctx.stroke();
+  }
+  // the body: a heaving black mass with a red rim and pulsing veins
+  const jit = b.dying > 0 ? 2 + deathP * 10 : b.rage > 0 ? 6 : 0;
+  ctx.translate(b.x + (Math.random() - 0.5) * jit, b.y + (Math.random() - 0.5) * jit); ctx.scale(sc, sc);
+  glow(rim, 30 + (b.phase || 1) * 8); ctx.fillStyle = '#000'; ctx.strokeStyle = rim; ctx.lineWidth = 3;
+  abyssBlob(b, r, t); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 7; i++) {
+    const a = i / 7 * Math.PI * 2 + 0.3, pulse = 0.25 + (Math.sin(t * 2.6 - i) * 0.5 + 0.5) * 0.35 * (b.phase || 1);
+    ctx.strokeStyle = hexA(b.color, Math.min(0.9, pulse));
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
+    ctx.quadraticCurveTo(Math.cos(a + 0.35) * r * 0.7, Math.sin(a + 0.35) * r * 0.7, Math.cos(a + 0.1) * r * 0.95, Math.sin(a + 0.1) * r * 0.95);
+    ctx.stroke();
+  }
+  if (b.dying > 0) { // splitting apart, light pouring out of the cracks
+    ctx.strokeStyle = '#ffffff'; glow(b.color, 25); ctx.lineWidth = 2.5;
+    for (const k of b.cracks) {
+      const L = r * k.len * Math.min(1, deathP * 1.6);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(k.a) * L * 0.5, Math.sin(k.a) * L * 0.5);
+      ctx.lineTo(Math.cos(k.a + k.bend) * L, Math.sin(k.a + k.bend) * L); ctx.stroke();
+    }
+  }
+  ctx.restore();
+  drawAbyssEyes(b);
+}
+// warnings for its attacks (also drawn on top of the darkness, so they're always fair)
+function drawAbyssWarnings(b) {
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.lineCap = 'round';
+  b.tents.forEach((T, i) => { // where a tentacle is about to lash
+    if (T[2] !== 1) return;
+    const root = tentRoot(b, i), rx = b.x + Math.cos(root) * b.r * 0.75, ry = b.y + Math.sin(root) * b.r * 0.75;
+    ctx.strokeStyle = b.color; ctx.globalAlpha = 0.35 + (Math.floor(t * 14) % 2) * 0.45; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + Math.cos(T[0]) * T[4], ry + Math.sin(T[0]) * T[4]); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  for (const [x, age] of b.erupt) { // cracks in the floor, then the tentacle bursting up
+    if (age < 0) continue;
+    if (age < ERUPT_WARN) {
+      const k = age / ERUPT_WARN;
+      ctx.globalAlpha = 0.15 + k * 0.25; ctx.fillStyle = b.color; ctx.fillRect(x - ERUPT_W / 2, H * 0.42, ERUPT_W, H * 0.58);
+      ctx.globalAlpha = 0.6 + k * 0.4; ctx.strokeStyle = b.color; ctx.lineWidth = 2; glow(b.color, 15);
+      ctx.beginPath();
+      for (let j = -3; j <= 3; j++) { ctx.moveTo(x, H); ctx.lineTo(x + j * 9 * (0.5 + k), H - 14 - Math.abs(j) * 2 - k * 22); }
+      ctx.stroke(); ctx.shadowBlur = 0;
+    } else {
+      const h = eruptHeight(age); if (h <= 0) continue;
+      const top = H - h;
+      ctx.globalAlpha = 1;
+      for (const pass of [0, 1]) { // red rim, then black flesh, writhing as it rises
+        ctx.strokeStyle = pass ? '#000' : hexA(b.color, 0.8);
+        ctx.beginPath(); ctx.moveTo(x, H + 10);
+        for (let j = 1; j <= 10; j++) ctx.lineTo(x + Math.sin(t * 9 + j * 0.8) * 7 * (j / 10), H + 10 - (h + 10) * j / 10);
+        ctx.lineWidth = ERUPT_W * 0.8 + (pass ? 0 : 5); ctx.stroke();
+      }
+      ctx.fillStyle = '#ffd0c8'; // claw at the tip
+      ctx.beginPath(); ctx.moveTo(x - 9, top + 6); ctx.lineTo(x, top - 14); ctx.lineTo(x + 9, top + 6); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+// phase 2+: darkness everywhere except a pool of light around each player
+let darkCv = null;
+function drawAbyssDark() {
+  const b = bosses.find(o => o.gimmick === 'abyss');
+  if (!b || !(b.dark > 0.01)) return;
+  darkCv ||= document.createElement('canvas');
+  const w = Math.ceil(W), h = Math.ceil(H);
+  if (darkCv.width !== w || darkCv.height !== h) { darkCv.width = w; darkCv.height = h; }
+  const d = darkCv.getContext('2d');
+  d.globalCompositeOperation = 'source-over'; d.clearRect(0, 0, w, h);
+  d.fillStyle = `rgba(2,0,3,${0.94 * Math.min(1, b.dark) * (b.dying > 0 ? b.dying / DEATH_TIME : 1)})`; d.fillRect(0, 0, w, h);
+  d.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, R) => {
+    const g = d.createRadialGradient(x, y, R * 0.3, x, y, R);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    d.fillStyle = g; d.beginPath(); d.arc(x, y, R, 0, Math.PI * 2); d.fill();
+  };
+  const R = (b.darkR || 180) * (1 + Math.sin(time * 3) * 0.05);
+  for (const p of living()) hole(p.x, p.y, R);
+  for (const p of players) if (!p.alive && p.wreck) hole(p.wreck.x, p.wreck.y, 70); // so teammates can find you
+  for (const k of pickups) hole(k.x, k.y, 40);
+  ctx.drawImage(darkCv, 0, 0, W, H);
+  // tentacles show as faint red outlines writhing in the dark (they still hurt, so you must be able to see them)
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = hexA(b.color, 0.45); ctx.lineWidth = 2;
+  for (let i = 0; i < TENT_N; i++) {
+    const pts = tentPoints(b, i);
+    ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  }
+  ctx.restore();
+  // what still shows in the dark: its eyes, its warnings, and the red glint of its ink
+  drawAbyssEyes(b); // (again, above the dark)
+  drawAbyssWarnings(b);
+  ctx.save(); ctx.strokeStyle = hexA(b.color, 0.6); ctx.lineWidth = 1.5; ctx.beginPath();
+  for (const e of eBullets) { const r = e.r || 5; ctx.moveTo(e.x + r, e.y); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); }
+  ctx.stroke(); ctx.restore();
+}
+
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
+  if (b.style === 'abyss') { drawAbyss(b); return; }
   const enraged = isEnraged(b);
   const c = b.flash > 0 ? '#ffffff' : b.color;
   const t = b.t, rot = bossRot(b);
@@ -2995,22 +3321,6 @@ function drawBossDecor(b, layer, c, enraged) {
       }
       break;
     }
-    case 'omega': // counter-rotating rings and orbiting mini-cores
-      if (layer === 'back') {
-        ctx.lineWidth = 1.5;
-        polygon(b.sides, r * 1.6, b.spin * 0.5); ctx.stroke();
-        ctx.setLineDash([8, 10]); ctx.beginPath(); ctx.arc(0, 0, r * 1.9, t, t + Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-      } else {
-        for (let i = 0; i < 4; i++) {
-          const a = t * 1.5 * fast + i * Math.PI / 2, x = Math.cos(a) * r * 1.9, y = Math.sin(a) * r * 1.9;
-          ctx.globalAlpha *= 0.3; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(x, y); ctx.stroke();
-          ctx.globalAlpha /= 0.3;
-          ctx.fillStyle = i % 2 ? '#ffffff' : c;
-          ctx.beginPath(); ctx.arc(x, y, 7 + Math.sin(t * 6 + i) * 2, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-      break;
   }
   ctx.lineCap = 'butt';
 }
@@ -3089,6 +3399,7 @@ function drawGimmick(b) {
         label('STUNNED — ×2 DAMAGE', '#ffe93d', b.y + b.r * 1.5);
       }
       break;
+    case 'abyss': drawAbyssWarnings(b); break;
     case 'storm':
       for (const s of b.strikes || []) {
         const [x, y, age] = s;
@@ -3115,24 +3426,6 @@ function drawGimmick(b) {
         }
       }
       break;
-    case 'breach': { // armor plates around the core, with one open gap
-      const a0 = b.breachA ?? Math.PI / 2, R = b.r * 1.35;
-      glow(b.color, 15); ctx.strokeStyle = b.color; ctx.lineWidth = 7; ctx.globalAlpha = 0.85;
-      const plates = 7, span = (Math.PI * 2 - BREACH_HALF * 2) / plates;
-      for (let i = 0; i < plates; i++) {
-        const s = a0 + BREACH_HALF + i * span;
-        ctx.beginPath(); ctx.arc(b.x, b.y, R, s + 0.05, s + span - 0.05); ctx.stroke();
-      }
-      // the breach: a pulsing white opening with arrows pointing in
-      const pulse = 0.5 + Math.sin(t * 8) * 0.5;
-      glow('#ffffff', 25); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + pulse * 0.5;
-      ctx.beginPath(); ctx.arc(b.x, b.y, R, a0 - BREACH_HALF, a0 + BREACH_HALF); ctx.stroke();
-      for (const d of [-0.3, 0, 0.3]) {
-        const a = a0 + d, r1 = R + 14 + pulse * 6;
-        ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * (r1 + 10), b.y + Math.sin(a) * (r1 + 10)); ctx.lineTo(b.x + Math.cos(a) * r1, b.y + Math.sin(a) * r1); ctx.stroke();
-      }
-      break;
-    }
   }
   ctx.restore();
 }
@@ -3234,7 +3527,7 @@ function drawWorld() {
   drawEncounterFx();
   for (const bo of bosses) drawBoss(bo);
   for (const bo of bosses) drawGimmick(bo);
-  const shots = [];
+  const shots = [], ink = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
     if (b.fuse !== undefined) { // mine: pulsing ring that blinks faster as it's about to burst
@@ -3244,9 +3537,15 @@ function drawWorld() {
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.4, 0, Math.PI * 2); ctx.fill();
       continue;
     }
+    if (c === ABYSS_INK) { ink.push(b); continue; }
     shots.push({ x: b.x, y: b.y, r: b.r || 5, color: c });
   }
   drawGlowDots(shots);
+  if (ink.length) { // THE ABYSS's ink: black drops with a red rim
+    ctx.save(); glow('#ff1f3d', 12); ctx.fillStyle = '#000'; ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 2; ctx.beginPath();
+    for (const b of ink) { const r = b.r || 5; ctx.moveTo(b.x + r, b.y); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); }
+    ctx.fill(); ctx.stroke(); ctx.restore();
+  }
   drawPlayerBullets();
   for (const e of enemies) drawEnemyTelegraph(e);
   for (const e of enemies) drawEnemy(e);
@@ -3401,7 +3700,7 @@ function drawMenu() {
   title('NEON DRIFT', top - 90);
   fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
-  // run type toggle: Standard (win by destroying OMEGA CORE) or Endless (cycles + stacking mutators)
+  // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators)
   const endless = runType === 'endless';
   button(endless ? 'RUN: ENDLESS  ∞  [E]' : 'RUN: STANDARD  [E]', bx, top, bw, 36, endless ? '#ff9a3d' : '#9ab', toggleRunType);
   const cy = top + 46;
@@ -3642,7 +3941,7 @@ function drawOver() {
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   const lines = [
     [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, run.endless).toLocaleString()}${run.endless ? ' (Endless)' : ''}`, '#cde', 18],
-    [run.victory ? `OMEGA CORE destroyed  ·  +◆ ${VICTORY_BONUS} victory bonus`
+    [run.victory ? `THE ABYSS destroyed  ·  +◆ ${VICTORY_BONUS} victory bonus`
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
     [`+◆ ${run.earned} shards   (total ◆ ${meta.shards})`, '#ffe93d', 18],
@@ -3818,6 +4117,7 @@ function draw() {
   if (state === 'play' || state === 'upgrade') drawWorld();
   // particles shrink as they fade, so they can all be batched without per-particle alpha
   drawGlowDots(particles.map(p => ({ x: p.x, y: p.y, r: p.size * 0.55 * Math.max(0.15, p.life / p.max), color: p.color })), false);
+  if (state === 'play' || state === 'upgrade') drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
   ctx.restore();
   ctx.shadowBlur = 0;
   if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); }
@@ -4013,7 +4313,8 @@ const roundDeep = v => typeof v === 'number' ? r2(v) : Array.isArray(v) ? v.map(
 const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
-  'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split', 'breachA']; // (gimmicks)
+  'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
+  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase']; // (gimmicks)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain') o[k] = roundDeep(b[k]); }
