@@ -14,12 +14,13 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
-- **P / Esc:** pause · **M:** music on/off
+- **P / Esc:** pause · **M:** music on/off · **1–4:** quick chat (online)
 - Local co-op: 2P = WASD + arrows/mouse · 3P = mouse, WASD, arrows · 4P adds IJKL
 
 ## Features
 
 9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 16 enemy types · 12 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
-Standard & Endless modes · Hangar unlocks · 32 achievements · procedural music
+8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
+Standard & Endless modes · 15 Hangar upgrades · 33 achievements · online quick chat (1–4) · procedural music
 
 The whole game is a single file: `index.html`.
