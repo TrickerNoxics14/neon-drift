@@ -393,6 +393,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyO' && state === 'menu') go('settings');
     if (e.code === 'KeyT' && state === 'menu') go('achievements');
     if (e.code === 'KeyE' && state === 'menu') toggleRunType();
+    if (e.code === 'KeyE' && state === 'over' && run?.victory && net.role !== 'guest') continueEndless();
     if (e.code === 'KeyN' && state === 'menu') go('online');
   } else if (state === 'upgrade') {
     if (num >= 1 && num <= offer.cards.length) pickUpgrade(num - 1);
@@ -740,13 +741,15 @@ const CONTROL_HINTS = {
 };
 let popups = [], hurtFlash = 0, hint = null;
 
+// shards for the run so far: mostly from progress (sectors, bosses), a little from score so combos still matter
+const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * 50
+  + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')));
 // victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
   paused = false;
   run.victory = victory;
-  // shards: mostly from progress (sectors, bosses), a little from score so combos still matter
-  const earned = Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * 50 + (victory ? VICTORY_BONUS : 0)
-    + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')));
+  // (a won Standard run that went on into Endless was already paid for its first part)
+  const earned = Math.max(0, runShards() - (run.paid || 0));
   run.earned = earned; meta.shards += earned; saveMeta();
   if (meta.shards >= 1000) unlockAch('hoarder');
   const prev = bestOf(mode, run.endless);
@@ -760,6 +763,16 @@ function endRun(victory = false) {
   go('over');
 }
 const VICTORY_BONUS = 250;
+// a won Standard run can carry on as Endless: same ships, upgrades and score, with the first mutator added
+function continueEndless() {
+  run.paid = (run.paid || 0) + run.earned; // the Standard finish has already been paid out
+  run.endless = true; run.victory = false; run.wonStandard = true; run.victoryT = 0;
+  const alive = living();
+  for (const p of players) { if (!p.alive) revive(p, alive[0]); p.inv = 2; }
+  paused = false; eBullets = []; lasers = [];
+  const m = startNextCycle();
+  openUpgrade(`ENDLESS BEGINS — NEW MUTATOR: ${m.name}`, true);
+}
 
 // ---------- endless mode mutators: one is added each time a cycle is completed (they can stack) ----------
 const MUTATORS = [
@@ -3952,19 +3965,27 @@ function drawOver() {
   const build = UPGRADES.filter(u => run.owned[u.id]).map(u => run.owned[u.id] > 1 ? `${u.name} ×${run.owned[u.id]}` : u.name).join(' · ');
   ctx.font = '12px system-ui';
   wrap(build || 'No upgrades taken', Math.min(600, W - 32)).slice(0, 2).forEach((l, i) => fitText(l, cy + 162 + i * 18, 12, '#789'));
-  const bw = Math.min(260, W - 32), bx = (W - bw) / 2, by = cy + 214;
+  const bw = Math.min(260, W - 32), bx = (W - bw) / 2;
+  let by = cy + 214;
+  const again = run.victory ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
+  // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
+  if (run.victory && net.role !== 'guest') {
+    button('CONTINUE INTO ENDLESS  [E]', bx, by, bw, 44, '#ff9a3d', continueEndless);
+    fitText('Keep your ships, upgrades and score', by + 58, 12, '#c9a07a');
+    by += 76;
+  }
   if (net.role === 'guest') { // online: the host decides what's next
     fitText('Waiting for the host…', by + 14, 15, '#9ab');
     button('LEAVE GAME', bx, by + 40, bw, 40, '#ff5a70', () => leaveOnline('You left the game'));
     return;
   }
   if (net.role === 'host') {
-    button('RUN AGAIN  [Space]', bx, by, bw, 40, '#7df9ff', () => startOnline());
+    button(again, bx, by, bw, 40, '#7df9ff', () => startOnline());
     button('BACK TO LOBBY', bx, by + 48, bw, 40, '#9dff5d', backToLobby);
     button('CLOSE ROOM', bx, by + 96, bw, 40, '#ff5a70', () => leaveOnline());
     return;
   }
-  button('RUN AGAIN  [Space]', bx, by, bw, 40, '#7df9ff', () => start(mode, run.ships));
+  button(again, bx, by, bw, 40, '#7df9ff', () => start(mode, run.ships));
   button('CHANGE SHIP', bx, by + 48, bw, 40, '#9dff5d', () => openShipSelect(mode));
   button('HANGAR  [H]', bx, by + 96, bw, 40, '#ffe93d', () => go('hangar'));
   button('MAIN MENU', bx, by + 144, bw, 40, '#9ab', () => go('menu'));
@@ -4287,7 +4308,7 @@ function packSnap() {
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
     rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed },
-    ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, rr: run.rerolls,
+    ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
@@ -4413,7 +4434,7 @@ function applySnap(s) {
   paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t;
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
   Object.assign(run.s, s.rs);
-  Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr });
+  Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr, wonStandard: !!s.ws });
   s.pl.forEach((a, i) => {
     const p = players[i]; if (!p) return;
     const mine = i === net.myId, wasAlive = p.alive;
@@ -4463,10 +4484,10 @@ function applySnap(s) {
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
   popups = s.pp.map(a => ({ x: a[0], y: a[1], text: a[2], life: a[3], hot: !!a[4], color: a[5] || undefined }));
   for (const ev of s.ev) replayEvent(ev);
+  if (net.rewarded && state !== 'over') { net.rewarded = false; run.paid = (run.paid || 0) + run.earned; } // the host carried on into Endless
   if (state === 'over' && !net.rewarded) { // guests earn shards too
     net.rewarded = true;
-    run.earned = Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * 50 + (run.victory ? VICTORY_BONUS : 0)
-      + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')));
+    run.earned = Math.max(0, runShards() - (run.paid || 0));
     meta.shards += run.earned; saveMeta();
   }
 }
