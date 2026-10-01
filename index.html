@@ -117,7 +117,7 @@ function startMusic() {
 }
 // 0 = menus (dreamy), 1 = playing (driving), 2 = boss (faster arp, snare, darker chords)
 function musicIntensity() {
-  if (state === 'play' || state === 'upgrade') return bosses.length || bossWarn > 0 ? 2 : 1;
+  if (inRun()) return bosses.length || bossWarn > 0 ? 2 : 1;
   return 0;
 }
 function scheduleMusic() {
@@ -168,7 +168,7 @@ function musicStep(s, t) {
 // muffle the music while paused / choosing upgrades / on the results screen
 function updateMusicFilter() {
   if (!ac) return;
-  const target = paused || state === 'upgrade' || state === 'over' ? 700 : 18000;
+  const target = paused || state === 'upgrade' || state === 'shop' || state === 'over' ? 700 : 18000;
   if (target !== music.cutoff) { music.cutoff = target; musicFilter.frequency.setTargetAtTime(target, ac.currentTime, 0.15); }
 }
 
@@ -224,6 +224,7 @@ const ACHIEVEMENTS = [
   { id: 'aegis',       cat: 'boss', name: 'Shield Breaker',       reward: 100, desc: 'Defeat Aegis & Blade.' },
   { id: 'triad',       cat: 'boss', name: 'Divide and Conquer',   reward: 100, desc: 'Defeat The Triad.' },
   { id: 'starved',     cat: 'boss', name: 'Starved',              reward: 150, desc: 'Defeat The Leech without letting a single blood orb heal it.' },
+  { id: 'zero',        cat: 'boss', name: 'Divide by Zero',       reward: 400, desc: 'Find and defeat the secret boss.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
   { id: 'squad',       cat: 'team', name: 'Full Squad',           reward: 50,  desc: 'Start a 4-player co-op run.' },
@@ -263,6 +264,7 @@ const RARITY = {
   common: { color: '#aab8cc', w: 60, label: 'COMMON' },
   rare:   { color: '#3d9dff', w: 30, label: 'RARE' },
   epic:   { color: '#c05dff', w: 10, label: 'EPIC' },
+  evo:    { color: '#ffd23d', w: 0, label: 'EVOLUTION' }, // never rolled at random (see rollCards)
 };
 const UPGRADES = [
   { id: 'rate',     name: 'Overclock',        r: 'common', max: 5, desc: 'Fire 20% faster',                        apply: s => s.fireDelay *= 0.8 },
@@ -303,6 +305,23 @@ const UPGRADES = [
     when: () => run.s.maxLives > 1,
     apply: s => { s.dmg *= 2; s.maxLives = Math.max(1, s.maxLives - 2); for (const p of players) p.lives = Math.min(p.lives, maxLivesOf(p)); } },
   { id: 'phoenix',  name: 'Phoenix Core',     r: 'epic',   max: 1, desc: 'Survive one fatal hit, blasting the screen clear', apply: s => s.phoenix++ },
+  // evolutions: offered (always as the first card) once you own both ingredients at the listed levels
+  { id: 'evo_halo', name: 'Storm Halo', r: 'evo', max: 1, needs: [['blades', 2], ['chain', 1]],
+    desc: '+1 blade, and your blades crackle with chain lightning', apply: s => { s.blades++; s.stormHalo = 1; } },
+  { id: 'evo_hell', name: 'Bullet Hell', r: 'evo', max: 1, needs: [['rate', 3], ['shots', 2]],
+    desc: 'Every 5th volley also fires a full ring of bullets', apply: s => { s.bulletHell = 1; } },
+  { id: 'evo_inferno', name: 'Inferno Barrage', r: 'evo', max: 1, needs: [['missiles', 2], ['explosive', 1]],
+    desc: 'Missiles launch twice as fast, with twice the blast radius', apply: s => { s.inferno = 1; } },
+  { id: 'evo_phantom', name: 'Phantom Rounds', r: 'evo', max: 1, needs: [['homing', 1], ['pierce', 2]],
+    desc: 'Bullets pierce 3 more enemies and hunt much harder', apply: s => { s.pierce += 3; s.homing++; } },
+  { id: 'evo_zero', name: 'Absolute Zero', r: 'evo', max: 1, needs: [['cryo', 2], ['chrono', 1]],
+    desc: 'Frozen enemies shatter into ice shards; enemy bullets 15% slower', apply: s => { s.absZero = 1; s.chrono *= 0.85; } },
+  { id: 'evo_angel', name: 'Guardian Angel', r: 'evo', max: 1, needs: [['aegis', 2], ['phase', 1]],
+    desc: 'Shields recharge twice as fast and explode into bullets when they break', apply: s => { s.angel = 1; } },
+  { id: 'evo_swarm', name: 'Drone Swarm', r: 'evo', max: 1, needs: [['drone', 2], ['rear', 1]],
+    desc: '+2 drones, and all your drones fire twice as fast', apply: s => { s.drones += 2; s.swarm = 1; } },
+  { id: 'evo_vamp', name: 'Vampire Rounds', r: 'evo', max: 1, needs: [['crit', 2], ['siphon', 1]],
+    desc: 'Crits deal 5x damage, and Siphon heals twice as often', apply: s => { s.vampire = 1; } },
 ];
 const SIPHON_KILLS = [0, 40, 28, 18];
 
@@ -316,9 +335,15 @@ function newStats() {
 
 // how likely a card is to be offered (Loaded Deck makes rare and epic cards more common)
 const cardWeight = u => RARITY[u.r].w * (u.r === 'common' ? 1 : 1 + 0.35 * metaLv('cards'));
-function rollCards(n, bossReward) {
-  const pool = UPGRADES.filter(u => (run.owned[u.id] || 0) < u.max && (!u.when || u.when()) && (!bossReward || u.r !== 'common'));
-  const out = [];
+// evolutions whose ingredients you own (at the needed levels) and haven't taken yet
+const EVOLUTIONS = UPGRADES.filter(u => u.r === 'evo');
+const evoReady = () => EVOLUTIONS.filter(u => !run.owned[u.id] && u.needs.every(([id, lv]) => (run.owned[id] || 0) >= lv));
+// the evolutions a card leads to: [[evolution, the other ingredient], ...] (for the hint on upgrade cards)
+const evoHints = u => EVOLUTIONS.filter(e => !run.owned[e.id] && e.needs.some(([id]) => id === u.id))
+  .map(e => [e, UPGRADES.find(x => x.id === e.needs.find(([id]) => id !== u.id)[0])]);
+function rollCards(n, bossReward, noEvo) {
+  const pool = UPGRADES.filter(u => u.r !== 'evo' && (run.owned[u.id] || 0) < u.max && (!u.when || u.when()) && (!bossReward || u.r !== 'common'));
+  const out = noEvo ? [] : evoReady().slice(0, 1); // a ready evolution always takes the first slot
   while (out.length < n && pool.length) {
     const total = pool.reduce((t, u) => t + cardWeight(u), 0);
     let roll = Math.random() * total, i = 0;
@@ -334,12 +359,17 @@ function applyUpgrade(u) {
   const held = UPGRADES.filter(x => run.owned[x.id] > 0);
   if (held.length >= 12) unlockAch('arsenal');
   if (held.filter(x => x.r === 'epic').length >= 3) unlockAch('epic3');
+  if (u.r === 'evo') { // fanfare
+    fxText(`EVOLVED: ${u.name.toUpperCase()}`, W / 2, H * 0.38, RARITY.evo.color, 30, 2.2); screenFlash = Math.max(screenFlash, 0.4);
+    [392, 523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.07), i * 70));
+  }
 }
 
 function healAll(n) { for (const p of players) if (p.alive) p.lives = Math.min(maxLivesOf(p), p.lives + n); }
 
 let offer = null, pendingBoss = false;
 function openUpgrade(title, bossReward) {
+  if (bossReward) run.shopNext = true;
   const cards = rollCards(metaLv('choice') ? 4 : 3, bossReward);
   if (!cards.length) { resumeAfterUpgrade(); return; }
   offer = { title, bossReward, cards };
@@ -361,16 +391,54 @@ function reroll() {
   beep(400, 0.15, 'square', 0.05, 200);
 }
 function resumeAfterUpgrade() {
-  offer = null; go('play');
+  offer = null;
+  if (run.shopNext) { run.shopNext = false; openShop(); return; } // the merchant visits after each boss
+  go('play');
   if (run.s.sectorSpread) for (const p of living()) p.power = Math.max(p.power, run.s.sectorSpread); // Overcharge
   if (pendingBoss) { pendingBoss = false; bossWarn = 3; bossCount++; beep(110, 0.6, 'square', 0.06); }
   else if (levelT === 0) fxText(`SECTOR ${level}`, W / 2, H * 0.4, '#7df9ff', 30, 1.4);
+}
+
+// ---------- mid-run shop: after each boss reward a merchant sells upgrades and supplies for coins ----------
+// (coins drop from every kill and every boss; the whole team shares them)
+const SHOP_GOODS = {
+  heal:   { name: 'Repair Kit',  desc: 'Everyone heals 1 life',  color: '#ff6fb5', price: 40, apply: () => healAll(1),
+    when: () => players.some(p => p.alive && p.lives < maxLivesOf(p)) },
+  shield: { name: 'Shield Cell', desc: 'Everyone gets a shield', color: '#7df9ff', price: 30, apply: () => { for (const p of living()) p.shield = 1; } },
+  reroll: { name: 'Reroll Chip', desc: '+1 upgrade reroll',      color: '#ffe93d', price: 45, apply: () => { run.rerolls++; } },
+};
+const CARD_PRICES = { common: 70, rare: 110, epic: 170 };
+let shop = null;
+// prices rise a little each visit, and with more players (more players = more kills = more coins)
+const shopMult = () => (1 + 0.15 * (run.shopVisits || 0)) * (1 + 0.3 * (mode - 1));
+function openShop() {
+  const k = shopMult();
+  shop = { items: [
+    ...rollCards(3, false, true).map(u => ({ kind: 'card', u, price: Math.round(CARD_PRICES[u.r] * k) })),
+    ...Object.keys(SHOP_GOODS).map(kind => ({ kind, price: Math.round(SHOP_GOODS[kind].price * k) })),
+  ] };
+  run.shopVisits = (run.shopVisits || 0) + 1;
+  go('shop');
+  [330, 440, 554].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.05), i * 80));
+}
+function buyShop(i) {
+  if (net.role === 'guest') { net.host?.send({ buy: i }); return; } // the host runs the shop for everyone
+  const it = shop?.items[i], g = it && SHOP_GOODS[it.kind];
+  if (!it || it.sold || (run.coins || 0) < it.price || (g?.when && !g.when())) { beep(110, 0.15, 'square', 0.05); return; }
+  run.coins -= it.price; it.sold = true;
+  if (g) g.apply(); else applyUpgrade(it.u);
+  beep(988, 0.12, 'square', 0.04); setTimeout(() => beep(1319, 0.2, 'triangle', 0.05), 70);
+}
+function leaveShop() {
+  if (net.role === 'guest' || state !== 'shop') return;
+  shop = null; resumeAfterUpgrade();
 }
 
 // ---------- screens & buttons ----------
 let state = 'menu', paused = false;
 let buttons = [], sel = 0;
 function go(s) { state = s; sel = 0; buttons = []; }
+const inRun = () => state === 'play' || state === 'upgrade' || state === 'shop'; // in a run (the world is on screen)
 function moveSel(d) { if (buttons.length) sel = (sel + d + buttons.length) % buttons.length; }
 function activate() { buttons[sel]?.action(); }
 
@@ -387,6 +455,7 @@ addEventListener('keydown', e => {
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
   if (state === 'play') {
     if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; sel = 0; return; }
+    if (!paused && /^Digit[1-4]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; } // quick chat
     if (!paused) return;
     // fall through: arrows/WASD/Enter drive the pause menu
   }
@@ -405,6 +474,9 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyE' && state === 'menu') toggleRunType();
     if (e.code === 'KeyE' && state === 'over' && run?.victory && net.role !== 'guest') continueEndless();
     if (e.code === 'KeyN' && state === 'menu') go('online');
+  } else if (state === 'shop') {
+    if (num >= 1 && num <= shop.items.length) buyShop(num - 1);
+    if (e.code === 'Escape' || e.code === 'KeyL') leaveShop();
   } else if (state === 'upgrade') {
     if (num >= 1 && num <= offer.cards.length) pickUpgrade(num - 1);
     if (e.code === 'KeyR') reroll();
@@ -520,6 +592,11 @@ const BOSSES = [
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
     patterns: ['lash', 'ink', 'eruption', 'lash', 'maw', 'spiral', 'lash', 'eruption'] },
 ];
+// the secret boss: only in Endless, right after THE ABYSS falls (once you've beaten THE ABYSS at least once)
+const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero',
+  hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
+  patterns: ['grid', 'spiral', 'blink', 'grid', 'ring', 'fan', 'grid', 'mines'] };
+const SECRET_MIN_SECS = 55;
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
 const TEAMS = [
@@ -577,6 +654,7 @@ function encounterDef(n) {
   return run.bossOrder[(n - 1) % run.bossOrder.length];
 }
 function encounterInfo(n) {
+  if (run.secretNext) return { name: '???', final: true };
   const e = encounterDef(n);
   return e.team !== undefined ? { name: TEAMS[e.team].name, team: true } : { name: BOSSES[e.single].name, final: BOSSES[e.single].final };
 }
@@ -732,7 +810,7 @@ function start(m, ships) {
   score = 0; time = 0; levelT = 0; spawnT = 0; shake = 0; combo = 1; comboT = 0; level = 1;
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
   popups = []; hurtFlash = 0;
-  hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically' : CONTROL_HINTS[m], life: 5 };
+  hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · 1–4: quick chat' : CONTROL_HINTS[m], life: 5 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   if (metaLv('deflect')) for (const p of players) p.shield = 1;
@@ -893,10 +971,41 @@ function spawnEnemy() {
     for (let i = 1; i <= 7; i++) { const s = makeEnemy('segment', x, -20 - i * 12); s.head = head; s.idx = i; s.vx = s.vy = 0; }
   } else {
     const r = TYPES[type].r;
-    makeEnemy(type, r + Math.random() * (W - r * 2), -r * 2);
+    const e = makeEnemy(type, r + Math.random() * (W - r * 2), -r * 2);
+    if (level >= 3 && Math.random() < eliteChance()) makeElite(e);
   }
 }
 
+// ---------- elite enemies: rare, tougher versions with a special power; they always drop loot ----------
+const ELITES = {
+  armored:  { name: 'ARMORED',  color: '#ffd23d', desc: 'four times the health' },
+  swift:    { name: 'SWIFT',    color: '#7df9ff', desc: 'moves and shoots much faster' },
+  volatile: { name: 'VOLATILE', color: '#ff7a3d', desc: 'explodes into bullets' },
+  regen:    { name: 'REGEN',    color: '#5dff7a', desc: 'heals itself quickly' },
+  splitting:{ name: 'SPLITTING', color: '#ff5dc8', desc: 'splits in two when destroyed' },
+};
+const ELITE_LIST = Object.keys(ELITES);
+const eliteChance = () => Math.min(0.2, 0.025 + (level - 3) * 0.012);
+function makeElite(e) {
+  const pool = ELITE_LIST.filter(k => k !== 'splitting' || e.r < 22); // (no splitting tanks or carriers)
+  const k = pool[Math.floor(Math.random() * pool.length)];
+  e.elite = k; e.r = Math.round(e.r * 1.25); e.pts *= 3;
+  e.hp = e.maxHp = Math.max(4, Math.ceil(e.maxHp * (k === 'armored' ? 4 : 2.5)));
+  if (!run.seenElite) { run.seenElite = true; fxText('ELITE ENEMY — IT DROPS LOOT!', W / 2, H * 0.32, ELITES[k].color, 20, 2.4); }
+}
+// what happens when an elite dies (called from killEnemy)
+function eliteDeath(e) {
+  const k = e.elite;
+  run.coins = (run.coins || 0) + 10;
+  popups.push({ x: e.x, y: e.y - 22, text: '+10 ●', life: 1, color: '#ffd23d' });
+  pickups.push({ x: e.x, y: e.y, kind: ['power', 'shield', 'life'][Math.floor(Math.random() * 3)], t: 0 });
+  fxRing(e.x, e.y, e.r, e.r * 3, 0.4, ELITES[k].color, 4);
+  if (k === 'volatile') for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 170, vy: Math.sin(a) * 170, r: 5, color: ELITES[k].color }); }
+  if (k === 'splitting') for (const side of [-1, 1]) {
+    const m = makeEnemy(e.type, e.x + side * e.r, e.y);
+    m.vx = side * 90; m.hp = m.maxHp = Math.max(1, Math.ceil(e.maxHp / 5));
+  }
+}
 let enemyIdSeq = 0; // online guests match enemies between snapshots by id
 function makeEnemy(type, x, y) {
   const t = TYPES[type];
@@ -1137,7 +1246,7 @@ function fire(x, y, a, color, kind, p) {
   const s = run.s, m = p ? p.ship.mod : {}, crit = Math.random() < s.crit;
   const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
-  const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? 3 : 1) * (m.dmg || 1) * rage;
+  const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? (s.vampire ? 5 : 3) : 1) * (m.dmg || 1) * rage; // (Vampire Rounds: 5x crits)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
     pierce: kind === 'rail' ? 999 : kind === 'missile' ? 0 : s.pierce + (m.pierce || 0),
@@ -1174,6 +1283,7 @@ function damageEnemy(e, dmg, src) {
 function killEnemy(e, src) {
   const s = run.s;
   e.dead = true;
+  run.coins = (run.coins || 0) + (e.r >= 20 ? 3 : 1); // shop money (big enemies are worth more)
   const pts = addScore(e.pts * combo);
   popups.push({ x: e.x, y: e.y, text: '+' + pts.toLocaleString(), life: 0.8, hot: combo >= 4 });
   combo = Math.min(s.comboMax, combo + 1); comboT = s.comboTime;
@@ -1196,6 +1306,12 @@ function killEnemy(e, src) {
     fxText('FAKE!', e.x, e.y - e.r - 20, e.color, 24, 1.2);
   }
   if (e.type === 'pylon') fxRing(e.x, e.y, 6, 50, 0.3, e.color, 3);
+  if (e.elite) eliteDeath(e);
+  if (s.absZero && e.slow > 0) { // Absolute Zero evolution: frozen enemies shatter into ice shards
+    const off = Math.random() * Math.PI;
+    for (let k = 0; k < 6; k++) fire(e.x, e.y, off + k / 6 * Math.PI * 2, '#bfefff');
+    burst(e.x, e.y, '#bfefff', 12, 200);
+  }
   if (mut('volatile') && e.type !== 'bloodorb') { // Endless mutator: a parting ring of bullets
     const n = 5 + mut('volatile') * 2, off = Math.random() * Math.PI;
     for (let k = 0; k < n; k++) { const a = off + k / n * Math.PI * 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 130, vy: Math.sin(a) * 130, r: 4, color: '#ff9a3d' }); }
@@ -1209,7 +1325,7 @@ function killEnemy(e, src) {
   if (s.siphon) { // every N kills, heal whoever is lowest
     run.siphonKills = (run.siphonKills || 0) + 1;
     const p = living().filter(q => q.lives < maxLivesOf(q)).sort((a, b) => a.lives - b.lives)[0];
-    if (p && run.siphonKills >= SIPHON_KILLS[s.siphon]) {
+    if (p && run.siphonKills >= SIPHON_KILLS[s.siphon] / (s.vampire ? 2 : 1)) {
       run.siphonKills = 0; p.lives++;
       popups.push({ x: p.x, y: p.y - 34, text: '+♥', life: 1.2, hot: true });
       burst(p.x, p.y, '#ff6fb5', 20, 180); beep(760, 0.25, 'triangle', 0.06, 380);
@@ -1248,6 +1364,7 @@ function updateBlades() {
     for (const e of enemies) {
       if (e.dead || (e.bladeCd || 0) > time || Math.hypot(e.x - x, e.y - y) > e.r + 9) continue;
       e.bladeCd = time + 0.3; damageEnemy(e, dmg, 'blade'); burst(x, y, '#ffffff', 4, 120);
+      if (s.stormHalo && Math.random() < 0.5) chainLightning(x, y, 3, dmg); // Storm Halo evolution
     }
     for (const b of eBullets) if (!b.dead && b.fuse === undefined && Math.hypot(b.x - x, b.y - y) < (b.r || 5) + 9) { b.dead = true; burst(b.x, b.y, b.color || '#ff4d4d', 5, 100); }
     for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id), x, y); }
@@ -1302,11 +1419,20 @@ function makeBoss(def, x, hp, loop, side) {
 // this long against the team's measured firepower (roughly 60% of shots land on a boss in a real fight)
 const BOSS_MIN_SECS = 18, TEAM_MIN_SECS = 24, FINAL_MIN_SECS = 70, BOSS_HIT_RATE = 0.6;
 const firepowerHp = secs => (run.dpsEst || 0) * BOSS_HIT_RATE * secs * (1 + 0.3 * mut('titans'));
+// +40% per fight through the first cycle, then a gentler +20% so endless stays beatable
+const bossBaseHp = () => 180 * Math.pow(1.4, Math.min(bossCount - 1, BOSS_CYCLE - 1)) * Math.pow(1.2, Math.max(0, bossCount - BOSS_CYCLE))
+  * (1 + 0.4 * (mode - 1)) * (1 + 0.3 * mut('titans'));
 function spawnEncounter() {
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
-  // +40% per fight through the first cycle, then a gentler +20% so endless stays beatable
-  const baseHp = 180 * Math.pow(1.4, Math.min(bossCount - 1, BOSS_CYCLE - 1)) * Math.pow(1.2, Math.max(0, bossCount - BOSS_CYCLE)) * (1 + 0.4 * (mode - 1)) * (1 + 0.3 * mut('titans'));
+  const baseHp = bossBaseHp();
+  if (run.secretNext) { // ZERO, the secret boss (see the boss-defeat code)
+    run.secretNext = false;
+    encounter = { kind: 'single', name: SECRET_BOSS.name, secret: true };
+    bosses = [makeBoss(SECRET_BOSS, W / 2, Math.max(bossBaseHp() * SECRET_BOSS.hpMult, firepowerHp(SECRET_MIN_SECS)), loop, 0)];
+    hint = { text: SECRET_BOSS.hint, life: 7 }; screenFlash = 1; shake = 30;
+    return;
+  }
   if (e.single !== undefined) {
     const def = BOSSES[e.single];
     encounter = { kind: 'single', name: def.name, final: def.final };
@@ -1583,6 +1709,12 @@ const BOSS_ATTACKS = {
     b.drain = { target, t: 0, fill: 0, range: enraged ? 420 : 380 };
     b.atkT = 3.4 * rate; beep(90, 0.8, 'sawtooth', 0.06, 60);
   },
+  grid(b, enraged, rate) { // ZERO: a lattice of beams across the screen, with gaps to find
+    if (b.grid) return;
+    const lanes = (n, lo, hi) => Array.from({ length: n }, (_, i) => Math.round(lo + (hi - lo) * (i + 0.2 + Math.random() * 0.6) / n));
+    b.grid = { t: 0, v: lanes(enraged ? 4 : 3, 20, W - 20), h: lanes(enraged ? 3 : 2, H * 0.35, H - 30) };
+    b.atkT = 2.6 * rate; beep(1800, 0.4, 'square', 0.03, -1500);
+  },
   // ----- THE ABYSS -----
   lash(b, enraged, rate) { // tentacles lock onto players (red warning line), then whip out at them
     const targets = living(); if (!targets.length) return;
@@ -1629,6 +1761,7 @@ const BOSS_ATTACKS = {
 // each solo boss has one twist. update() returns 'hold' (no moving or attacking) or 'quiet' (no attacking);
 // dmg() scales damage taken (fx, fy = where the hit landed, when known)
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
+const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
 const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
 
 const ownerOf = (e, gimmick) => e.owner || bosses.find(b => b.gimmick === gimmick);
@@ -1733,6 +1866,21 @@ const GIMMICKS = {
     },
   },
   brood: {}, // all in the 'eggs' attack and the egg AI
+  zero: {
+    update(b, dt, enraged) {
+      if (b.grid) { // warn, then fire
+        const g = b.grid, before = g.t; g.t += dt;
+        if (before < GRID_WARN && g.t >= GRID_WARN) { shake = Math.max(shake, 8); beep(120, 0.35, 'sawtooth', 0.07, -40); }
+        if (g.t >= GRID_WARN) for (const p of living())
+          if (g.v.some(x => Math.abs(p.x - x) < GRID_W / 2 + p.r * 0.4) || g.h.some(y => Math.abs(p.y - y) < GRID_W / 2 + p.r * 0.4)) hurt(p);
+        if (g.t >= GRID_WARN + GRID_FIRE) b.grid = null;
+      }
+      // every so often the whole world turns inside out (colors invert) for a couple of seconds
+      if (b.inv > 0) { b.inv -= dt; if (b.inv <= 0) { b.inv = 0; b.invT = enraged ? 8 : 11; } }
+      else if (b.invW > 0) { b.invW -= dt; if (b.invW <= 0) { b.invW = 0; b.inv = 2.4; shake = Math.max(shake, 12); beep(60, 0.6, 'square', 0.08, 600); } }
+      else if ((b.invT = (b.invT ?? 9) - dt) <= 0) { b.invW = 0.9; fxText('ERROR', b.x, b.y - b.r - 30, '#ffffff', 26, 0.9); }
+    },
+  },
   abyss: {
     update(b, dt) {
       // three phases: at 66% the lights go out, at 33% it fully awakens
@@ -1936,7 +2084,12 @@ function updateBoss(b, dt) {
           // Standard run complete: let the explosion play out, then the victory screen
           run.victoryT = 2.4; players.forEach(p => { if (p.alive) p.inv = 99; });
           fxText('VICTORY!', W / 2, H * 0.4, '#ffe93d', 56, 2.4);
-        } else if (b.final) {
+        } else if (b.final && meta.ach.omega) {
+          // Endless, and THE ABYSS has been beaten before: the secret boss crawls out of the wreckage
+          run.secretNext = true; bossWarn = 3.2;
+          fxText('SOMETHING ELSE IS HERE', W / 2, H * 0.45, '#ffffff', 30, 3);
+          [880, 440, 1760, 220].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'square', 0.05, -f / 2), 600 + i * 90));
+        } else if (b.final || b.secret) {
           const m = startNextCycle();
           openUpgrade(`CYCLE ${run.cycle} — NEW MUTATOR: ${m.name}`, true);
         } else openUpgrade(title, true);
@@ -2099,9 +2252,11 @@ function hitBoss(b, dmg, fx, fy) {
 // achievements for winning a boss fight (called once, when its last boss is gone)
 function onEncounterBeaten(enc, last) {
   unlockAch('first_boss');
+  run.coins = (run.coins || 0) + 30; // shop money
   if (!enc.hitTaken) unlockAch('flawless');
   if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) unlockAch('clutch');
   if (last.final) unlockAch('omega');
+  if (last.secret) unlockAch('zero');
   if (enc.kind === 'twins' && !enc.revived) unlockAch('twins');
   if (enc.kind === 'binary' && !enc.tetherHit) unlockAch('tether');
   if (enc.kind === 'aegis') unlockAch('aegis');
@@ -2151,7 +2306,11 @@ function hurt(p) {
   if (p.inv > 0 || !p.alive || p.phaseOn > 0) return false; // (Wraiths are untouchable while phased)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
   if (run.s.nova) nova(p);
-  if (p.shield > 0) { p.shield = 0; p.inv = 1 + run.s.invBonus * 0.5; p.aegisT = 0; flashHurt(p, 0.4); beep(300, 0.2, 'sawtooth', 0.06, -200); burst(p.x, p.y, '#7df9ff', 30); return true; }
+  if (p.shield > 0) {
+    p.shield = 0; p.inv = 1 + run.s.invBonus * 0.5; p.aegisT = 0; flashHurt(p, 0.4); beep(300, 0.2, 'sawtooth', 0.06, -200); burst(p.x, p.y, '#7df9ff', 30);
+    if (run.s.angel) for (let i = 0; i < 18; i++) fire(p.x, p.y, i / 18 * Math.PI * 2, '#7df9ff', undefined, p); // Guardian Angel evolution
+    return true;
+  }
   p.lives--; p.inv = 2 + run.s.invBonus; p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
@@ -2275,12 +2434,14 @@ function update(dt) {
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
       for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, undefined, p);
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
+      if (s.bulletHell && (p.volley = (p.volley || 0) + 1) % 5 === 0) // Bullet Hell evolution: a full ring every 5th volley
+        for (let i = 0; i < 14; i++) fire(p.x, p.y, i / 14 * Math.PI * 2, p.color, undefined, p);
       beep(880 + p.id * 110, 0.04, 'square', 0.012);
     }
     if (dronesOf(p)) {
       p.droneT -= dt;
       if (p.droneT <= 0) {
-        p.droneT = Math.max(p.droneT, -0.05) + 0.25;
+        p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25); // (Drone Swarm: twice as fast)
         for (let k = 0; k < dronesOf(p); k++) { const d = dronePos(p, k); fire(d.x, d.y - 6, -Math.PI / 2, '#ffffff', undefined, p); }
       }
     }
@@ -2305,7 +2466,7 @@ function update(dt) {
     if (s.missiles) { // pairs of homing missiles peel off the wings
       p.missileT = (p.missileT ?? 1) - dt;
       if (p.missileT <= 0) {
-        p.missileT = Math.max(p.missileT, -0.05) + (s.missiles >= 2 ? 0.85 : 1.15);
+        p.missileT = Math.max(p.missileT, -0.05) + (s.missiles >= 2 ? 0.85 : 1.15) * (s.inferno ? 0.5 : 1); // (Inferno Barrage: twice as often)
         for (let i = 0; i < 2 * s.missiles; i++) {
           const side = i % 2 ? 1 : -1;
           fire(p.x + side * 12, p.y, -Math.PI / 2 + side * (0.6 + (i >> 1) * 0.35), '#ff9a3d', 'missile', p);
@@ -2323,7 +2484,7 @@ function update(dt) {
       }
     }
     // shield recharge: from the Aegis Field upgrade and/or the Juggernaut's built-in generator (whichever is faster)
-    const aegisEvery = Math.min(s.aegis ? [0, 20, 14, 9][s.aegis] : Infinity, m.aegis || Infinity);
+    const aegisEvery = Math.min(s.aegis ? [0, 20, 14, 9][s.aegis] : Infinity, m.aegis || Infinity) * (s.angel ? 0.5 : 1); // (Guardian Angel: twice as fast)
     if (m.phase) { // Wraith: phase out briefly on a timer
       if (p.phaseOn > 0) p.phaseOn -= dt;
       else if ((p.phaseCd = (p.phaseCd || 0) + dt) >= m.phase) {
@@ -2421,7 +2582,8 @@ function update(dt) {
     if (e.dead) continue;
     // Cryo Rounds: frozen enemies move, turn and shoot slower
     e.slow = Math.max(0, (e.slow || 0) - dt);
-    const edt = e.slow > 0 ? dt * (s.cryo >= 2 ? 0.4 : 0.55) : dt;
+    const edt = (e.slow > 0 ? dt * (s.cryo >= 2 ? 0.4 : 0.55) : dt) * (e.elite === 'swift' ? 1.6 : 1); // (swift elites do everything faster)
+    if (e.elite === 'regen' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.1 * dt);
     e.t += edt; e.spin += edt * 2; e.flash = Math.max(0, e.flash - dt);
     e.healFx = Math.max(0, (e.healFx || 0) - dt); e.guardedT = Math.max(0, (e.guardedT || 0) - dt);
     e.x += e.vx * edt; e.y += e.vy * edt;
@@ -2432,7 +2594,7 @@ function update(dt) {
       if (b.crit) burst(b.x, b.y, '#ffffff', 6, 150);
       damageEnemy(e, b.dmg, b.missile ? 'missile' : 'bullet');
       // missiles always explode; Explosive Rounds make every hit explode
-      if (b.missile) splash(b.x, b.y, 45, b.dmg * 0.6, e);
+      if (b.missile) splash(b.x, b.y, s.inferno ? 90 : 45, b.dmg * 0.6, e);
       else if (s.explosive) splash(b.x, b.y, 30 + s.explosive * 15, b.dmg * 0.5, e);
     }
     if (!TYPES[e.type].harmless) for (const p of living()) {
@@ -2805,10 +2967,21 @@ function drawEnemy(e) {
     ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x, y, w, 3);
     ctx.fillStyle = e.color; ctx.fillRect(x, y, w * e.hp / e.maxHp, 3);
   }
+  if (e.elite) { // its title, above the health bar
+    const el = ELITES[e.elite];
+    ctx.save(); ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = el.color;
+    ctx.fillText('★ ' + el.name, e.x, e.y - e.r * 1.45 - 6); ctx.restore();
+  }
 }
 
 // warnings drawn beneath enemies: aim lines and heal pulses
 function drawEnemyTelegraph(e) {
+  if (e.elite) { // a spinning aura in its power's color
+    const c = ELITES[e.elite].color;
+    ctx.save(); ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.globalAlpha = 0.75; ctx.setLineDash([6, 5]); ctx.lineDashOffset = -time * 40;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r * 1.45, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 0.12 + Math.sin(time * 6) * 0.05; ctx.fillStyle = c; ctx.fill(); ctx.restore();
+  }
   if (e.type === 'pylon') { // energy chain feeding the Warden's shield
     const b = ownerOf(e, 'pylons');
     if (b) {
@@ -3330,6 +3503,23 @@ function drawBossDecor(b, layer, c, enraged) {
         ctx.restore();
       }
       break;
+    case 'zero': { // glitching: offset cyan/magenta copies of its outline, plus orbiting cube fragments
+      const j = (enraged ? 5 : 3) + (Math.random() < 0.08 ? 12 : 0);
+      if (layer === 'back') {
+        ctx.save(); ctx.lineWidth = 2; ctx.globalAlpha *= 0.65;
+        ctx.strokeStyle = '#00ffff'; ctx.translate(-j, (Math.random() - 0.5) * j); polygon(b.sides, r * 1.08, b.spin); ctx.stroke();
+        ctx.strokeStyle = '#ff00ff'; ctx.translate(j * 2, (Math.random() - 0.5) * j); polygon(b.sides, r * 1.08, b.spin); ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 6; i++) {
+          const a = t * 0.8 * fast + i / 6 * Math.PI * 2, d = r * (1.7 + Math.sin(t * 3 + i) * 0.15);
+          ctx.save(); ctx.translate(Math.cos(a) * d, Math.sin(a) * d); ctx.rotate(t * 2 + i);
+          ctx.strokeStyle = i % 3 === 0 ? '#00ffff' : i % 3 === 1 ? '#ff00ff' : c; ctx.strokeRect(-6, -6, 12, 12); ctx.restore();
+        }
+      }
+      break;
+    }
     case 'leech': { // dangling, swaying tendrils that reach toward its prey
       if (layer !== 'back') break;
       ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -3424,6 +3614,18 @@ function drawGimmick(b) {
       }
       break;
     case 'abyss': drawAbyssWarnings(b); break;
+    case 'zero':
+      if (b.grid) { // the beam grid: flickering guides, then solid white beams
+        const g = b.grid, live = g.t >= GRID_WARN, k = Math.min(1, g.t / GRID_WARN);
+        ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff';
+        if (!live) { ctx.globalAlpha = 0.25 + k * 0.4 + (Math.floor(t * 16) % 2) * 0.15; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); }
+        else { glow('#7df9ff', 30); ctx.globalAlpha = 0.9; }
+        for (const x of g.v) live ? ctx.fillRect(x - GRID_W / 2, 0, GRID_W, H) : (ctx.beginPath(), ctx.moveTo(x, 0), ctx.lineTo(x, H), ctx.stroke());
+        for (const y of g.h) live ? ctx.fillRect(0, y - GRID_W / 2, W, GRID_W) : (ctx.beginPath(), ctx.moveTo(0, y), ctx.lineTo(W, y), ctx.stroke());
+        if (!live) { ctx.globalAlpha = 0.06 + k * 0.08; for (const x of g.v) ctx.fillRect(x - GRID_W / 2, 0, GRID_W, H); for (const y of g.h) ctx.fillRect(0, y - GRID_W / 2, W, GRID_W); }
+      }
+      if (b.invW > 0 && Math.random() < 0.5) label('ERROR', '#ff3df2', b.y + b.r * 1.7);
+      break;
     case 'storm':
       for (const s of b.strikes || []) {
         const [x, y, age] = s;
@@ -3581,6 +3783,7 @@ function drawWorld() {
   }
   for (const p of players) if (!p.alive && p.wreck) drawWreck(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
+  drawTeamUi();
   drawBossFx('over');
   // floating score from kills
   ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3598,7 +3801,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}SECTOR ${level}   BEST ${bestOf(mode, run.endless).toLocaleString()}`, 16, 42);
+  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}SECTOR ${level}   BEST ${bestOf(mode, run.endless).toLocaleString()}   ● ${run.coins || 0}`, 16, 42);
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -3884,15 +4087,21 @@ function drawUpgrade() {
   ctx.fillStyle = 'rgba(3,3,12,0.72)'; ctx.fillRect(0, 0, W, H);
   const n = offer.cards.length, vertical = W < 700;
   let cw, ch, gap = 12, total, x0, y0;
-  if (vertical) { cw = Math.min(440, W - 32); ch = 88; total = n * ch + (n - 1) * gap; x0 = (W - cw) / 2; y0 = Math.max(120, (H - total) / 2); }
-  else { cw = Math.min(220, (W - 64 - (n - 1) * 16) / n); ch = 250; gap = 16; total = n * cw + (n - 1) * gap; x0 = (W - total) / 2; y0 = H / 2 - ch / 2; }
+  if (vertical) { cw = Math.min(440, W - 32); ch = 98; total = n * ch + (n - 1) * gap; x0 = (W - cw) / 2; y0 = Math.max(120, (H - total) / 2); }
+  else { cw = Math.min(220, (W - 64 - (n - 1) * 16) / n); ch = 280; gap = 16; total = n * cw + (n - 1) * gap; x0 = (W - total) / 2; y0 = H / 2 - ch / 2; }
 
   title(offer.title, y0 - 70, offer.bossReward ? '#ffb13d' : '#3d9dff', 38);
-  fitText(offer.bossReward ? 'Boss rewards are always Rare or better' : 'Choose one — it lasts for the rest of this run', y0 - 32, 14, '#9ab');
+  const evoUp = offer.cards.some(u => u.r === 'evo');
+  fitText(evoUp ? '★ An EVOLUTION is ready: two of your upgrades can fuse into something stronger! ★'
+    : offer.bossReward ? 'Boss rewards are always Rare or better' : 'Choose one — it lasts for the rest of this run', y0 - 32, 14, evoUp ? RARITY.evo.color : '#9ab');
 
   offer.cards.forEach((u, i) => {
     const x = vertical ? x0 : x0 + i * (cw + gap), y = vertical ? y0 + i * (ch + gap) : y0;
     const rc = RARITY[u.r].color, owned = run.owned[u.id] || 0;
+    // evolutions show their recipe; other cards show what they could evolve into
+    const hints = u.r === 'evo' ? [] : evoHints(u);
+    const sub = u.r === 'evo' ? u.needs.map(([id]) => UPGRADES.find(x => x.id === id).name).join(' + ')
+      : hints.length ? `⚡ evolves with ${hints.map(([, o]) => o.name).join(' or ')}` : '';
     buttons.push({ x, y, w: cw, h: ch, action: () => pickUpgrade(i) });
     const on = sel === i;
     panel(x, y, cw, ch, rc, on);
@@ -3905,17 +4114,21 @@ function drawUpgrade() {
       ctx.fillStyle = '#bcd'; ctx.font = '13px system-ui';
       wrap(u.desc, cw - 64).slice(0, 2).forEach((l, j) => ctx.fillText(l, x + 48, y + 50 + j * 16));
       if (owned) { ctx.textAlign = 'right'; ctx.fillStyle = '#789'; ctx.font = '11px system-ui'; ctx.fillText(`owned ${owned}`, x + cw - 12, y + 12); }
+      if (sub) { ctx.textAlign = 'right'; ctx.fillStyle = RARITY.evo.color; ctx.font = 'bold 10px system-ui'; ctx.fillText(sub, x + cw - 12, y + ch - 16); }
     } else {
       ctx.textAlign = 'center';
       const cx = x + cw / 2;
       ctx.fillStyle = rc; ctx.font = 'bold 11px system-ui'; ctx.fillText(RARITY[u.r].label, cx, y + 16);
       glow(rc, on ? 20 : 0); ctx.strokeStyle = rc; ctx.lineWidth = 2;
-      ctx.save(); ctx.translate(cx, y + 70); polygon(u.r === 'epic' ? 8 : u.r === 'rare' ? 6 : 4, 22, performance.now() / 1500); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.translate(cx, y + 70); polygon(u.r === 'evo' ? 10 : u.r === 'epic' ? 8 : u.r === 'rare' ? 6 : 4, u.r === 'evo' ? 26 : 22, performance.now() / (u.r === 'evo' ? 500 : 1500)); ctx.stroke();
+      if (u.r === 'evo') { polygon(5, 14, -performance.now() / 700); ctx.stroke(); }
+      ctx.restore();
       ctx.shadowBlur = 0;
       ctx.fillStyle = '#fff'; ctx.font = 'bold 18px system-ui';
       wrap(u.name, cw - 20).forEach((l, j) => ctx.fillText(l, cx, y + 108 + j * 22));
       ctx.fillStyle = '#bcd'; ctx.font = '13px system-ui';
-      wrap(u.desc, cw - 28).slice(0, 4).forEach((l, j) => ctx.fillText(l, cx, y + 146 + j * 17));
+      wrap(u.desc, cw - 28).slice(0, sub ? 3 : 4).forEach((l, j) => ctx.fillText(l, cx, y + 146 + j * 17));
+      if (sub) { ctx.fillStyle = RARITY.evo.color; ctx.font = 'bold 11px system-ui'; wrap(sub, cw - 20).slice(0, 2).forEach((l, j) => ctx.fillText(l, cx, y + 198 + j * 14)); }
       ctx.fillStyle = '#789'; ctx.font = '12px system-ui';
       ctx.fillText(owned ? `owned ${owned}/${u.max > 50 ? '∞' : u.max}` : 'new', cx, y + ch - 44);
       ctx.fillStyle = rc; ctx.font = 'bold 14px system-ui'; ctx.fillText(`[${i + 1}]`, cx, y + ch - 24);
@@ -3926,6 +4139,83 @@ function drawUpgrade() {
     const bw = 220, by = vertical ? y0 + total + 18 : y0 + ch + 24;
     button(`REROLL [R]  ·  ${run.rerolls} left`, (W - bw) / 2, by, bw, 40, '#ffe93d', reroll);
   }
+}
+
+
+// ---------- quick chat: 1-4 pops a callout over your ship (everyone online sees it) ----------
+const EMOTES = [['HELP!', '#ff5a70'], ['REVIVE ME!', '#5dff7a'], ['ON MY WAY', '#7df9ff'], ['NICE!', '#ffe93d']];
+function showEmote(id, k) {
+  const p = players[id]; if (!p || !EMOTES[k]) return;
+  p.emote = { k, until: performance.now() + 2200 };
+  beep(700 + k * 120, 0.08, 'triangle', 0.04);
+}
+function sendEmote(k) {
+  const me = net.role === 'guest' ? net.myId : 0, p = players[me];
+  if (!p || (p.emoteCd || 0) > performance.now()) return; // no spamming
+  p.emoteCd = performance.now() + 700;
+  showEmote(me, k);
+  if (net.role === 'guest') net.host?.send({ emote: k }); else netRec(['e', me, k]);
+}
+// callouts, name tags (online) and arrows pointing to downed teammates
+function drawTeamUi() {
+  const now = performance.now(), online = !!net.role, me = net.role === 'guest' ? net.myId : 0;
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const p of players) {
+    const at = p.alive ? p : p.wreck; if (!at) continue;
+    if (online && p.alive && players.length > 1) { // who's who
+      ctx.font = 'bold 10px system-ui'; ctx.fillStyle = hexA(p.color, 0.8);
+      ctx.fillText(p.id === me ? 'YOU' : `P${p.id + 1}`, p.x, p.y + 30);
+    }
+    if (p.emote && now < p.emote.until) { // speech bubble
+      const [text, color] = EMOTES[p.emote.k], pop = Math.min(1, (p.emote.until - now) / 200, (now - p.emote.until + 2200) / 120);
+      ctx.font = 'bold 13px system-ui';
+      const w = ctx.measureText(text).width + 18, x = Math.max(w / 2 + 4, Math.min(W - w / 2 - 4, at.x)), y = Math.max(20, at.y - 44);
+      ctx.globalAlpha = Math.max(0, pop); ctx.fillStyle = 'rgba(5,5,16,0.85)'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(x - w / 2, y - 12, w, 24, 8); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(at.x - 5, y + 12); ctx.lineTo(at.x, y + 19); ctx.lineTo(at.x + 5, y + 12); ctx.fill();
+      ctx.fillStyle = color; ctx.fillText(text, x, y + 1); ctx.globalAlpha = 1;
+    }
+  }
+  // arrows from your ship (online) or every ship (local) toward downed teammates
+  const mine = online ? [players[me]].filter(p => p?.alive) : living();
+  for (const p of mine) for (const d of players) {
+    if (d.alive || !d.wreck) continue;
+    const dx = d.wreck.x - p.x, dy = d.wreck.y - p.y, dist = Math.hypot(dx, dy);
+    if (dist < 140) continue;
+    const a = Math.atan2(dy, dx), x = p.x + Math.cos(a) * 44, y = p.y + Math.sin(a) * 44, pulse = 1 + Math.sin(now / 150) * 0.15;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(pulse, pulse);
+    ctx.fillStyle = d.color; glow(d.color, 12);
+    ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-5, -6); ctx.lineTo(-2, 0); ctx.lineTo(-5, 6); ctx.fill(); ctx.restore();
+    ctx.font = 'bold 9px system-ui'; ctx.fillStyle = d.color; ctx.fillText(`P${d.id + 1}`, x + Math.cos(a) * 16, y + Math.sin(a) * 16 - 2);
+  }
+  ctx.restore();
+}
+function drawShop() {
+  ctx.fillStyle = 'rgba(3,3,12,0.78)'; ctx.fillRect(0, 0, W, H);
+  const n = shop.items.length, cols = W >= 700 ? 3 : 1, rows = Math.ceil(n / cols), gap = cols > 1 ? 14 : 8;
+  const cw = cols > 1 ? Math.min(230, (W - 64) / 3) : Math.min(440, W - 32), ch = cols > 1 ? 128 : 64;
+  const total = rows * ch + (rows - 1) * gap, x0 = (W - (cols * cw + (cols - 1) * gap)) / 2, y0 = Math.max(150, (H - total) / 2 - 10);
+  title('MERCHANT', y0 - 82, '#ffd23d', 40);
+  fitText(`● ${run.coins || 0} coins — spend them before you fly on`, y0 - 42, 15, '#ffd23d', 'bold');
+  shop.items.forEach((it, i) => {
+    const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap);
+    const g = SHOP_GOODS[it.kind], name = g ? g.name : it.u.name, desc = g ? g.desc : it.u.desc;
+    const color = g ? g.color : RARITY[it.u.r].color, usable = !g?.when || g.when();
+    const can = !it.sold && usable && (run.coins || 0) >= it.price;
+    buttons.push({ x, y, w: cw, h: ch, action: () => buyShop(i) });
+    panel(x, y, cw, ch, it.sold ? '#445' : color, sel === i);
+    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    ctx.fillStyle = color; ctx.font = 'bold 10px system-ui'; ctx.fillText(`[${i + 1}]  ${g ? 'SUPPLY' : RARITY[it.u.r].label}`, x + 12, y + 9);
+    ctx.fillStyle = it.sold ? '#667' : '#fff'; ctx.font = 'bold 16px system-ui'; ctx.fillText(name, x + 12, y + 24);
+    ctx.fillStyle = '#9ab'; ctx.font = '12px system-ui';
+    wrap(desc, cw - (cols > 1 ? 24 : 120)).slice(0, cols > 1 ? 3 : 1).forEach((l, j) => ctx.fillText(l, x + 12, y + 45 + j * 15));
+    ctx.textAlign = 'right'; ctx.font = 'bold 15px system-ui';
+    ctx.fillStyle = it.sold ? '#5dff7a' : !usable ? '#667' : can ? '#ffd23d' : '#c55';
+    ctx.fillText(it.sold ? 'SOLD' : !usable ? 'NOT NEEDED' : `● ${it.price}`, x + cw - 12, cols > 1 ? y + ch - 26 : y + 24);
+  });
+  const by = y0 + total + 18, bw = Math.min(260, W - 32);
+  if (net.role === 'guest') fitText(`Press 1–${n} to buy · the host leaves the shop`, by + 14, 13, '#9ab');
+  else button('LEAVE SHOP  [Esc]', (W - bw) / 2, by, bw, 44, '#7df9ff', leaveShop);
 }
 
 function drawHangar() {
@@ -4011,15 +4301,15 @@ const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255,
 const bgTint = hexRgb(SECTOR_TINTS[0]);
 function updateBackground(dt) {
   let target = SECTOR_TINTS[0];
-  if (state === 'play' || state === 'upgrade') target = bosses.length ? bosses[0].color : SECTOR_TINTS[(level - 1) % SECTOR_TINTS.length];
+  if (inRun()) target = bosses.length ? bosses[0].color : SECTOR_TINTS[(level - 1) % SECTOR_TINTS.length];
   const t = hexRgb(target), dim = bosses.length ? 0.5 : 1, k = Math.min(1, dt * 1.2);
   for (let i = 0; i < 3; i++) bgTint[i] += (t[i] * dim - bgTint[i]) * k;
 
   // scenery drifts faster while flying, slowly on menus, and freezes when paused
-  const flow = state === 'play' && !paused ? 1 : state === 'play' || state === 'upgrade' ? 0 : 0.3;
+  const flow = state === 'play' && !paused ? 1 : inRun() ? 0 : 0.3;
   const sd = dt * flow;
   // planets: a new one drifts in each sector (and whenever the sky is empty)
-  const sector = state === 'play' || state === 'upgrade' ? level : 0;
+  const sector = inRun() ? level : 0;
   if (scenery.sector !== sector || !scenery.planets.length) { scenery.sector = sector; if (scenery.planets.length < 2) scenery.planets.push(makePlanet(false)); }
   for (const p of scenery.planets) p.y += p.vy * sd;
   scenery.planets = scenery.planets.filter(p => p.y - p.r * 2 < H);
@@ -4136,6 +4426,9 @@ function drawVignette() {
 }
 
 function draw() {
+  // ZERO turns the world inside out: invert the canvas colors (a CSS filter, so it costs nothing to draw)
+  const inv = inRun() && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)' : '';
+  if (cv.style.filter !== inv) cv.style.filter = inv;
   ctx.shadowBlur = 0;
   const gv = guestView();
   if (gv) { // letterbox bars around the host's (scaled) world
@@ -4149,10 +4442,10 @@ function draw() {
   ctx.fillStyle = '#b4c8ff';
   for (const s of stars) { ctx.globalAlpha = s.z; ctx.fillRect(s.x * W, s.y * H, s.z * 2, s.z * 2 + (state === 'play' ? s.z * 6 : 0)); }
   ctx.globalAlpha = 1;
-  if (state === 'play' || state === 'upgrade') drawWorld();
+  if (inRun()) drawWorld();
   // particles shrink as they fade, so they can all be batched without per-particle alpha
   drawGlowDots(particles.map(p => ({ x: p.x, y: p.y, r: p.size * 0.55 * Math.max(0.15, p.life / p.max), color: p.color })), false);
-  if (state === 'play' || state === 'upgrade') drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
+  if (inRun()) drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
   ctx.restore();
   ctx.shadowBlur = 0;
   if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); }
@@ -4161,6 +4454,7 @@ function draw() {
   buttons = [];
   if (state === 'play') drawHUD();
   else if (state === 'upgrade') { drawHUD(); drawUpgrade(); }
+  else if (state === 'shop') { drawHUD(); drawShop(); }
   else if (state === 'menu') drawMenu();
   else if (state === 'hangar') drawHangar();
   else if (state === 'settings') drawSettings();
@@ -4276,6 +4570,8 @@ function onHostData(conn, d) {
   }
   if (d.pick !== undefined && state === 'upgrade' && offer) pickUpgrade(d.pick);
   if (d.reroll && state === 'upgrade') reroll();
+  if (d.buy !== undefined && state === 'shop' && shop) buyShop(d.buy);
+  if (d.emote !== undefined && players[conn.slot]) { showEmote(conn.slot, d.emote); netRec(['e', conn.slot, d.emote]); }
 }
 // host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
 function smoothRemotePlayers() {
@@ -4327,12 +4623,13 @@ function packSnap() {
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
-      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id]),
+      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0]),
     ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color]),
     bo: bosses.map(packBoss),
     ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether } : null,
+    sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
     of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0]),
@@ -4349,7 +4646,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
-  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase']; // (gimmicks)
+  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW']; // (gimmicks)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain') o[k] = roundDeep(b[k]); }
@@ -4464,7 +4761,7 @@ function applySnap(s) {
     const type = TYPE_LIST[a[0]], id = a[21], old = byId.get(id);
     const e = Object.assign(old || { x: a[1], y: a[2] }, { type, vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9],
       spin: a[10], aimA: a[11], state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17],
-      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id });
+      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined });
     let tr = net.etr.get(id); if (!tr) net.etr.set(id, tr = newTrack());
     trackPush(tr, s.ts, [a[1], a[2]]); seen.add(id);
     return e;
@@ -4494,6 +4791,8 @@ function applySnap(s) {
   }).filter(Boolean);
   for (const name of net.btr.keys()) if (!bosses.some(b => b.name === name)) net.btr.delete(name);
   encounter = s.ec;
+  shop = s.sp ? { items: s.sp.map(a => ({ kind: a[0], u: a[1] ? UPGRADES.find(u => u.id === a[1]) : null, price: a[2], sold: !!a[3] })) } : null;
+  run.coins = s.cn;
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
   popups = s.pp.map(a => ({ x: a[0], y: a[1], text: a[2], life: a[3], hot: !!a[4], color: a[5] || undefined }));
@@ -4508,6 +4807,7 @@ function applySnap(s) {
 function replayEvent(ev) {
   switch (ev[0]) {
     case 'b': burst(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
+    case 'e': if (ev[1] !== net.myId) showEmote(ev[1], ev[2]); break; // a teammate's quick chat
     case 'r': fxRing(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6], ev[7], ev[8]); break;
     case 't': fxText(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
     case 'g': bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: ev[4], r: ev[5], color: ev[6], life: ev[7], max: ev[7] }); break;
