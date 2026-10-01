@@ -486,17 +486,27 @@ const BOSS_EVERY = 2; // a boss arrives at sector 2, 4, 6...
 const BOSS_ATTACK_SLOWDOWN = 1.3; // >1 = bosses attack less often
 const BOSS_BULLET_SPEED = 0.85;  // <1 = slower boss bullets
 const BOSSES = [
-  { name: 'THE WARDEN',  style: 'warden',  color: '#ff3df2', sides: 5, patterns: ['ring', 'fan', 'summon'] },
-  { name: 'HEXCORE',     style: 'hexcore', color: '#ffb13d', sides: 6, patterns: ['spiral', 'mines', 'ring'] },
-  { name: 'NULL SERAPH', style: 'seraph',  color: '#3dfff2', sides: 8, patterns: ['spiral', 'fan', 'blink'] },
-  { name: 'VOID LANCER', style: 'lancer',  color: '#ff4d4d', sides: 3, patterns: ['laser', 'charge', 'fan'] },
-  { name: 'STORMCALLER', style: 'storm',   color: '#5d8dff', sides: 7, patterns: ['rain', 'wave', 'ring'] },
-  { name: 'THE HIVE',    style: 'hive',    color: '#d4ff3d', sides: 4, patterns: ['swarm', 'mines', 'fan'] },
-  { name: 'PHANTOM',     style: 'phantom', color: '#e0b0ff', sides: 9, patterns: ['blink', 'laser', 'spiral'] },
+  // every solo boss has a gimmick (see GIMMICKS) that changes how you have to fight it
+  { name: 'THE WARDEN',  style: 'warden',  color: '#ff3df2', sides: 5, gimmick: 'pylons', patterns: ['ring', 'fan', 'summon'],
+    hint: 'THE WARDEN is chained to shield pylons — destroy them to break its shield, before it raises new ones!' },
+  { name: 'HEXCORE',     style: 'hexcore', color: '#ffb13d', sides: 6, gimmick: 'overheat', patterns: ['spiral', 'mines', 'ring'],
+    hint: 'HEXCORE fires faster as it heats up — survive until it OVERHEATS, then unload: double damage!' },
+  { name: 'NULL SERAPH', style: 'seraph',  color: '#3dfff2', sides: 8, gimmick: 'halo', patterns: ['spiral', 'fan', 'blink'],
+    hint: 'NULL SERAPH raises a mirror halo that bounces your shots back at you — dodge your own bullets!' },
+  { name: 'VOID LANCER', style: 'lancer',  color: '#ff4d4d', sides: 3, gimmick: 'stun', patterns: ['charge', 'laser', 'charge', 'fan'],
+    hint: 'VOID LANCER rams until it hits a wall — dodge it and it\'s STUNNED (double damage). Its trail leaves a burning rift!' },
+  { name: 'STORMCALLER', style: 'storm',   color: '#5d8dff', sides: 7, gimmick: 'storm', patterns: ['rain', 'wave', 'ring'],
+    hint: 'STORMCALLER calls lightning down on you — keep moving, and stay out of the crackling static!' },
+  { name: 'THE HIVE',    style: 'hive',    color: '#d4ff3d', sides: 4, gimmick: 'brood', patterns: ['eggs', 'fan', 'swarm', 'eggs'],
+    hint: 'THE HIVE lays eggs — smash them before they hatch, or they swarm you and feed the queen!' },
+  { name: 'PHANTOM',     style: 'phantom', color: '#e0b0ff', sides: 9, gimmick: 'decoys', patterns: ['blink', 'laser', 'spiral'],
+    hint: 'PHANTOM splits into copies — only the real one leaves an afterimage trail. Popping a fake makes it burst!' },
   { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true,
     hint: 'THE LEECH heals by draining you — shoot the blood orbs before they reach it, and outrun its drain beam!',
     patterns: ['drain', 'fan', 'drain', 'ring'] },
-  { name: 'OMEGA CORE',  style: 'omega',   color: '#ffd23d', sides: 12, r: 74, hpMult: 1.1, final: true,
+  // armored: only the rotating breach takes full damage, so it has less hp than before
+  { name: 'OMEGA CORE',  style: 'omega',   color: '#ffd23d', sides: 12, r: 74, hpMult: 0.7, final: true, gimmick: 'breach',
+    hint: 'OMEGA CORE is armored — fly around it and shoot through the rotating BREACH for bonus damage!',
     patterns: ['ring', 'fan', 'spiral', 'laser', 'charge', 'rain', 'wave', 'mines', 'blink', 'summon'] },
 ];
 
@@ -808,6 +818,10 @@ const TYPES = {
   segment:  { r: 11, hp: 2, color: '#ffb86b', pts: 60 },
   guardian: { r: 18, hp: 5, color: '#7dd8ff', pts: 450, label: 'GUARDIAN', drop: 0.3 },
   carrier:  { r: 30, hp: 12, color: '#c0c8d8', pts: 700, label: 'CARRIER', drop: 0.6 },
+  // boss gimmick pieces (their hp is set from the boss's)
+  pylon:    { r: 14, hp: 1, color: '#ff3df2', pts: 250, drop: 0, harmless: true }, // The Warden's shield pylons
+  egg:      { r: 15, hp: 1, color: '#d4ff3d', pts: 150, drop: 0, harmless: true }, // The Hive's eggs
+  decoy:    { r: 50, hp: 1, color: '#e0b0ff', pts: 100, drop: 0, harmless: true }, // Phantom's fake copies
 };
 
 // which enemies can appear from which sector, and how often (relative weight)
@@ -982,6 +996,44 @@ const ENEMY_AI = {
       burst(e.x, e.y, e.color, 8, 120); beep(500, 0.08, 'sine', 0.03, 200);
     }
   },
+  pylon(e, dt) { // circles its Warden, keeping its shield up, and takes potshots
+    const b = e.owner;
+    if (!b || !bosses.includes(b) || !bossAlive(b)) { e.dead = true; burst(e.x, e.y, e.color, 15, 200); return; }
+    const a = time * 0.7 + e.k * Math.PI * 2 / e.n, R = b.r * 2.2;
+    e.x = b.x + Math.cos(a) * R; e.y = b.y + Math.sin(a) * R * 0.8; e.spin = a;
+    e.fire -= dt;
+    const p = nearestPlayer(e.x, e.y);
+    if (e.fire <= 0 && p) {
+      e.fire = 2.6 * enemyFireScale();
+      const sa = Math.atan2(p.y - e.y, p.x - e.x);
+      eBullets.push({ x: e.x, y: e.y, vx: Math.cos(sa) * 200, vy: Math.sin(sa) * 200, r: 5, color: e.color });
+    }
+  },
+  egg(e, dt) { // slides to a stop, pulses faster and faster, then hatches a swarm that heals the Hive
+    const b = e.owner;
+    if (!b || !bosses.includes(b) || !bossAlive(b)) { e.dead = true; burst(e.x, e.y, e.color, 15, 200); return; }
+    e.vx *= Math.pow(0.08, dt); e.vy *= Math.pow(0.08, dt);
+    e.timer -= dt;
+    if (e.timer > 0) return;
+    e.dead = true;
+    const n = 3 + Math.min(3, mode);
+    for (let i = 0; i < n; i++) {
+      const m = makeEnemy(isEnraged(b) && i === 0 ? 'shooter' : 'swarmer', e.x, e.y), a = i / n * Math.PI * 2;
+      m.vx = Math.cos(a) * 120; m.vy = Math.sin(a) * 120 + 60;
+    }
+    b.hp = Math.min(b.max, b.hp + b.max * 0.04); b.healT = 0.5;
+    popups.push({ x: e.x, y: e.y - 20, text: 'HATCHED!', life: 1, color: e.color });
+    popups.push({ x: b.x, y: b.y - b.r, text: '+HEAL', life: 0.8, color: e.color });
+    burst(e.x, e.y, e.color, 40, 300); fxRing(e.x, e.y, 6, 60, 0.35, e.color, 3);
+    beep(260, 0.3, 'sawtooth', 0.05, -150);
+  },
+  decoy(e, dt) { // a fake Phantom: bobs in its slot and fires like the real one
+    const b = e.owner;
+    if (!b || !bosses.includes(b) || !bossAlive(b)) { e.dead = true; return; }
+    e.y = e.homeY + Math.sin(e.t * 1.3) * 14;
+    e.fire -= dt;
+    if (e.fire <= 0) { e.fire = DECOY_FIRE; decoyFan(b, e.x, e.y); }
+  },
   orbiter(e, dt) { // three balls circle the core; they hurt on touch and can't be shot
     e.x += Math.sin(e.t * 0.8) * 30 * dt;
     for (let k = 0; k < 3; k++) {
@@ -1114,6 +1166,11 @@ function killEnemy(e, src) {
     const m = makeEnemy('mini', e.x + k * 10, e.y);
     m.vx = k * 160; m.vy = -60 + Math.abs(k) * 30;
   }
+  if (e.type === 'decoy') { // popping a fake Phantom sets off a burst
+    for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, r: 6, color: e.color }); }
+    fxText('FAKE!', e.x, e.y - e.r - 20, e.color, 24, 1.2);
+  }
+  if (e.type === 'pylon') fxRing(e.x, e.y, 6, 50, 0.3, e.color, 3);
   if (mut('volatile') && e.type !== 'bloodorb') { // Endless mutator: a parting ring of bullets
     const n = 5 + mut('volatile') * 2, off = Math.random() * Math.PI;
     for (let k = 0; k < n; k++) { const a = off + k / n * Math.PI * 2; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 130, vy: Math.sin(a) * 130, r: 4, color: '#ff9a3d' }); }
@@ -1168,7 +1225,7 @@ function updateBlades() {
       e.bladeCd = time + 0.3; damageEnemy(e, dmg, 'blade'); burst(x, y, '#ffffff', 4, 120);
     }
     for (const b of eBullets) if (!b.dead && b.fuse === undefined && Math.hypot(b.x - x, b.y - y) < (b.r || 5) + 9) { b.dead = true; burst(b.x, b.y, b.color || '#ff4d4d', 5, 100); }
-    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id)); }
+    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id), x, y); }
   }
 }
 
@@ -1320,6 +1377,7 @@ function updateEncounter(dt) {
 
 // where each boss drifts to when it isn't charging
 function bossHome(b, enraged, hoverY) {
+  if (b.slotX !== undefined) return { x: b.slotX, y: b.slotY + Math.sin(b.t * 1.3) * 14 }; // Phantom hiding among its copies
   const amp = Math.max(0, W / 2 - b.r - 20);
   const sweep = { x: W / 2 + Math.sin(b.t * (enraged ? 0.9 : 0.6)) * amp, y: b.hoverLow ? Math.max(hoverY, H * 0.33) : hoverY };
   if (!encounter || encounter.kind === 'single') return sweep;
@@ -1443,6 +1501,18 @@ const BOSS_ATTACKS = {
     makeEnemy(Math.random() < (enraged ? 0.3 : 0.1) ? 'shooter' : 'drifter', b.x + (Math.random() - 0.5) * b.r * 2, b.y + b.r * 0.6);
     b.atkT = Math.max(0.2, 0.45 - mode * 0.05) * rate; beep(160, 0.08, 'sawtooth', 0.02, 80);
   },
+  eggs(b, enraged) { // The Hive lays eggs that hatch into a swarm unless they're destroyed
+    if (b.patternT > 0.8) return;
+    const n = enraged ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const e = makeEnemy('egg', b.x, b.y + b.r * 0.5), tx = W * (0.15 + 0.7 * (i + 0.5) / n) + (Math.random() - 0.5) * 60;
+      const ty = Math.min(H * 0.62, b.y + 120 + Math.random() * H * 0.2);
+      e.owner = b; e.hp = e.maxHp = Math.max(3, Math.round(b.max * 0.03));
+      e.vx = (tx - b.x) * 1.6; e.vy = (ty - b.y) * 1.6; e.timer = EGG_HATCH; e.state = 'egg';
+    }
+    beep(180, 0.4, 'sine', 0.06, -90);
+    b.atkT = 5;
+  },
   mines(b, enraged, rate) { // slow mines that burst into rings
     const n = enraged ? 4 : 3;
     for (let i = 0; i < n; i++) {
@@ -1491,6 +1561,169 @@ const BOSS_ATTACKS = {
     b.atkT = 1.5 * rate;
   },
 };
+
+// ---------- boss gimmicks ----------
+// each solo boss has one twist. update() returns 'hold' (no moving or attacking) or 'quiet' (no attacking);
+// dmg() scales damage taken (fx, fy = where the hit landed, when known)
+const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
+const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
+const BREACH_HALF = 0.6;
+const ownerOf = (e, gimmick) => e.owner || bosses.find(b => b.gimmick === gimmick);
+const GIMMICKS = {
+  pylons: {
+    update(b, dt, enraged) {
+      b.guard = enemies.filter(e => e.type === 'pylon' && !e.dead && e.owner === b).length;
+      if (b.guard) return;
+      b.pylonT = (b.pylonT ?? 1.8) - dt; // first set goes up just after its entrance
+      if (b.pylonT > 0) return;
+      b.pylonT = enraged ? 11 : 15;
+      const n = enraged ? 4 : 3;
+      for (let k = 0; k < n; k++) {
+        const e = makeEnemy('pylon', b.x, b.y);
+        e.owner = b; e.k = k; e.n = n; e.vx = e.vy = 0; e.fire = 1.5 + k * 0.6;
+        e.hp = e.maxHp = Math.max(4, Math.round(b.max * 0.03));
+      }
+      b.guard = n;
+      fxRing(b.x, b.y, b.r, b.r * 3, 0.5, b.color, 4);
+      fxText('PYLONS RAISED — SHIELD UP', b.x, b.y + b.r + 40, b.color, 20, 1.6);
+      beep(300, 0.5, 'square', 0.05, 300);
+    },
+    dmg: b => b.guard > 0 ? 0.25 : 1,
+  },
+  overheat: {
+    update(b, dt) {
+      if (b.vent > 0) {
+        b.vent -= dt; b.heat = Math.max(0, b.vent / 3.5);
+        if (Math.random() < dt * 30) particles.push({ x: b.x + (Math.random() - 0.5) * b.r, y: b.y, vx: (Math.random() - 0.5) * 60, vy: -90 - Math.random() * 80, life: 0.8, max: 0.8, color: Math.random() < 0.5 ? '#ffffff' : '#ffd8a0', size: 3 });
+        for (const p of living()) if (Math.hypot(p.x - b.x, p.y - b.y) < b.r * 1.6) hurt(p); // too hot to touch
+        if (b.vent <= 0) { // cooled down: a parting ring of embers
+          b.vent = 0; b.heat = 0;
+          for (let i = 0; i < 14; i++) bossShot(b, i / 14 * Math.PI * 2, 160, 6);
+          fxRing(b.x, b.y, b.r, b.r * 3, 0.4, b.color, 4);
+        }
+        return 'quiet';
+      }
+      if ((b.heat || 0) >= 1) {
+        b.vent = 3.5; b.heat = 1; b.charge = null;
+        fxText('OVERHEATED! ×2 DAMAGE', b.x, b.y - b.r - 30, '#ffffff', 26, 1.8);
+        fxRing(b.x, b.y, b.r, b.r * 4, 0.6, '#ffffff', 6); shake = Math.max(shake, 14);
+        beep(160, 1, 'sawtooth', 0.08, -100);
+        return 'quiet';
+      }
+    },
+    // every shot heats it up; big volleys more than rapid fire
+    afterAttack(b, enraged) { b.heat = Math.min(1, (b.heat || 0) + (b.atkT >= 0.5 ? 0.085 : 0.011) * (enraged ? 1.15 : 1)); },
+    rate: b => 1 - (b.heat || 0) * 0.35,
+    dmg: b => b.vent > 0 ? 2 : 1,
+  },
+  halo: {
+    update(b, dt, enraged) {
+      if (b.haloUp > 0) { b.haloUp -= dt; if (b.haloUp <= 0) { b.haloUp = 0; b.haloT = enraged ? 6 : 8; } return; }
+      if (b.haloW > 0) {
+        b.haloW -= dt;
+        if (b.haloW <= 0) {
+          b.haloW = 0; b.haloUp = enraged ? 3 : 2.5;
+          fxRing(b.x, b.y, b.r, b.r * 2.2, 0.4, '#ffffff', 4); beep(1200, 0.4, 'sine', 0.05, 400);
+        }
+        return;
+      }
+      b.haloT = (b.haloT ?? 5) - dt;
+      if (b.haloT <= 0) { b.haloW = 0.9; fxText('MIRROR HALO!', b.x, b.y - b.r - 30, '#ffffff', 22, 1.2); beep(900, 0.6, 'sine', 0.04, 300); }
+    },
+    dmg: b => b.haloUp > 0 ? 0 : 1,
+  },
+  stun: {
+    update(b, dt) {
+      b.rifts ||= [];
+      for (const r of b.rifts) r[4] += dt;
+      b.rifts = b.rifts.filter(r => r[4] < RIFT_LIFE);
+      for (const r of b.rifts) if (r[4] > RIFT_ARM)
+        for (const p of living()) if (distToSeg(p.x, p.y, r[0], r[1], r[2], r[3]) < 9 + p.r * 0.5) hurt(p);
+      if (b.stun > 0) {
+        b.stun -= dt; if (b.stun <= 0) b.stun = 0;
+        if (Math.random() < dt * 8) burst(b.x + (Math.random() - 0.5) * b.r, b.y + (Math.random() - 0.5) * b.r, '#ffffff', 3, 60);
+        return 'hold';
+      }
+    },
+    dmg: b => b.stun > 0 ? 2 : 1,
+  },
+  storm: {
+    update(b, dt, enraged) {
+      b.strikes ||= [];
+      for (const s of b.strikes) {
+        const before = s[2]; s[2] += dt;
+        if (before < STRIKE_WARN && s[2] >= STRIKE_WARN) { // the bolt lands
+          burst(s[0], s[1], '#d8f4ff', 25, 260); shake = Math.max(shake, 7); beep(90, 0.3, 'sawtooth', 0.06, -40);
+          fxRing(s[0], s[1], 8, STRIKE_R * 1.3, 0.3, '#d8f4ff', 3);
+        }
+        const r = s[2] < STRIKE_WARN ? 0 : s[2] < STRIKE_WARN + STRIKE_BOLT ? STRIKE_R : STATIC_R;
+        if (r) for (const p of living()) if (Math.hypot(p.x - s[0], p.y - s[1]) < r + p.r * 0.4) hurt(p);
+      }
+      b.strikes = b.strikes.filter(s => s[2] < STRIKE_END);
+      b.boltT = (b.boltT ?? 2) - dt;
+      if (b.boltT > 0) return;
+      b.boltT = enraged ? 2.6 : 3.4;
+      // one strike on every player, plus a few strays
+      for (const p of living()) b.strikes.push([Math.round(p.x), Math.round(p.y), 0]);
+      for (let i = 0; i < (enraged ? 3 : 1); i++) b.strikes.push([40 + Math.random() * (W - 80), H * 0.35 + Math.random() * H * 0.55, 0]);
+      beep(1500, 0.3, 'sawtooth', 0.02, -1200);
+    },
+  },
+  brood: {}, // all in the 'eggs' attack and the egg AI
+  decoys: {
+    update(b, dt, enraged) {
+      const fakes = enemies.filter(e => e.type === 'decoy' && !e.dead && e.owner === b);
+      if (b.split) {
+        b.splitT -= dt;
+        if (!fakes.length || b.splitT <= 0) { phantomRejoin(b, fakes, false); return; }
+        // while split, the real one fires exactly like its copies so it can't be spotted that way
+        b.fanT = (b.fanT ?? 1) - dt;
+        if (b.fanT <= 0) { b.fanT = DECOY_FIRE; decoyFan(b, b.x, b.y); }
+        return 'quiet';
+      }
+      b.splitCd = (b.splitCd ?? 6) - dt;
+      if (b.splitCd > 0 || b.charge) return;
+      // three across on wide screens; a triangle on narrow ones so the copies don't overlap
+      const hoverY = Math.min(170, H * 0.22), slots = shuffle(W >= 640 ? [[W * 0.2, hoverY], [W * 0.5, hoverY], [W * 0.8, hoverY]]
+        : [[W * 0.27, hoverY], [W * 0.73, hoverY], [W * 0.5, hoverY + b.r * 2.4]]);
+      fxGhost(b, 0.6); burst(b.x, b.y, b.color, 50, 350);
+      [b.slotX, b.slotY] = slots[0]; b.x = b.slotX; b.y = b.slotY; b.appear = 1;
+      b.split = true; b.splitT = 7; b.splitDmg = 0; b.fanT = 1.2;
+      for (const [x, y] of slots.slice(1)) {
+        const e = makeEnemy('decoy', x, y); e.homeY = y;
+        e.owner = b; e.r = b.r; e.vx = e.vy = 0; e.fire = b.fanT; e.t = b.t; // in step with the real one
+        e.hp = e.maxHp = Math.max(4, Math.round(b.max * 0.05));
+      }
+      fxText('WHICH ONE IS REAL?', W / 2, Math.max(...slots.map(s => s[1])) + b.r + 50, b.color, 24, 1.8);
+      beep(700, 0.5, 'sine', 0.05, -500);
+      return 'quiet';
+    },
+    onHit(b, dmg) { // hurting the real one gives it away
+      if (!b.split) return;
+      b.splitDmg += dmg;
+      if (b.splitDmg > b.max * 0.04) phantomRejoin(b, enemies.filter(e => e.type === 'decoy' && e.owner === b), true);
+    },
+  },
+  breach: {
+    update(b, dt, enraged) { b.breachA = (b.breachA ?? Math.PI / 2) + dt * (enraged ? 0.75 : 0.45); },
+    dmg(b, fx, fy) {
+      if (fx === undefined) return 0.6;
+      const d = Math.abs(((Math.atan2(fy - b.y, fx - b.x) - b.breachA) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+      return d < BREACH_HALF ? 1.5 : 0.35;
+    },
+  },
+};
+const DECOY_FIRE = 1.5;
+function decoyFan(b, x, y) {
+  const p = nearestPlayer(x, y); if (!p) return;
+  const a = Math.atan2(p.y - y, p.x - x);
+  for (let i = -1; i <= 1; i++) eBullets.push({ x, y, vx: Math.cos(a + i * 0.2) * 230 * BOSS_BULLET_SPEED, vy: Math.sin(a + i * 0.2) * 230 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b });
+}
+function phantomRejoin(b, fakes, found) {
+  for (const e of fakes) { e.dead = true; burst(e.x, e.y, b.color, 30, 250); fxGhost({ ...b, x: e.x, y: e.y }, 0.5); }
+  b.split = false; b.slotX = undefined; b.splitCd = isEnraged(b) ? 7 : 9;
+  if (found) { fxText('FOUND IT!', b.x, b.y - b.r - 30, '#ffffff', 26, 1.4); b.rage = 0.5; beep(500, 0.3, 'triangle', 0.06, 400); }
+}
 
 function updateBoss(b, dt) {
   b.t += dt; b.flash = Math.max(0, b.flash - dt);
@@ -1553,7 +1786,8 @@ function updateBoss(b, dt) {
   const enraged = isEnraged(b);
   // BOSS_ATTACK_SLOWDOWN spaces attacks out; enraging and repeat loops speed them up only a little
   const rate = BOSS_ATTACK_SLOWDOWN / (1 + 0.2 * mut('hellfire')) * (b.atkMult || 1) * (enraged ? 0.8 : 1) * Math.max(0.75, 1 - b.loop * 0.08)
-    * Math.max(0.72, 1 - ((bossCount - 1) % BOSS_CYCLE) * 0.04); // later fights in a cycle attack faster
+    * Math.max(0.72, 1 - ((bossCount - 1) % BOSS_CYCLE) * 0.04) // later fights in a cycle attack faster
+    * (GIMMICKS[b.gimmick]?.rate?.(b) ?? 1);
   b.spin += dt * (enraged ? 1.8 : 0.9);
 
   // eyes (and the lancer's tip) track the nearest player
@@ -1598,6 +1832,9 @@ function updateBoss(b, dt) {
   }
   if (b.style === 'phantom') { b.ghostT -= dt; if (b.ghostT <= 0) { b.ghostT = 0.09; fxGhost(b, 0.45); } }
 
+  const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
+  if (gim === 'hold') return;
+
   if (b.charge) {
     const c = b.charge;
     if (c.phase === 'aim') {
@@ -1605,6 +1842,7 @@ function updateBoss(b, dt) {
       if (c.t <= 0) {
         const d = Math.hypot(c.tx - b.x, c.ty - b.y) || 1;
         c.phase = 'dash'; c.vx = (c.tx - b.x) / d * 950; c.vy = (c.ty - b.y) / d * 950; c.t = Math.min(1, (d + 120) / 950);
+        if (b.gimmick === 'stun') { c.t = 3; c.sx = b.x; c.sy = b.y; } // the Void Lancer doesn't stop until it hits a wall
         b.faceA = Math.atan2(c.vy, c.vx); b.kick = 1;
         beep(120, 0.4, 'sawtooth', 0.08, -60);
       }
@@ -1612,9 +1850,16 @@ function updateBoss(b, dt) {
       b.x += c.vx * dt; b.y += c.vy * dt; c.t -= dt;
       if (Math.random() < dt * 60) burst(b.x, b.y, b.color, 3, 60);
       b.ghostT -= dt; if (b.ghostT <= 0) { b.ghostT = 0.025; fxGhost(b, 0.3); } // afterimage trail
-      if (c.t <= 0 || b.y > H - b.r || b.x < b.r || b.x > W - b.r) {
-        b.x = Math.max(b.r, Math.min(W - b.r, b.x)); b.y = Math.min(H - b.r, b.y);
+      const wall = b.y > H - b.r || b.x < b.r || b.x > W - b.r || (c.sx !== undefined && b.y < b.r);
+      if (c.t <= 0 || wall) {
+        b.x = Math.max(b.r, Math.min(W - b.r, b.x)); b.y = Math.max(b.r, Math.min(H - b.r, b.y));
         b.charge = null; shake = Math.max(shake, 14);
+        if (c.sx !== undefined) { // Void Lancer: leaves a rift behind and knocks itself silly
+          b.rifts.push([Math.round(c.sx), Math.round(c.sy), Math.round(b.x), Math.round(b.y), 0]);
+          b.stun = enraged ? 1.7 : 2.3; shake = Math.max(shake, 22);
+          fxText('STUNNED! ×2 DAMAGE', b.x, Math.max(40, b.y - b.r - 30), '#ffffff', 24, 1.6);
+          beep(80, 0.6, 'square', 0.08, -30);
+        }
         fxRing(b.x, b.y, b.r * 0.8, b.r * 3.5, 0.45, b.color, 5); burst(b.x, b.y, '#ffffff', 30, 300);
         if (enraged) for (let i = 0; i < 12; i++) bossShot(b, i / 12 * Math.PI * 2, 180);
       }
@@ -1640,8 +1885,9 @@ function updateBoss(b, dt) {
     particles.push({ x: b.x + Math.cos(a) * d, y: b.y + Math.sin(a) * d, vx: -Math.cos(a) * d * 2.4, vy: -Math.sin(a) * d * 2.4,
       life: 0.4, max: 0.4, color: Math.random() < 0.3 ? '#ffffff' : b.color, size: 2.5 });
   }
-  if (b.atkT > 0 || b.charge) return;
+  if (b.atkT > 0 || b.charge || gim === 'quiet') return;
   BOSS_ATTACKS[b.patterns[b.pattern]](b, enraged, rate, tgt);
+  GIMMICKS[b.gimmick]?.afterAttack?.(b, enraged);
   // recoil: big attacks punch outward with a shockwave, rapid-fire ones just twitch
   b.bigAtk = b.atkT >= 0.5;
   if (b.bigAtk) { b.kick = 1; fxRing(b.x, b.y, b.r * 0.8, b.r * 2.6, 0.45, b.color, 4); }
@@ -1649,11 +1895,17 @@ function updateBoss(b, dt) {
 }
 
 // returns false if the hit was blocked (shield) or didn't count
-function hitBoss(b, dmg) {
+function hitBoss(b, dmg, fx, fy) {
   if (!bossAlive(b)) return false;
   if (b.shielded) { // Aegis' shield: no damage, just a flash and a ping
     if (b.shieldHit <= 0) beep(1500, 0.04, 'triangle', 0.02);
     b.shieldHit = 0.12; return false;
+  }
+  const g = GIMMICKS[b.gimmick];
+  if (g && b.entered) {
+    dmg *= g.dmg?.(b, fx, fy) ?? 1;
+    if (dmg <= 0) return false;
+    g.onHit?.(b, dmg);
   }
   b.hp -= dmg; b.flash = 0.06; b.lastHit = time;
   b.hitKick = Math.min(1, b.hitKick + 0.15);
@@ -1954,8 +2206,18 @@ function update(dt) {
         if (Math.random() < 0.5) burst(b.x, b.y, '#5dff7a', 3, 120);
         continue;
       }
+      if (bo.haloUp > 0 && distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) < bo.r * 1.5) { // Null Seraph's halo sends shots back
+        b.dead = true;
+        if ((bo.reflectCd || 0) < time) {
+          bo.reflectCd = time + 0.06;
+          const a = Math.atan2(-b.vy, -b.vx) + (Math.random() - 0.5) * 0.3;
+          eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * HALO_REFLECT_SPEED, vy: Math.sin(a) * HALO_REFLECT_SPEED, r: 5, color: '#ffffff', src: bo });
+        }
+        if (Math.random() < 0.3) burst(b.x, b.y, '#ffffff', 3, 120);
+        continue;
+      }
       if (distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) >= bo.r + b.size) continue;
-      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner));
+      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
       if ((b.missile || s.explosive) && bossFx.rings.length < 40) fxRing(b.x, b.y, 4, 30, 0.2, '#ffb13d', 2);
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
@@ -2256,6 +2518,11 @@ function drawWreck(p) {
 }
 
 function drawEnemy(e) {
+  if (e.type === 'decoy') { // a perfect copy of the Phantom (no afterimage trail, though)
+    const b = ownerOf(e, 'decoys');
+    if (b) drawBoss({ ...b, x: e.x, y: e.y, flash: e.flash, kick: 0, hitKick: e.flash > 0 ? 0.3 : 0, charge: null, drain: null, appear: 0 });
+    return;
+  }
   ctx.save(); ctx.translate(e.x, e.y);
   const c = e.flash > 0 ? '#ffffff' : e.healFx > 0 ? '#5dff7a' : e.slow > 0 ? '#9ddcff' : e.color;
   const r = e.r;
@@ -2306,6 +2573,14 @@ function drawEnemy(e) {
     case 'guardian': // tall shield shape
       ctx.moveTo(0, -r); ctx.lineTo(r * 0.9, -r * 0.6); ctx.lineTo(r * 0.8, r * 0.3); ctx.lineTo(0, r * 1.1); ctx.lineTo(-r * 0.8, r * 0.3); ctx.lineTo(-r * 0.9, -r * 0.6);
       break;
+    case 'pylon': // tall crystal
+      ctx.moveTo(0, -r * 1.4); ctx.lineTo(r * 0.7, 0); ctx.lineTo(0, r * 1.4); ctx.lineTo(-r * 0.7, 0);
+      break;
+    case 'egg': { // wobbling egg that swells as it gets ready to hatch
+      const k = 1 + Math.sin(e.t * (4 + (EGG_HATCH - e.timer) * 4)) * 0.06 * (1 + (EGG_HATCH - e.timer) / 2);
+      ctx.ellipse(0, 0, r * 0.85 * k, r * 1.1 * k, 0, 0, Math.PI * 2);
+      break;
+    }
     case 'carrier': // wide armored hull with a launch bay
       ctx.moveTo(-r * 1.4, -r * 0.4); ctx.lineTo(-r * 0.8, -r * 0.8); ctx.lineTo(r * 0.8, -r * 0.8); ctx.lineTo(r * 1.4, -r * 0.4);
       ctx.lineTo(r * 1.2, r * 0.6); ctx.lineTo(r * 0.4, r * 0.8); ctx.lineTo(-r * 0.4, r * 0.8); ctx.lineTo(-r * 1.2, r * 0.6);
@@ -2340,6 +2615,15 @@ function drawEnemy(e) {
     case 'healer': ctx.fillStyle = c; ctx.globalAlpha = 0.35 + e.pulse * 0.5; ctx.fill(); break;
     case 'bloodorb': ctx.fillStyle = c; ctx.globalAlpha = 0.6 + Math.sin(e.t * 12) * 0.3; ctx.fill(); break;
     case 'orbiter': ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r * 0.35, 0, Math.PI * 2); ctx.fill(); break;
+    case 'pylon': ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.5 + Math.sin(e.t * 8) * 0.4; ctx.beginPath(); ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2); ctx.fill(); break;
+    case 'egg': { // the larva inside blinks faster near hatching
+      const left = Math.max(0, e.timer);
+      ctx.fillStyle = left < 1.5 && Math.floor(left * 10) % 2 ? '#fff' : c; ctx.globalAlpha = 0.5 + (1 - left / EGG_HATCH) * 0.5;
+      ctx.beginPath(); ctx.arc(0, r * 0.15, r * (0.25 + (1 - left / EGG_HATCH) * 0.25), 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1; ctx.lineWidth = 3; ctx.strokeStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.45, -Math.PI / 2, -Math.PI / 2 + left / EGG_HATCH * Math.PI * 2); ctx.stroke(); // hatch timer
+      break;
+    }
     case 'serpent': ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(r * 0.35, -r * 0.2, 2.5, 0, Math.PI * 2); ctx.arc(-r * 0.35, -r * 0.2, 2.5, 0, Math.PI * 2); ctx.fill(); break;
     case 'guardian': ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -r * 0.5); ctx.lineTo(0, r * 0.6); ctx.moveTo(-r * 0.45, -r * 0.1); ctx.lineTo(r * 0.45, -r * 0.1); ctx.stroke(); break;
     case 'carrier': // bay lights that blink faster just before a launch
@@ -2361,6 +2645,14 @@ function drawEnemy(e) {
 
 // warnings drawn beneath enemies: aim lines and heal pulses
 function drawEnemyTelegraph(e) {
+  if (e.type === 'pylon') { // energy chain feeding the Warden's shield
+    const b = ownerOf(e, 'pylons');
+    if (b) {
+      ctx.save(); ctx.strokeStyle = e.color; ctx.lineWidth = 2; ctx.globalAlpha = 0.45 + Math.sin(time * 10 + e.id) * 0.2;
+      ctx.setLineDash([8, 6]); ctx.lineDashOffset = -time * 60;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore();
+    }
+  }
   if (e.type === 'orbiter') { // the three orbiting balls (these hurt!)
     ctx.save(); ctx.shadowBlur = 0; ctx.strokeStyle = hexA(e.color, 0.15); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(e.x, e.y, 36, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
@@ -2724,6 +3016,127 @@ function drawBossDecor(b, layer, c, enraged) {
 }
 
 // shockwaves, afterimages, shattered debris and pop-up text
+// gimmick visuals: shields, heat gauges, halos, rifts, lightning... (drawn in world space)
+function drawGimmick(b) {
+  if (!b.gimmick || b.dying > 0 || !b.entered) return;
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.lineCap = 'round';
+  const label = (text, color, y = b.y + b.r * 1.7) => {
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.fillStyle = color; ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, b.x, y);
+  };
+  switch (b.gimmick) {
+    case 'pylons':
+      if (b.guard > 0) { // hexagonal cage while any pylon stands
+        glow(b.color, 20); ctx.strokeStyle = b.color; ctx.lineWidth = 3; ctx.globalAlpha = 0.6 + Math.sin(t * 6) * 0.2;
+        ctx.save(); ctx.translate(b.x, b.y); polygon(6, b.r * 1.5, t * 0.6); ctx.stroke();
+        ctx.globalAlpha = 0.08; ctx.fillStyle = b.color; ctx.fill(); ctx.restore();
+        label(`SHIELDED · ${b.guard} PYLON${b.guard > 1 ? 'S' : ''}`, b.color);
+      }
+      break;
+    case 'overheat': {
+      const heat = b.heat || 0, hot = b.vent > 0;
+      const col = hot ? '#ffffff' : heat > 0.7 ? '#ff5d3d' : '#ffb13d';
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.55, 0, Math.PI * 2); ctx.stroke();
+      glow(col, 15 + heat * 25); ctx.strokeStyle = col;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.55, -Math.PI / 2, -Math.PI / 2 + heat * Math.PI * 2); ctx.stroke();
+      if (hot) {
+        ctx.globalAlpha = 0.18 + Math.sin(t * 20) * 0.08; ctx.fillStyle = '#ffd8a0';
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.6, 0, Math.PI * 2); ctx.fill();
+        label('OVERHEATED — ×2 DAMAGE', '#ffffff');
+      } else if (heat > 0.75 && Math.floor(t * 6) % 2) label('HEAT CRITICAL', '#ff5d3d');
+      break;
+    }
+    case 'halo':
+      if (b.haloW > 0) { // flickering outline before it goes up
+        ctx.globalAlpha = 0.3 + (Math.floor(t * 16) % 2) * 0.4; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]);
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.5, 0, Math.PI * 2); ctx.stroke();
+      } else if (b.haloUp > 0) {
+        glow('#ffffff', 30); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.globalAlpha = 0.9;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 2; ctx.strokeStyle = b.color;
+        for (let i = 0; i < 12; i++) { // feathers
+          const a = t * 1.5 + i / 12 * Math.PI * 2;
+          ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * b.r * 1.5, b.y + Math.sin(a) * b.r * 1.5);
+          ctx.lineTo(b.x + Math.cos(a + 0.2) * b.r * 1.85, b.y + Math.sin(a + 0.2) * b.r * 1.85); ctx.stroke();
+        }
+        ctx.globalAlpha = 0.1; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.5, 0, Math.PI * 2); ctx.fill();
+        label('REFLECTING!', '#ffffff', b.y + b.r * 2.1);
+      }
+      break;
+    case 'stun':
+      for (const r of b.rifts || []) { // void rifts: thin while arming, then a burning tear
+        const armed = r[4] > RIFT_ARM, fade = Math.min(1, (RIFT_LIFE - r[4]) * 2);
+        ctx.globalAlpha = fade * (armed ? 0.9 : 0.35); ctx.strokeStyle = armed ? '#ff4d4d' : '#ffffff';
+        ctx.lineWidth = armed ? 8 + Math.sin(t * 30) * 2 : 2; glow('#ff4d4d', armed ? 25 : 0);
+        ctx.beginPath(); ctx.moveTo(r[0], r[1]);
+        for (let i = 1; i < 10; i++) {
+          const k = i / 10, w = armed ? Math.sin(t * 25 + i * 2) * 5 : 0;
+          ctx.lineTo(r[0] + (r[2] - r[0]) * k + w, r[1] + (r[3] - r[1]) * k - w);
+        }
+        ctx.lineTo(r[2], r[3]); ctx.stroke();
+        if (armed) { ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.shadowBlur = 0; ctx.stroke(); }
+      }
+      if (b.stun > 0) { // dizzy stars
+        ctx.globalAlpha = 1; ctx.fillStyle = '#ffe93d'; glow('#ffe93d', 15);
+        for (let i = 0; i < 3; i++) {
+          const a = t * 5 + i / 3 * Math.PI * 2, x = b.x + Math.cos(a) * b.r * 0.8, y = b.y - b.r * 1.1 + Math.sin(a) * b.r * 0.25;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(t * 4); ctx.beginPath();
+          for (let k = 0; k < 10; k++) { const rr = k % 2 ? 3 : 8, aa = k / 10 * Math.PI * 2; ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr); }
+          ctx.fill(); ctx.restore();
+        }
+        label('STUNNED — ×2 DAMAGE', '#ffe93d', b.y + b.r * 1.5);
+      }
+      break;
+    case 'storm':
+      for (const s of b.strikes || []) {
+        const [x, y, age] = s;
+        if (age < STRIKE_WARN) { // target circle closing in
+          const k = age / STRIKE_WARN;
+          ctx.globalAlpha = 0.35 + k * 0.5; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+          ctx.beginPath(); ctx.arc(x, y, STRIKE_R * (1.6 - k * 0.6), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+          ctx.globalAlpha = 0.08 + k * 0.15; ctx.fillStyle = '#7da8ff'; ctx.beginPath(); ctx.arc(x, y, STRIKE_R, 0, Math.PI * 2); ctx.fill();
+        } else if (age < STRIKE_WARN + STRIKE_BOLT) { // the bolt from the sky
+          ctx.globalAlpha = 1; glow('#7df9ff', 40); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.moveTo(x + (Math.random() - 0.5) * 40, 0);
+          for (let i = 1; i < 12; i++) ctx.lineTo(x + (Math.random() - 0.5) * 50 * (1 - i / 12), y * i / 12);
+          ctx.lineTo(x, y); ctx.stroke();
+          ctx.globalAlpha = 0.5; ctx.fillStyle = '#d8f4ff'; ctx.beginPath(); ctx.arc(x, y, STRIKE_R, 0, Math.PI * 2); ctx.fill();
+        } else { // crackling static left behind
+          const fade = Math.min(1, (STRIKE_END - age) * 2);
+          ctx.globalAlpha = 0.15 * fade; ctx.fillStyle = '#5d8dff'; ctx.beginPath(); ctx.arc(x, y, STATIC_R, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 0.8 * fade; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 1.5; glow('#7df9ff', 10);
+          for (let i = 0; i < 3; i++) {
+            const a = Math.random() * Math.PI * 2; ctx.beginPath(); ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(a + 0.4) * STATIC_R * 0.5, y + Math.sin(a + 0.4) * STATIC_R * 0.5);
+            ctx.lineTo(x + Math.cos(a) * STATIC_R, y + Math.sin(a) * STATIC_R); ctx.stroke();
+          }
+        }
+      }
+      break;
+    case 'breach': { // armor plates around the core, with one open gap
+      const a0 = b.breachA ?? Math.PI / 2, R = b.r * 1.35;
+      glow(b.color, 15); ctx.strokeStyle = b.color; ctx.lineWidth = 7; ctx.globalAlpha = 0.85;
+      const plates = 7, span = (Math.PI * 2 - BREACH_HALF * 2) / plates;
+      for (let i = 0; i < plates; i++) {
+        const s = a0 + BREACH_HALF + i * span;
+        ctx.beginPath(); ctx.arc(b.x, b.y, R, s + 0.05, s + span - 0.05); ctx.stroke();
+      }
+      // the breach: a pulsing white opening with arrows pointing in
+      const pulse = 0.5 + Math.sin(t * 8) * 0.5;
+      glow('#ffffff', 25); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + pulse * 0.5;
+      ctx.beginPath(); ctx.arc(b.x, b.y, R, a0 - BREACH_HALF, a0 + BREACH_HALF); ctx.stroke();
+      for (const d of [-0.3, 0, 0.3]) {
+        const a = a0 + d, r1 = R + 14 + pulse * 6;
+        ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * (r1 + 10), b.y + Math.sin(a) * (r1 + 10)); ctx.lineTo(b.x + Math.cos(a) * r1, b.y + Math.sin(a) * r1); ctx.stroke();
+      }
+      break;
+    }
+  }
+  ctx.restore();
+}
+
 function drawBossFx(layer) {
   if (layer === 'under') {
     for (const g of bossFx.ghosts) {
@@ -2761,10 +3174,11 @@ function drawBossFx(layer) {
   for (const tx of bossFx.texts) {
     const age = tx.max - tx.life;
     const pop = age < 0.15 ? age / 0.15 * 1.3 : Math.max(1, 1.3 - (age - 0.15) * 2);
-    ctx.save(); ctx.translate(tx.x, tx.y); ctx.scale(pop, pop);
+    ctx.font = `900 ${Math.min(tx.size, W / 12)}px system-ui`;
+    const half = Math.min(W / 2, ctx.measureText(tx.text).width * pop / 2 + 8); // keep it on screen near the edges
+    ctx.save(); ctx.translate(Math.max(half, Math.min(W - half, tx.x)), Math.max(20, tx.y)); ctx.scale(pop, pop);
     ctx.globalAlpha = Math.min(1, tx.life / 0.4);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `900 ${Math.min(tx.size, W / 12)}px system-ui`;
     glow(tx.color, 25); ctx.fillStyle = '#fff'; ctx.fillText(tx.text, 0, 0);
     ctx.restore();
   }
@@ -2819,6 +3233,7 @@ function drawWorld() {
   drawBossFx('under');
   drawEncounterFx();
   for (const bo of bosses) drawBoss(bo);
+  for (const bo of bosses) drawGimmick(bo);
   const shots = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
@@ -3597,7 +4012,8 @@ const roundDeep = v => typeof v === 'number' ? r2(v) : Array.isArray(v) ? v.map(
 // is only sent when a boss first appears and then once a second, and guests remember it
 const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
-  'faceA', 'bigAtk', 'cracks', 'healT', 'regen'];
+  'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
+  'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split', 'breachA']; // (gimmicks)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain') o[k] = roundDeep(b[k]); }
