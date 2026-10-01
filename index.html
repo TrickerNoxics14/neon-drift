@@ -4839,6 +4839,7 @@ function draw() {
   else if (state === 'ships') drawShips();
   else if (state === 'achievements') drawAchievements();
   else if (state === 'online') drawOnline();
+  else if (state === 'browse') drawBrowse();
   else if (state === 'joinCode') drawJoin();
   else if (state === 'lobby') drawLobby();
   else if (state === 'over') drawOver();
@@ -4902,6 +4903,7 @@ const randomCode = () => String(Math.floor(Math.random() * 10 ** CODE_LEN)).padS
 const unlockedShips = () => SHIPS.filter(shipUnlocked);
 
 function leaveOnline(msg) {
+  dirUnlist(); // take my room off the public list
   try { net.peer?.destroy(); } catch (e) {}
   Object.assign(net, { role: null, peer: null, conns: [], host: null, code: '', status: '', playing: false, myId: 0, slots: [], hostW: 0, hostH: 0 });
   resize(); go('menu');
@@ -4910,7 +4912,8 @@ function leaveOnline(msg) {
 
 // ----- host -----
 async function hostGame() {
-  Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0], cos: meta.cos.eq }], status: 'Connecting to the matchmaking server…', code: '' });
+  Object.assign(net, { role: 'host', conns: [], slots: [{ ship: lastShips[0], cos: meta.cos.eq }], status: 'Connecting to the matchmaking server…', code: '',
+    public: net.wantPublic ?? true, roomName: randomRoomName() });
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
   const config = await iceConfig();
@@ -5080,6 +5083,87 @@ function onGuestData(d) {
     players.forEach((p, i) => p.remote = i !== net.myId);
   }
   if (d.snap && net.playing && run) applySnap(d.snap);
+}
+
+// ---------- public lobby list ----------
+// There's no game server, so the list lives in the browser of whichever player grabbed a fixed PeerJS id
+// first (the "directory"). Public hosts send it their room every few seconds, browsing players ask it for
+// the list, and if that player leaves, the next one online takes over (and hosts simply re-send their rooms).
+const DIR_ID = PEER_PREFIX + 'directory';
+const DIR_BEAT = 3, DIR_STALE = 10; // seconds between updates; forget rooms not heard from for this long
+const dir = { peer: null, conn: null, serving: false, connecting: false, rooms: new Map(), list: [], status: '', clients: new Set(), retryT: 0, beatT: 0 };
+const ROOM_WORDS = [['Neon', 'Turbo', 'Cosmic', 'Pixel', 'Laser', 'Hyper', 'Shadow', 'Solar', 'Frosty', 'Crimson', 'Atomic', 'Mega'],
+  ['Foxes', 'Comets', 'Rockets', 'Dragons', 'Sharks', 'Wizards', 'Ninjas', 'Raptors', 'Ghosts', 'Titans', 'Falcons', 'Squad']];
+const randomRoomName = () => ROOM_WORDS.map(w => w[Math.floor(Math.random() * w.length)]).join(' ');
+// stay connected to the directory while you're anywhere in online play (that also keeps it alive for others)
+const dirWanted = () => !!net.role || ['online', 'browse', 'joinCode'].includes(state);
+
+async function dirConnect() {
+  dir.connecting = true; dir.status = 'Looking for public games…';
+  try { await loadPeer(); } catch (e) { dir.status = 'Could not load the online library — check your internet.'; dirReset(5); return; }
+  const config = await iceConfig();
+  // try to become the directory; if someone already is, connect to them instead
+  const serve = new Peer(DIR_ID, { config });
+  dir.peer = serve;
+  serve.on('open', () => { dir.serving = true; dir.connecting = false; dir.status = ''; dirBeat(); });
+  serve.on('connection', c => {
+    dir.clients.add(c);
+    c.on('data', d => dirServe(c, d));
+    c.on('close', () => dir.clients.delete(c));
+  });
+  serve.on('error', err => {
+    if (err.type === 'unavailable-id') { serve.destroy(); dirJoin(config); }
+    else if (!dir.serving) { dir.status = 'Network problem: ' + err.type; dirReset(4); }
+  });
+}
+function dirJoin(config) {
+  const p = new Peer({ config });
+  dir.peer = p;
+  p.on('open', () => {
+    const c = p.connect(DIR_ID, { reliable: true, serialization: 'json' });
+    dir.conn = c;
+    c.on('open', () => { dir.connecting = false; dir.status = ''; dirBeat(); });
+    c.on('data', d => { if (d.rooms) dir.list = d.rooms; });
+    c.on('close', () => dirReset(1 + Math.random() * 2)); // the directory left: reconnect (maybe take over)
+  });
+  p.on('error', err => { if (dir.peer === p) { dir.status = err.type === 'peer-unavailable' ? 'Looking for public games…' : 'Network problem: ' + err.type; dirReset(1 + Math.random() * 2); } });
+}
+function dirReset(wait = 0) {
+  const p = dir.peer;
+  Object.assign(dir, { peer: null, conn: null, serving: false, connecting: false, retryT: wait });
+  dir.clients.clear();
+  try { p?.destroy(); } catch (e) {}
+}
+// directory side: remember rooms, answer list requests
+function dirServe(c, d) {
+  if (d.room) dir.rooms.set(d.room.code, { ...d.room, t: performance.now() });
+  if (d.unroom) dir.rooms.delete(d.unroom);
+  if (d.list && c.open) c.send({ rooms: dirRooms() });
+}
+function dirRooms() {
+  const now = performance.now();
+  for (const [k, r] of dir.rooms) if (now - r.t > DIR_STALE * 1000) dir.rooms.delete(k);
+  return [...dir.rooms.values()].map(({ t, ...r }) => r);
+}
+// joinable rooms first (busiest first), then full or already-playing ones
+const roomOpen = r => !r.playing && r.n < MAX_ONLINE;
+const sortedRooms = () => dir.list.slice().sort((a, b) => roomOpen(b) - roomOpen(a) || b.n - a.n);
+const myRoom = () => net.role === 'host' && net.public && net.code
+  ? { code: net.code, name: net.roomName, n: net.slots.length, run: runType, playing: net.playing ? 1 : 0 } : null;
+// every few seconds: (re)send my room if I'm hosting a public game, and refresh the list if I'm browsing
+function dirBeat() {
+  const room = myRoom();
+  if (dir.serving) { if (room) dirServe(null, { room }); dir.list = dirRooms(); }
+  else if (dir.conn?.open) { if (room) dir.conn.send({ room }); if (state === 'browse') dir.conn.send({ list: 1 }); }
+}
+function dirUnlist() {
+  if (!net.code) return;
+  if (dir.serving) dir.rooms.delete(net.code); else if (dir.conn?.open) dir.conn.send({ unroom: net.code });
+}
+function dirTick(dt) {
+  if (!dirWanted()) { if (dir.peer || dir.connecting) dirReset(); return; }
+  if (!dir.peer && !dir.connecting) { if ((dir.retryT -= dt) <= 0) dirConnect(); return; }
+  if ((dir.beatT -= dt) <= 0) { dir.beatT = DIR_BEAT; dirBeat(); }
 }
 // ---------- smoothing: timelines of positions from another computer ----------
 // Positions arrive ~20-30 times a second. Instead of jumping to each one, other ships/enemies/bosses
@@ -5280,7 +5364,14 @@ function onlineKey(e) {
   }
   if (state === 'online') {
     if (e.code === 'Escape') { go('menu'); return true; }
+    if (e.code === 'KeyB') { go('browse'); return true; }
     return false; // arrows/Enter work the buttons as usual
+  }
+  if (state === 'browse') {
+    if (e.code === 'Escape') { go('online'); return true; }
+    const n = +e.key, r = sortedRooms()[n - 1];
+    if (n >= 1 && r && roomOpen(r)) { joinGame(r.code); return true; }
+    return false; // arrows/Enter work the buttons
   }
   if (state === 'lobby') {
     if (e.code === 'Escape') { leaveOnline(); return true; }
@@ -5288,6 +5379,7 @@ function onlineKey(e) {
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { cycleShip(1); return true; }
     if (e.code === 'KeyC') { openShipSelect(1, true); return true; }
     if (net.role === 'host' && e.code === 'KeyE') { toggleRunType(); broadcastLobby(); return true; }
+    if (net.role === 'host' && e.code === 'KeyP') { togglePublic(); return true; }
     if (net.role === 'host' && e.code === 'Enter') { startOnline(); return true; }
     return true;
   }
@@ -5307,13 +5399,14 @@ function onlineKey(e) {
 function drawOnline() {
   const cy = Math.max(170, H / 2 - 110), bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   title('ONLINE CO-OP', cy - 80, '#9dff5d', 48);
-  fitText('Play with up to 3 friends over the internet', cy - 34, 15, '#9ab');
-  button('HOST A GAME', bx, cy, bw, 46, '#9dff5d', hostGame);
-  button('JOIN A GAME', bx, cy + 56, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
-  button('BACK  [Esc]', bx, cy + 112, bw, 40, '#9ab', () => go('menu'));
+  fitText('Play with up to 7 friends over the internet', cy - 34, 15, '#9ab');
+  button('BROWSE PUBLIC GAMES  [B]', bx, cy, bw, 46, '#ffe93d', () => go('browse'));
+  button('HOST A GAME', bx, cy + 56, bw, 46, '#9dff5d', hostGame);
+  button('JOIN WITH A CODE', bx, cy + 112, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
+  button('BACK  [Esc]', bx, cy + 168, bw, 40, '#9ab', () => go('menu'));
   ctx.font = '13px system-ui';
   wrap('Everyone needs an internet connection and this same version of the game. The host runs the game; friends join with a 4-digit room code. Some strict networks (like school or work) can block the connection.', Math.min(460, W - 40))
-    .forEach((l, i) => fitText(l, cy + 180 + i * 18, 13, '#789'));
+    .forEach((l, i) => fitText(l, cy + 236 + i * 18, 13, '#789'));
 }
 // typing the last digit joins straight away
 function typeCodeDigit(d) {
@@ -5339,6 +5432,43 @@ function drawJoin() {
   });
   button('BACK  [Esc]', bx, ky + 4 * (kh + 8) + 6, bw, 40, '#9ab', () => go('online'));
 }
+// the public game list (see the directory code)
+function drawBrowse() {
+  title('PUBLIC GAMES', 60, '#ffe93d', 44);
+  const rooms = sortedRooms().slice(0, 8);
+  const searching = !dir.serving && !dir.conn?.open;
+  fitText(dir.status || (searching ? 'Looking for public games…' : rooms.length ? `${rooms.length} game${rooms.length > 1 ? 's' : ''} found — click one to join` : 'No public games right now — host one!'), 100, 14, '#9ab');
+  const rw = Math.min(560, W - 32), rx = (W - rw) / 2, rh = 54, top = 124;
+  rooms.forEach((r, i) => {
+    const y = top + i * (rh + 8), open = roomOpen(r);
+    if (open) buttons.push({ x: rx, y, w: rw, h: rh, action: () => joinGame(r.code) });
+    panel(rx, y, rw, rh, open ? '#ffe93d' : '#445', sel === i);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillStyle = open ? '#fff' : '#778'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`${i + 1}.  ${r.name}`, rx + 14, y + 19);
+    ctx.fillStyle = RUN_COLOR[r.run] || '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(`${RUN_LABEL[r.run] || r.run}  ·  code ${r.code}`, rx + 14, y + 38);
+    ctx.textAlign = 'right'; ctx.font = 'bold 15px system-ui';
+    ctx.fillStyle = open ? '#9dff5d' : '#c88'; ctx.fillText(r.playing ? 'IN GAME' : r.n >= MAX_ONLINE ? 'FULL' : 'JOIN', rx + rw - 14, y + 19);
+    ctx.fillStyle = '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(`${r.n} / ${MAX_ONLINE} players`, rx + rw - 14, y + 38);
+  });
+  if (searching || !rooms.length) { // a little radar sweep while waiting
+    const t = performance.now() / 1000, cy = top + 60;
+    ctx.save(); ctx.strokeStyle = '#ffe93d'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) { const p = (t * 0.6 + k / 3) % 1; ctx.globalAlpha = 1 - p; ctx.beginPath(); ctx.arc(W / 2, cy, 8 + p * 40, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+  const by = top + Math.max(2, rooms.length) * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+  button('HOST A PUBLIC GAME', bx, by, bw, 44, '#9dff5d', () => { net.wantPublic = true; hostGame(); });
+  button('BACK  [Esc]', bx, by + 52, bw, 40, '#9ab', () => go('online'));
+  ctx.font = '12px system-ui';
+  wrap('The list updates by itself. Games show up when their host turns PUBLIC on in the lobby. Strict networks (school/work) may hide some games — use a room code then.', Math.min(460, W - 40))
+    .forEach((l, i) => fitText(l, by + 112 + i * 17, 12, '#789'));
+}
+// host: show or hide this room on the public list
+function togglePublic() {
+  net.public = net.wantPublic = !net.public;
+  if (net.public) dirBeat(); else dirUnlist();
+  beep(net.public ? 660 : 440, 0.12, 'triangle', 0.05);
+}
 function drawLobby() {
   const host = net.role === 'host', me = host ? 0 : net.myId;
   title('ONLINE LOBBY', 56, '#9dff5d', 44);
@@ -5363,19 +5493,21 @@ function drawLobby() {
     if (i === me && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
-  fitText(`Run: ${RUN_LABEL[runType]}${host ? '  [E] to change' : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
+  fitText(`Run: ${RUN_LABEL[runType]}${host ? '  [E] to change' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
     button(n > 1 ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, n > 1 ? '#9dff5d' : '#667', startOnline);
   }
   button('LEAVE  [Esc]', bx, by + (host ? 120 : 68), bw, 40, '#ff5a70', () => leaveOnline());
+  if (host) button(net.public ? 'PUBLIC: ON — anyone can join  [P]' : 'PRIVATE: code only  [P]', bx, by + 168, bw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
 }
 
 let last = performance.now();
 function loop(now) {
   // cap big hitches (tab switches) without slowing the game down on 30-50fps machines
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  dirTick(dt); // public lobby list
   if (net.role === 'guest' && net.playing) guestFrame(dt);
   else {
     if (net.role === 'host' && net.playing && run) smoothRemotePlayers();
