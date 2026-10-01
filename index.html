@@ -194,6 +194,109 @@ const SONGS = {
     B: { chords: '6 7 1 1 4 2 1 1', ins: 'flute', dr: 'taiko', gt: 'chug', mel: [
       '6-------q-------', '7-------w-------', 'q-------5-------', '5-------w-q-----',
       '4-------6---q---', 'w-------6---4---', 'q-------7-6-5---', '1---------------'] } } },
+  // the secret boss: glitchy synth arps that turn into a guitar duel
+  zero: { name: 'Null Pointer', bpm: 136, root: 42, scale: 'minor', lead: 66, battle: true, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 1 6 1 6 7 5^', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
+      '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.', '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.',
+      '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.', '7.4.2.4.7.4.2.4.', '5.5.2.5.w.5.2.5.'] },
+    B: { chords: '6 7 1 3 6 7 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+      '6-------q---e---', '7-------w---r---', 'e-------q---5---', '3-------5---7---',
+      'e-------q---6---', 'r-------w---7---', 'w-------5---w---', 't---------------'] } } },
+  // team bosses: a fast rival fight where the guitar and the flute trade the tune
+  rival: { name: 'Rival Clash', bpm: 160, root: 47, scale: 'minor', lead: 71, battle: true, form: ['A', 'B'], parts: {
+    A: { chords: '1 1 6 7 1 1 6 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
+      '1.1.3.1.5.3.1.3.', '5.3.5.q.5.3.1...', '6.6.1.3.6.3.1.3.', '7.7.2.4.7.4.2.4.',
+      '1.1.3.1.5.3.1.3.', '5.3.5.q.5.3.1...', '6.6.1.3.6.3.1.3.', '5.5.2.5.w...5...'] },
+    B: { chords: '6 7 3 1 4 6 5^ 5^', ins: 'flute', dr: 'taiko', gt: 'strum', mel: [
+      '3-------6---q---', 'w-------q---7---', '3-------5---7---', 'q-----------7-5-',
+      '4-------6---q---', 'e-------q---6---', 'w-------5---w---', '5---------------'] } } },
+  // the screens between the action
+  hangar: { name: 'Dry Dock', bpm: 92, root: 41, scale: 'major', lead: 65, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 4 5 1 6 4 5', ins: 'bell', dr: 'space', gt: 'clean', mel: [
+      '3.......5...q...', '6.......q...3...', '4.......6...q...', '5.......7...w...',
+      'e.......q...5...', 'q.......6...3...', 'r.......q...6...', 'w-------7-------'] },
+    B: { chords: '4 5 3 6 2 5 1 1', ins: 'flute', dr: 'groove', gt: 'clean', arp: 1, mel: [
+      '6-------4---1---', '7-------5---2---', '3-----------5---', '6-------5-3-----',
+      '2-------4---6---', '7-------w---7---', 'q-------5---3---', '1---------------'] } } },
+  shop: { name: 'Void Merchant', bpm: 100, root: 45, scale: 'dorian', lead: 69, form: ['A', 'B'], parts: {
+    A: { chords: '1 4 1 4 3 7 1 1', ins: 'koto', dr: 'groove', gt: 'clean', mel: [
+      '1.3.5.3.q.5.3.5.', '4.6.q.6.4.6.q...', '5.3.1.3.5.6.5.3.', '6.4.6.q.q.w.q.6.',
+      '3.5.7.5.3.5.7.5.', '7.2.4.2.7.2.4.2.', 'q.5.3.5.q.5.3.1.', '1-------........'] },
+    B: { chords: '3 7 4 1 3 7 4 4', ins: 'bell', dr: 'half', gt: 'clean', mel: [
+      '3-------5---7---', '7-------4---2---', '6-------4---6---', '5-------3-------',
+      'e-------7---5---', 'w-------7---4---', 'q-------6---4---', '6---------------'] } } },
+  starmap: { name: 'Star Chart', bpm: 76, root: 39, scale: 'major', lead: 63, form: ['A'], parts: {
+    A: { chords: '4 5 6 6 4 5 1 1', ins: 'flute', dr: 'space', gt: 'clean', arp: 1, mel: [
+      '1-------4---6---', '5-------7---w---', '6-----------5-3-', '1---------------',
+      'q-------6---4---', 'w-------7---5---', '3-------5---q---', 'q---------------'] } } },
+  victory: { name: 'Dawn After the Dark', bpm: 96, root: 36, scale: 'major', lead: 60, form: ['A', 'B'], parts: {
+    A: { chords: '1 5 6 3 4 1 4 5', ins: 'guitar', dr: 'half', gt: 'clean', mel: [
+      'e-------q-------', 'w-------7-------', 'q-------6-------', '7-------5-------',
+      '6-------4-------', '5-------3-------', '6-------q-------', '7-------w-------'] },
+    B: { chords: '4 5 3 6 4 5 1 1', ins: 'guitar', dr: 'rock', gt: 'strum', mel: [
+      'q-------r---y---', 'w-------t---w---', 'e-------7---5---', 'q-------e---y---',
+      'y-------r---q---', 't-------w---7---', 'e-------q---t---', 'q---------------'] } } },
+  gameover: { name: 'Drifting Home', bpm: 70, root: 45, scale: 'minor', lead: 69, form: ['A'], parts: {
+    A: { chords: '6 7 1 1 6 7 3 3', ins: 'flute', dr: 'space', gt: 'clean', mel: [
+      '3-------1---6---', '7-------4---2---', '3-----------1---', '5---------------',
+      '6-------q---6---', '7-------4---7---', '5-------3-------', '3---------------'] } } },
+  // B-sides: every zone has a second song, and each run picks one of the two
+  deep2: { name: 'Northern Drift', bpm: 126, root: 38, scale: 'major', lead: 62, form: ['A', 'B'], parts: {
+    A: { chords: '1 5 6 4 1 5 4 4', ins: 'synth', dr: 'groove', gt: 'clean', arp: 1, mel: [
+      '3---5---q---5---', '5---7---w---7---', '6---q---e---q---', '6-------4-------',
+      'e---q---5---q---', 'w---7---5---7---', 'r-------6-------', 'q---------------'] },
+    B: { chords: '6 4 1 5 6 4 5 5', ins: 'guitar', dr: 'rock', gt: 'strum', mel: [
+      'q-------e-------', 'y-------r-------', 't-------e---q---', 'w-------7-------',
+      'e-------y-------', 'r-------q---6---', 'w-------5---7---', 'w---------------'] } } },
+  belt2: { name: 'Rock Slide', bpm: 148, root: 38, scale: 'minor', lead: 62, form: ['A', 'B'], parts: {
+    A: { chords: '1 7 6 7 1 7 6 5^', ins: 'koto', dr: 'rock', gt: 'chug', mel: [
+      '1.3.5.q.5.3.1.3.', '7.2.4.7.4.2.7.4.', '6.1.3.6.3.1.6.3.', '7.2.4.7.w...7...',
+      '1.3.5.q.5.3.1.3.', '7.2.4.7.4.2.7.4.', '6.1.3.6.3.1.6.3.', '5.5.2.5.t...5...'] },
+    B: { chords: '6 3 7 1 6 3 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+      'q-------6---3---', 'e-------7---5---', 'w-------7---4---', 'q-----------5---',
+      'e-------q---6---', 't-------e---7---', 'w-------5---w---', 't---------------'] } } },
+  nebula2: { name: 'Crimson Lanterns', bpm: 92, root: 47, scale: 'phrygian', lead: 71, form: ['A', 'B'], parts: {
+    A: { chords: '1 2 1 2 4 2 1 1', ins: 'koto', dr: 'half', gt: 'none', mel: [
+      '5---2-1---------', '2-------4---6---', '1-----5-q-------', 'w-------6---4---',
+      '4-------6---q---', '6-------4---2---', '1-----2-1-------', '5---------------'] },
+    B: { chords: '6 7 1 1 6 2 1 1', ins: 'flute', dr: 'taiko', gt: 'clean', mel: [
+      '6-------q-------', '7-------w---7---', 'q-------5---3---', '5---------------',
+      '3-------6---q---', 'w-------6---4---', '5-------3---1---', '1---------------'] } } },
+  rings2: { name: 'Frostlight', bpm: 108, root: 40, scale: 'major', lead: 64, form: ['A', 'B'], parts: {
+    A: { chords: '1 3 4 5 1 3 4 4', ins: 'bell', dr: 'space', gt: 'clean', mel: [
+      't.......e.......', 'e.......t.......', 'y.......q.......', 'w.......7.......',
+      'q.......e...t...', 't.......7.......', 'r.......y.......', 'q---------------'] },
+    B: { chords: '6 4 1 5 6 4 5 5', ins: 'flute', dr: 'groove', gt: 'clean', arp: 1, mel: [
+      '6-------q---e---', 'r-------q---6---', 'e-------t---e---', 'w-------7-------',
+      'e-------y---e---', 'y-------r---q---', 'w-------t---w---', 't---------------'] } } },
+  corona2: { name: 'Solar Wind', bpm: 158, root: 45, scale: 'minor', lead: 69, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 3 7 1 6 3 5^', ins: 'koto', dr: 'drive', gt: 'chug', mel: [
+      '1.3.5.3.1.3.5.q.', '6.3.1.3.6.3.q.3.', '3.5.7.5.3.5.e.5.', '7.4.2.4.7.4.w.4.',
+      '1.3.5.3.1.3.5.q.', '6.3.1.3.6.3.q.3.', '3.5.7.5.3.5.e.5.', '5.5.2.5.t...5...'] },
+    B: { chords: '4 6 1 1 4 6 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+      '4-------6---q---', 'q-------6---3---', '5-------q---e---', 'q-----------5---',
+      'r-------q---6---', 'e-------q---6---', 'w-------5---w---', 't---------------'] } } },
+  derelict2: { name: 'Silent Bridge', bpm: 84, root: 43, scale: 'minor', lead: 67, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 3 7 1 6 4 5^', ins: 'flute', dr: 'half', gt: 'clean', mel: [
+      '5-------3---1---', '6-------5-3-----', '3-------7-------', '7-------4---2---',
+      'q-------7-5-----', '6-------e-------', 'q-------6---4---', '5-------2-------'] },
+    B: { chords: '6 7 1 1 6 7 5^ 5^', ins: 'guitar', dr: 'rock', gt: 'strum', mel: [
+      'e-------q---6---', 'w-------7---4---', 'q-------5---3---', '5---------------',
+      'e-------6---q---', 'r-------w---7---', 't-------w---5---', '5---------------'] } } },
+  prism2: { name: 'Spectrum', bpm: 136, root: 46, scale: 'major', lead: 70, form: ['A', 'B'], parts: {
+    A: { chords: '1 3 4 5 1 3 4 4', ins: 'synth', dr: 'groove', gt: 'clean', mel: [
+      '1.3.5.3.q.5.3.5.', '3.5.7.5.e.7.5.7.', '4.6.q.6.r.q.6.q.', '5.7.w.7.5.7.w...',
+      '1.3.5.3.q.5.3.5.', '3.5.7.5.e.7.5.7.', 'r-------q---6---', '4---------------'] },
+    B: { chords: '6 4 1 5 6 4 5 5', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+      '6-------q---e---', 'r-------q---6---', 'e-------q---5---', 'w-------7---5---',
+      'e-------q---6---', 'q-------6---4---', '5-------7---w---', '5---------------'] } } },
+  horizon2: { name: "Gravity's Edge", bpm: 124, root: 36, scale: 'minor', lead: 60, form: ['A', 'B'], parts: {
+    A: { chords: '1 1 6 6 1 1 7 5^', ins: 'synth', dr: 'taiko', gt: 'none', mel: [
+      '1-------5---3---', 'q-------7-5-----', '6-------3---1---', 'q-------6-------',
+      'e-------q---5---', 't-------e---q---', 'w-------7---4---', '5-------2-------'] },
+    B: { chords: '6 7 3 1 6 7 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
+      'q-------e---y---', 'w-------r---w---', 'e-------t---e---', 'q-------5---3---',
+      'y-------e---q---', 'r-------w---7---', 'w-------5---w---', 't---------------'] } } },
 };
 // turn the written songs into notes the sequencer can read
 const NOTE_KEYS = { z: [1, -1], x: [2, -1], c: [3, -1], v: [4, -1], b: [5, -1], n: [6, -1], m: [7, -1],
@@ -210,7 +313,19 @@ for (const song of Object.values(SONGS)) for (const sec of Object.values(song.pa
     return out;
   });
 }
-const ZONE_SONGS = { deep: 'deep', belt: 'belt', nebula: 'nebula', rings: 'rings', corona: 'corona', derelict: 'derelict', prism: 'prism', horizon: 'horizon' };
+const ZONE_SONGS = { deep: ['deep', 'deep2'], belt: ['belt', 'belt2'], nebula: ['nebula', 'nebula2'], rings: ['rings', 'rings2'],
+  corona: ['corona', 'corona2'], derelict: ['derelict', 'derelict2'], prism: ['prism', 'prism2'], horizon: ['horizon', 'horizon2'] };
+// which of a zone's two songs plays there (picked per run, and again each Endless cycle; online, the host's pick)
+function zoneSong(zone) {
+  const opts = ZONE_SONGS[zone] || ZONE_SONGS.deep, h = [...(zone || 'deep')].reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  return opts[(h + (run?.musicSeed || 0) + (run?.cycle || 1)) % opts.length];
+}
+// the Music Room's list, in order, with where each song plays
+const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
+  ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
+  ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'],
+  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['victory', 'Victory'], ['gameover', 'Game over']];
+const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
   space:  { k: 'x.......x.......', s: '............x...', h: '..x...x...x...x.', v: 0.55 },
   half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.75 },
@@ -234,15 +349,21 @@ function scheduleMusic() {
   if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.05; // woke from sleep: don't play a backlog
   while (music.next < ac.currentTime + 0.15) music.next += musicStep(music.next);
 }
-// which song should be playing: the menu song, your zone's song, or THE ABYSS's
+// which song should be playing right now
 function wantedSong() {
-  if (!run || !(inRun() || state === 'over')) return 'menu';
-  if (state === 'over') return music.song || 'menu';
-  const warnFinal = bossWarn > 0 && (net.role === 'guest' ? net.warnInfo?.final : encounterInfo(bossCount).final);
-  if (warnFinal || bosses.some(b => b.final || b.secret)) return 'abyss';
-  return ZONE_SONGS[run.zone] || 'deep';
+  if (state === 'jukebox') return music.pick || 'menu';
+  if (!run || !(inRun() || state === 'over')) return MENU_SCREENS.includes(state) ? 'hangar' : 'menu';
+  if (state === 'over') return run.victory ? 'victory' : 'gameover';
+  if (state === 'shop') return 'shop';
+  if (state === 'route') return 'starmap';
+  // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
+  const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
+  if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
+  if (bosses.some(b => b.final) || warn?.final) return 'abyss';
+  if ((encounter && encounter.kind !== 'single') || warn?.team) return 'rival';
+  return zoneSong(run.zone);
 }
-const musicBattle = () => inRun() && (bosses.length > 0 || bossWarn > 0);
+const musicBattle = () => state === 'jukebox' ? !!music.jbBattle : inRun() && (bosses.length > 0 || bossWarn > 0);
 // who plays what: the calm arrangement as written, or the battle one
 function arrangement(sec, battle) {
   if (!battle) return { dr: sec.dr, gt: sec.gt, lead: sec.ins, double: null, arp: !!sec.arp, taiko: false };
@@ -466,10 +587,10 @@ function mPad(t, notes, dur, v = 1) {
   for (const m of notes) { mOsc('sawtooth', mtof(m), t, end, lp, -9); mOsc('sawtooth', mtof(m), t, end, lp, 9); }
 }
 
-// muffle the music while paused / choosing upgrades / on the results screen
+// muffle the music while paused or choosing an upgrade
 function updateMusicFilter() {
   if (!ac) return;
-  const target = paused || state === 'upgrade' || state === 'shop' || state === 'route' || state === 'over' ? 700 : 18000;
+  const target = paused || state === 'upgrade' ? 700 : 18000; // (the shop, the route map and the results screen have their own songs)
   if (target !== music.cutoff) { music.cutoff = target; musicFilter.frequency.setTargetAtTime(target, ac.currentTime, 0.15); }
 }
 
@@ -891,6 +1012,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyE' && state === 'over' && run?.victory && !run.rush && net.role !== 'guest') continueEndless();
     if (e.code === 'KeyR' && state === 'over' && net.role !== 'guest') restartRun(); // quick restart
     if (e.code === 'KeyN' && state === 'menu') go('online');
+    if (e.code === 'KeyJ' && state === 'menu') go('jukebox');
   } else if (state === 'shop') {
     if (num >= 1 && num <= shop.items.length) buyShop(num - 1);
     if (e.code === 'Escape' || e.code === 'KeyL') leaveShop();
@@ -907,6 +1029,10 @@ addEventListener('keydown', e => {
     if (num >= 1 && num <= COS_CATS.length) { cosTab = COS_CATS[num - 1][0]; sel = num - 1; }
   } else if (state === 'settings') {
     if (e.code === 'Escape' || e.code === 'KeyO') go('menu');
+    if (e.code === 'KeyJ') go('jukebox');
+  } else if (state === 'jukebox') {
+    if (e.code === 'Escape' || e.code === 'KeyJ') go('settings');
+    if (e.code === 'KeyB') music.jbBattle = !music.jbBattle;
   } else if (state === 'achievements') {
     if (e.code === 'Escape' || e.code === 'KeyT') go('menu');
   } else if (state === 'ships') {
@@ -1253,7 +1379,7 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(MIDDLE_ZONES.slice()) };
+    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(MIDDLE_ZONES.slice()), musicSeed: Math.floor(Math.random() * 1000) };
   lasers = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
@@ -5358,7 +5484,31 @@ function drawBuildPanel(x, y, w) {
 function drawSettings() {
   title('SETTINGS', 80, '#7df9ff', 52);
   const y = settingsButtons(130), bw = Math.min(280, W - 32);
-  button('BACK  [Esc]', (W - bw) / 2, y + 10, bw, 42, '#9ab', () => go('menu'));
+  button('MUSIC ROOM  ♪  [J]', (W - bw) / 2, y + 10, bw, 42, '#c08dff', () => go('jukebox'));
+  button('BACK  [Esc]', (W - bw) / 2, y + 60, bw, 42, '#9ab', () => go('menu'));
+}
+// the Music Room: listen to any song in the game (and its battle version)
+function drawJukebox() {
+  title('MUSIC ROOM', 46, '#c08dff', 42);
+  const now = SONGS[music.song];
+  fitText(now ? `♪  Now playing: ${now.name}${musicBattle() ? '  (battle version)' : ''}` : 'Pick a song to play it', 82, 14, '#e0d0ff', 'bold');
+  const cols = W >= 900 ? 3 : 2, gap = 6, bw = Math.min(290, (W - 32 - gap * (cols - 1)) / cols), bh = H < 760 ? 30 : 36;
+  const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 102;
+  SONG_LIST.forEach(([id, where], i) => {
+    const x = x0 + (i % cols) * (bw + gap), y = y0 + Math.floor(i / cols) * (bh + gap), on = music.song === id;
+    const locked = id === 'zero' && !meta.ach.omega; // (the secret boss's song stays a secret until you've beaten THE ABYSS)
+    buttons.push({ x, y, w: bw, h: bh, action: () => { if (locked) beep(110, 0.15, 'square', 0.05); else music.pick = id; } });
+    panel(x, y, bw, bh, on ? '#c08dff' : '#3a3f5a', sel === i);
+    // where it plays on the right, the name on the left (squeezed if they'd overlap)
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'right'; ctx.fillStyle = '#789'; ctx.font = `${bw < 190 ? 9 : 10}px system-ui`;
+    const label = locked ? '???' : where, lw = Math.min(bw * 0.4, ctx.measureText(label).width);
+    ctx.fillText(label, x + bw - 8, y + bh / 2, lw);
+    ctx.textAlign = 'left'; ctx.fillStyle = on ? '#fff' : locked ? '#667' : '#dde'; ctx.font = `bold ${bw < 190 ? 11 : 13}px system-ui`;
+    ctx.fillText((on ? '♪ ' : '') + (locked ? '???' : SONGS[id].name), x + 8, y + bh / 2, bw - lw - 24);
+  });
+  const by = y0 + Math.ceil(SONG_LIST.length / cols) * (bh + gap) + 6, hw = Math.min(220, (W - 40) / 2);
+  button(`BATTLE VERSION [B]: ${music.jbBattle ? 'ON' : 'OFF'}`, W / 2 - hw - 4, by, hw, 38, music.jbBattle ? '#ff5a70' : '#778', () => { music.jbBattle = !music.jbBattle; });
+  button('BACK  [Esc]', W / 2 + 4, by, hw, 38, '#9ab', () => go('settings'));
 }
 
 function title(text, y, color = '#ff3df2', size = 72) {
@@ -5938,6 +6088,8 @@ function drawZoneCard() {
   glow(z.color, 28); ctx.fillStyle = '#fff'; ctx.fillText(z.name, W / 2 + slide, cy + 2);
   ctx.shadowBlur = 0; ctx.font = 'italic 15px system-ui'; ctx.fillStyle = '#cde'; ctx.fillText(z.sub, W / 2 - slide, cy + bh * 0.31, W - 40);
   if (z.hazard) { ctx.font = 'bold 12px system-ui'; ctx.fillStyle = z.color; ctx.fillText(`⚠  HAZARD: ${z.hazard}`, W / 2, cy + bh / 2 + 16); }
+  ctx.font = 'italic 12px system-ui'; ctx.fillStyle = '#b8a8e0'; // and the zone's song
+  ctx.fillText(`♪  ${SONGS[zoneSong(zoneCard.id)].name}`, W / 2, cy + bh / 2 + (z.hazard ? 34 : 16));
   ctx.restore();
 }
 
@@ -6618,6 +6770,7 @@ function draw() {
   else if (state === 'hangar') drawHangar();
   else if (state === 'cosmetics') drawCosmetics();
   else if (state === 'settings') drawSettings();
+  else if (state === 'jukebox') drawJukebox();
   else if (state === 'ships') drawShips();
   else if (state === 'achievements') drawAchievements();
   else if (state === 'online') drawOnline();
@@ -6838,7 +6991,7 @@ function packSnap() {
     ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether } : null,
     sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
     of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
-    zn: run.zone, rh: run.route, ro: state === 'route' ? run.routeOpts : null, wp: run.warp ? [r2(run.warp.t), run.warp.to] : 0,
+    zn: run.zone, rh: run.route, ro: state === 'route' ? run.routeOpts : null, ms: run.musicSeed, wp: run.warp ? [r2(run.warp.t), run.warp.to] : 0,
     wi: bossWarn > 0 ? encounterInfo(bossCount) : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
@@ -7093,7 +7246,7 @@ function applySnap(s) {
   shop = s.sp ? { items: s.sp.map(a => ({ kind: a[0], u: a[1] ? UPGRADES.find(u => u.id === a[1]) : null, price: a[2], sold: !!a[3] })) } : null;
   run.coins = s.cn;
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
-  run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi;
+  run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
   run.warp = s.wp ? { t: s.wp[0], to: s.wp[1] } : null;
   if (s.zn && s.zn !== run.zone) { run.zone = s.zn; showZoneCard(s.zn, run.route.length); noteZone(s.zn); } // arrived in a new zone
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
