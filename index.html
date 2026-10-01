@@ -181,6 +181,14 @@ const META_ITEMS = [
   { id: 'salvage', name: 'Salvager',        desc: '+25% shards earned',                 costs: [150, 350, 700] },
   { id: 'tractor', name: 'Tractor Beam',    desc: 'Start with a pickup magnet',         costs: [180] },
   { id: 'choice',  name: 'Wider Options',   desc: 'See 4 upgrade cards instead of 3',   costs: [800] },
+  { id: 'ammo',    name: 'Heavy Ammo',      desc: '+6% damage',                         costs: [150, 350, 700] },
+  { id: 'engine',  name: 'Afterburners',    desc: '+5% movement speed',                 costs: [100, 250] },
+  { id: 'deflect', name: 'Deflector',       desc: 'Start each run with a shield',       costs: [250] },
+  { id: 'luck',    name: 'Lucky Charm',     desc: '+20% chance of pickup drops',        costs: [150, 400] },
+  { id: 'cards',   name: 'Loaded Deck',     desc: 'Rare and epic cards show up more',   costs: [300, 700] },
+  { id: 'combo',   name: 'Combo Keeper',    desc: 'Combos last 25% longer',             costs: [120, 300] },
+  { id: 'medkit',  name: 'Field Medic',     desc: 'Revive teammates 25% faster',        costs: [120, 300] },
+  { id: 'bounty',  name: 'Boss Bounty',     desc: '+20 shards per boss defeated',       costs: [200, 450, 900] },
 ];
 let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} } };
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: m.shards || 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats) }; } catch (e) {}
@@ -299,20 +307,22 @@ const UPGRADES = [
 const SIPHON_KILLS = [0, 40, 28, 18];
 
 function newStats() {
-  return { fireDelay: 0.14 * Math.pow(0.92, metaLv('guns')), dmg: 1, shots: 2, pierce: 0, speed: 420,
-    maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1, crit: 0, homing: 0, drones: 0,
-    aegis: 0, comboMax: 8, comboTime: 2, rear: 0, nova: 0, bulletSpeed: 800,
+  return { fireDelay: 0.14 * Math.pow(0.92, metaLv('guns')), dmg: 1 + 0.06 * metaLv('ammo'), shots: 2, pierce: 0, speed: 420 * (1 + 0.05 * metaLv('engine')),
+    maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1 + 0.2 * metaLv('luck'), crit: 0, homing: 0, drones: 0,
+    aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * metaLv('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
     explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0 };
 }
 
+// how likely a card is to be offered (Loaded Deck makes rare and epic cards more common)
+const cardWeight = u => RARITY[u.r].w * (u.r === 'common' ? 1 : 1 + 0.35 * metaLv('cards'));
 function rollCards(n, bossReward) {
   const pool = UPGRADES.filter(u => (run.owned[u.id] || 0) < u.max && (!u.when || u.when()) && (!bossReward || u.r !== 'common'));
   const out = [];
   while (out.length < n && pool.length) {
-    const total = pool.reduce((t, u) => t + RARITY[u.r].w, 0);
+    const total = pool.reduce((t, u) => t + cardWeight(u), 0);
     let roll = Math.random() * total, i = 0;
-    while ((roll -= RARITY[pool[i].r].w) > 0) i++;
+    while ((roll -= cardWeight(pool[i])) > 0) i++;
     out.push(pool.splice(i, 1)[0]);
   }
   return out;
@@ -725,6 +735,7 @@ function start(m, ships) {
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically' : CONTROL_HINTS[m], life: 5 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
+  if (metaLv('deflect')) for (const p of players) p.shield = 1;
   fxText('SECTOR 1', W / 2, H * 0.4, '#7df9ff', 30, 1.4);
   if (m === 4) unlockAch('squad');
   // catch up on progress-based trophies earned before they existed (or by other means)
@@ -742,7 +753,7 @@ const CONTROL_HINTS = {
 let popups = [], hurtFlash = 0, hint = null;
 
 // shards for the run so far: mostly from progress (sectors, bosses), a little from score so combos still matter
-const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * 50
+const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * (50 + 20 * metaLv('bounty'))
   + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')));
 // victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
@@ -2441,7 +2452,7 @@ function update(dt) {
     const helper = living().find(q => Math.hypot(q.x - p.wreck.x, q.y - p.wreck.y) < REVIVE_RANGE);
     if (helper) {
       const before = p.reviveProg;
-      p.reviveProg += dt * (helper.ship.mod.reviveSpeed || 1); // Medics revive faster
+      p.reviveProg += dt * (helper.ship.mod.reviveSpeed || 1) * (1 + 0.25 * metaLv('medkit')); // Medics (and Field Medic) revive faster
       if (Math.floor(before * 4) !== Math.floor(p.reviveProg * 4)) beep(400 + p.reviveProg * 200, 0.08, 'triangle', 0.04);
       if (Math.random() < dt * 30) particles.push({ x: helper.x, y: helper.y, vx: (p.wreck.x - helper.x) * 3, vy: (p.wreck.y - helper.y) * 3, life: 0.3, max: 0.3, color: helper.color, size: 3 });
       if (p.reviveProg >= REVIVE_TIME) revive(p, helper, true);
@@ -3920,24 +3931,27 @@ function drawUpgrade() {
 function drawHangar() {
   title('HANGAR', 56, '#ffe93d', 52);
   fitText(`◆ ${meta.shards} shards`, 102, 18, '#ffe93d', 'bold');
-  const rw = Math.min(560, W - 32), rx = (W - rw) / 2, gap = 8;
-  const rh = Math.max(46, Math.min(58, (H - 130 - 90) / META_ITEMS.length - gap));
+  // two columns on wide screens, one tight column on phones
+  const cols = W >= 760 ? 2 : 1, perCol = Math.ceil(META_ITEMS.length / cols), gap = cols > 1 ? 8 : 6, colGap = 12;
+  const rw = Math.min(cols > 1 ? 420 : 560, (W - 32 - colGap * (cols - 1)) / cols), x0 = (W - (rw * cols + colGap * (cols - 1))) / 2;
+  const rh = Math.max(36, Math.min(58, (H - 130 - 70) / perCol - gap)), small = rh < 44;
   META_ITEMS.forEach((it, i) => {
-    const y = 130 + i * (rh + gap), lv = metaLv(it.id), cost = it.costs[lv], maxed = cost === undefined;
+    const col = Math.floor(i / perCol), rx = x0 + col * (rw + colGap), y = 130 + (i % perCol) * (rh + gap);
+    const lv = metaLv(it.id), cost = it.costs[lv], maxed = cost === undefined;
     const can = !maxed && meta.shards >= cost;
     const color = maxed ? '#5dff7a' : can ? '#ffe93d' : '#667';
     buttons.push({ x: rx, y, w: rw, h: rh, action: () => buyMeta(it) });
     panel(rx, y, rw, rh, color, sel === i);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 15px system-ui'; ctx.fillText(it.name, rx + 14, y + rh / 2 - 9);
-    ctx.fillStyle = '#9ab'; ctx.font = '12px system-ui'; ctx.fillText(it.desc, rx + 14, y + rh / 2 + 10);
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${small ? 13 : 15}px system-ui`; ctx.fillText(it.name, rx + 12, y + rh / 2 - (small ? 7 : 9));
+    ctx.fillStyle = '#9ab'; ctx.font = `${small ? 11 : 12}px system-ui`; ctx.fillText(it.desc, rx + 12, y + rh / 2 + (small ? 8 : 10));
     ctx.textAlign = 'right';
-    ctx.fillStyle = color; ctx.font = 'bold 14px system-ui';
-    ctx.fillText(maxed ? 'MAXED' : `◆ ${cost}`, rx + rw - 14, y + rh / 2 - 9);
-    ctx.font = '12px system-ui';
-    ctx.fillText('●'.repeat(lv) + '○'.repeat(it.costs.length - lv), rx + rw - 14, y + rh / 2 + 10);
+    ctx.fillStyle = color; ctx.font = `bold ${small ? 13 : 14}px system-ui`;
+    ctx.fillText(maxed ? 'MAXED' : `◆ ${cost}`, rx + rw - 12, y + rh / 2 - (small ? 7 : 9));
+    ctx.font = `${small ? 11 : 12}px system-ui`;
+    ctx.fillText('●'.repeat(lv) + '○'.repeat(it.costs.length - lv), rx + rw - 12, y + rh / 2 + (small ? 8 : 10));
   });
-  const by = 130 + META_ITEMS.length * (rh + gap) + 8, bw = Math.min(240, W - 32);
+  const by = 130 + perCol * (rh + gap) + 8, bw = Math.min(240, W - 32);
   button('BACK  [Esc]', (W - bw) / 2, by, bw, 44, '#7df9ff', () => go('menu'));
 }
 
