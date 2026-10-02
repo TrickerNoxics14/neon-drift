@@ -27,7 +27,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 ## Features
 
 12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
-8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
+8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
 Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 46 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### MK II to MK V
@@ -71,9 +71,9 @@ Fly close to a teammate for 3 seconds and a tether charges between you. When it'
 
 The more upgrades a run piles up, the more every ship transforms: **Form II** at 6 upgrades (blades of light on the wings), **Form III** at 12 (a ring of energy circles the ship), and the **Final Form** at 18 (a burning halo and a white-hot core). Each form also hits a little harder.
 
-### Curses
+### Turbulence
 
-Before a run, press **X** on the menu (or in an online lobby, as the host) to switch on curses: Glass Cannon, Behemoths, Hailstorm, Horde, Closed Shop, Slim Pickings, Powerless and Blackout. Each makes the run harder and pays extra shards, and they stack.
+Before a run, press **X** on the menu (or in an online lobby, as the host) to switch on TURBULENCE: Glass Cannon, Behemoths, Hailstorm, Horde, Closed Shop, Slim Pickings, Powerless and Blackout. Each makes the run harder and pays extra shards, and they stack.
 
 ### Music
 
@@ -105,7 +105,7 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Oracle:** sweeps a giant beam across a marked arc. Bring it down and it opens **A HUNDRED EYES** all around it, and they shoot at you.
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
-- **Zero:** deletes half the screen in a checkerboard pattern.
+- **Zero:** loads in with a LOADING ZERO.EXE bar, and fights in three forms, rebooting between each (it can't be hurt while it reboots): **ZERO**, a cube of flickering pixels; **NULL**, a bare core with its pixels orbiting it; and **FATAL ERROR**, corrupted memory flickering between the faces of other bosses it stole, skipping around the screen and deleting half of it in a checkerboard. Its new moves: **LAG SPIKE** (its bullets freeze, then jump ahead), **COPY-PASTE** (every bullet it has out gets a mirror copy), and **DEAD PIXELS** (falling pixels with one gap).
 - **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog.) His fight plays **Golden Hour**, made by the game's creator: the instrumental, switching to the version with vocals at the very same moment in the song when he turns golden.
 
 ### THE ABYSS

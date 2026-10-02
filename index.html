@@ -1077,7 +1077,7 @@ const ACHIEVEMENTS = [
   { id: 'nemesis',     cat: 'boss', name: 'Know Thyself',         reward: 400, desc: 'Find and defeat the second secret boss.' },
   { id: 'doki',        cat: 'boss', name: 'Doki Doki',            reward: 250, desc: 'Open the pink door, and fill her DOKI meter.' },
   { id: 'golden',      cat: 'boss', name: 'Faster Than Light',    reward: 200, desc: 'Defeat SUPER SONNET.' },
-  { id: 'cursed',      cat: 'progress', name: 'Hexed',            reward: 300, desc: 'Destroy THE ABYSS with 3 or more curses on.' },
+  { id: 'cursed',      cat: 'progress', name: 'Storm Chaser',     reward: 300, desc: 'Destroy THE ABYSS with 3 or more TURBULENCE on.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
   { id: 'squad',       cat: 'team', name: 'Full Squad',           reward: 50,  desc: 'Start a 4-player co-op run.' },
@@ -1600,8 +1600,17 @@ const BOSSES = [
 // the secret boss: only in Endless, right after THE ABYSS falls (once you've beaten THE ABYSS at least once)
 const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero', rageMove: 'wipe', rageTitle: 'FATAL ERROR',
   hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
-  patterns: ['grid', 'spiral', 'blink', 'grid', 'ring', 'fan', 'grid', 'mines'] };
+  patterns: ['grid', 'pixels', 'spiral', 'blink', 'grid', 'ring'] };
 const SECRET_MIN_SECS = 55;
+// ZERO's three forms: each one a new look (see its shape), a new title and new attacks; it reboots between them
+const ZERO_FORMS = {
+  1: { title: 'ZERO', color: '#e8f4ff', patterns: ['grid', 'pixels', 'spiral', 'blink', 'grid', 'ring'] },
+  2: { title: 'NULL', color: '#7df9ff', patterns: ['grid', 'paste', 'pixels', 'lag', 'fan', 'grid', 'mines'] },
+  3: { title: 'FATAL ERROR', color: '#ff2a3a', patterns: ['grid', 'paste', 'lag', 'pixels', 'spiral', 'grid', 'blink'] },
+};
+const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55;
+// FATAL ERROR's stolen faces: the silhouettes of other bosses it flickers between
+const ZERO_STOLEN = ['warden', 'hexcore', 'seraph', 'lancer', 'storm', 'hive', 'chronos', 'leech', 'echo'];
 // the second secret boss: a dark copy of one of your own ships. Once you've beaten ZERO, there's a chance it barges in
 // partway through a run, right after one of the early bosses falls ("P0 HAS JOINED THE GAME")
 const NEMESIS_BOSS = { name: 'NEMESIS', style: 'nemesis', color: '#ff2a4a', sides: 6, r: 48, hpMult: 1.35, nemesis: true, gimmick: 'nemesis', rageMove: 'link', rageTitle: 'PLAYER ZERO',
@@ -3371,7 +3380,7 @@ function updateDrain(b, dt) {
 }
 
 const bossAlive = b => b.dying <= 0 && !b.downed && !(b.cine < CINE_LEN); // (THE ABYSS can't be touched during its entrance)
-const isEnraged = b => (b.hp < b.max / 2 && b.gimmick !== 'sonnet') || b.forceRage; // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
+const isEnraged = b => (b.hp < b.max / 2 && b.gimmick !== 'sonnet' && b.gimmick !== 'zero') || b.forceRage; // (ZERO's rage is its third form) // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
 
 // distance from point (px,py) to the segment a-b (for the Sol & Luna tether)
 function distToSeg(px, py, ax, ay, bx, by) {
@@ -3633,6 +3642,28 @@ const BOSS_ATTACKS = {
       }
     }
     b.atkT = (enraged ? 1.9 : 2.5) * rate; beep(240, 0.25, 'sawtooth', 0.05, -80);
+  },
+  lag(b, enraged, rate) { // ZERO: LAG SPIKE: everything it has fired freezes for a moment... then skips ahead (see its gimmick)
+    let n = 0;
+    for (const e of eBullets) if (e.src === b && !e.lag) { e.lag = [e.vx, e.vy]; e.vx = e.vy = 0; n++; }
+    b.lagT = LAG_T; fxText('LAG', b.x, b.y - b.r - 30, '#7df9ff', 30, LAG_T);
+    if (!n) { const p = nearestPlayer(b.x, b.y), a = p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2; for (let i = -3; i <= 3; i++) bossShot(b, a + i * 0.16, 150, 6); } // (nothing to freeze: a fan to freeze next time)
+    b.atkT = 2.2 * rate; beep(300, 0.4, 'square', 0.05, -250);
+  },
+  paste(b, enraged, rate) { // ZERO: COPY-PASTE: every bullet it has out gets a mirror copy on the other side of the screen
+    const mine = eBullets.filter(e => e.src === b).slice(0, 80);
+    for (const e of mine) eBullets.push({ ...e, x: W - e.x, vx: -e.vx, lag: e.lag ? [-e.lag[0], e.lag[1]] : null });
+    if (!mine.length) for (let i = 0; i < 16; i++) bossShot(b, i / 16 * TAU, 140, 6);
+    screenFlash = Math.max(screenFlash, 0.15); fxText('CTRL+V', W / 2, H * 0.3, '#ffffff', 24, 0.9);
+    b.atkT = 2 * rate; beep(1400, 0.12, 'square', 0.04); setTimeout(() => beep(1400, 0.12, 'square', 0.04), 120);
+  },
+  pixels(b, enraged, rate) { // ZERO: DEAD PIXELS: columns of falling pixels, with a gap near you to slip through
+    const cols = Math.max(9, Math.round(W / 60)), p = nearestPlayer(W / 2, H), gap = p ? Math.round(p.x / W * (cols - 1)) + (Math.random() < 0.5 ? -1 : 1) : 3;
+    for (let i = 0; i < cols; i++) {
+      if (Math.abs(i - gap) <= 1) continue;
+      for (let j = 0; j < 2; j++) eBullets.push({ x: (i + 0.5) / cols * W, y: -12 - j * 30, vx: 0, vy: 150 * BOSS_BULLET_SPEED, r: 5, color: j ? '#00ffff' : '#ffffff', src: b });
+    }
+    b.atkT = 1.8 * rate; beep(2400, 0.2, 'square', 0.03, -2000);
   },
   grid(b, enraged, rate) { // ZERO: a lattice of beams across the screen, with gaps to find
     if (b.grid) return;
@@ -4217,8 +4248,38 @@ const GIMMICKS = {
       b.body.forEach(([x, y], i) => { for (const p of living()) if (Math.hypot(p.x - x, p.y - y) < wyrmSegR(b, i) + p.r * 0.5) hurt(p); });
     },
   },
-  zero: {
+  zero: { // three forms (ZERO, NULL, FATAL ERROR), rebooting between them; plus its grid, lag spikes and the world turning inside out
     update(b, dt, enraged) {
+      const form = b.hp > b.max * 0.66 ? 1 : b.hp > b.max * 0.33 ? 2 : 3;
+      if (b.entered && form > (b.zform || 1)) { // SYSTEM REBOOT: it can't be hurt, its bullets vanish, and it comes back as its next form
+        b.zform = form; b.reboot = ZERO_REBOOT; b.grid = null; b.inv = b.invW = 0; b.charge = null; b.special = null;
+        for (const e of eBullets) if (e.src === b && Math.random() < 0.3) burst(e.x, e.y, '#7df9ff', 2, 90);
+        eBullets = eBullets.filter(e => e.src !== b);
+        fxText('SYSTEM REBOOT...', W / 2, H * 0.36, '#ffffff', 28, ZERO_REBOOT); shake = Math.max(shake, 16);
+        [1760, 220, 1320, 110, 880].forEach((f, i) => setTimeout(() => beep(f, 0.09, 'square', 0.05, -f / 2), i * 90));
+      }
+      if (b.reboot > 0) {
+        if ((b.reboot -= dt) <= 0) {
+          b.reboot = 0; const F = ZERO_FORMS[b.zform];
+          b.title = F.title; b.patterns = F.patterns; b.pattern = 0; b.atkT = 0.8;
+          if (b.zform >= 3) b.forceRage = true; // (its last form is its rage form: FATAL ERROR)
+          screenFlash = Math.max(screenFlash, 0.6); burst(b.x, b.y, '#ffffff', 60, 420); burst(b.x, b.y, '#ff00ff', 40, 320);
+          fxText(F.title + '!', W / 2, H * 0.4, F.color, 36, 2);
+        }
+        return 'hold';
+      }
+      if (b.lagT > 0) { // LAG SPIKE: its bullets hang... then jump ahead to where they should be
+        if ((b.lagT -= dt) <= 0) {
+          for (const e of eBullets) if (e.src === b && e.lag) { e.vx = e.lag[0]; e.vy = e.lag[1]; e.x += e.vx * LAG_SKIP; e.y += e.vy * LAG_SKIP; e.lag = null; }
+          shake = Math.max(shake, 8); beep(80, 0.25, 'square', 0.07, 400);
+        }
+      }
+      if (b.zform >= 3 && b.entered && !b.charge && !b.special && (b.skipT = (b.skipT ?? 3) - dt) <= 0) { // FATAL ERROR: it skips around
+        b.skipT = 2.5 + Math.random() * 2;
+        burst(b.x, b.y, '#ff00ff', 16, 240);
+        b.x = Math.max(b.r, Math.min(W - b.r, b.x + (Math.random() - 0.5) * 360)); b.y = Math.max(80, Math.min(H * 0.42, b.y + (Math.random() - 0.5) * 100));
+        burst(b.x, b.y, '#00ffff', 16, 240); beep(2000, 0.06, 'square', 0.03, -1600);
+      }
       if (b.grid) { // warn, then fire
         const g = b.grid, before = g.t; g.t += dt;
         if (before < GRID_WARN && g.t >= GRID_WARN) { shake = Math.max(shake, 8); beep(120, 0.35, 'sawtooth', 0.07, -40); }
@@ -4231,6 +4292,7 @@ const GIMMICKS = {
       else if (b.invW > 0) { b.invW -= dt; if (b.invW <= 0) { b.invW = 0; b.inv = 2.4; shake = Math.max(shake, 12); beep(60, 0.6, 'square', 0.08, 600); } }
       else if ((b.invT = (b.invT ?? 9) - dt) <= 0) { b.invW = 0.9; fxText('ERROR', b.x, b.y - b.r - 30, '#ffffff', 26, 0.9); }
     },
+    dmg: b => b.reboot > 0 ? 0 : 1, // (untouchable while it reboots)
   },
   nemesis: { // it copies the last ability you used and throws it straight back at you (see useAbility)
     update(b, dt, enraged) {
@@ -4888,7 +4950,7 @@ function updateBoss(b, dt) {
       screenFlash = 1;
       for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r * 0.5, b.r * (4 + i * 2), 0.8 + i * 0.2, i === 1 ? '#ffffff' : b.color, 6 - i * 1.5, i * 0.12);
       if (!b.charmed) shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
-      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : b.gimmick === 'zero' ? 'PROCESS TERMINATED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
       bosses = bosses.filter(o => o !== b);
       // the last boss of an encounter drops the full set; a partner that falls first drops one pickup
       const drops = bosses.length ? [['power', 'shield', 'life'][Math.floor(Math.random() * 3)]] : ['power', 'shield', 'life'];
@@ -7218,7 +7280,23 @@ const BOSS_SHAPES = {
     for (const y of [-0.55, -0.1, 0.4, 0.85]) { ctx.moveTo(-1.1 * r, y * r); ctx.quadraticCurveTo(0, (y + 0.18) * r, 1.1 * r, y * r); }
     ctx.stroke(); ctx.restore();
   } },
-  zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
+  zero: { mode: 'up', eye: [0, 0, 1], detail() {}, path(r, b) { // ZERO: its look changes with each form
+    const f = b?.zform || 1, t = b?.t || 0;
+    if (f >= 3 && !(b.reboot > 0)) { // FATAL ERROR: corrupted memory, flickering between the faces of other bosses it has stolen
+      BOSS_SHAPES[ZERO_STOLEN[Math.floor(t * 2.5) % ZERO_STOLEN.length]].path(r, { t, look: b.look || { x: 0, y: 1 } }, 0); return;
+    }
+    if (f === 2 && !(b.reboot > 0)) { poly(r * 0.55, [[0, -1], [0.7, 0], [0, 1], [-0.7, 0]]); return; } // NULL: a bare core (its pixels orbit it)
+    // ZERO: a cube made of pixels, some of them dying out and twitching (all of them while it reboots)
+    const c = r / 3, seed = Math.floor(t * 8), wild = b?.reboot > 0;
+    ctx.beginPath();
+    for (let i = -3; i < 3; i++) for (let j = -3; j < 3; j++) {
+      if ((i === -3 || i === 2) && (j === -3 || j === 2)) continue;
+      const h = Math.abs(Math.sin((i * 7 + j * 13 + seed) * 12.9898) * 43758.5453 % 1);
+      if (h < (wild ? 0.3 : 0.08)) continue;
+      const jx = h > (wild ? 0.6 : 0.92) ? c * (h - 0.5) : 0;
+      ctx.rect(i * c + jx, j * c, c * 0.9, c * 0.9);
+    }
+  } },
   // SONNET: a hedgehog's head seen from the front, quills sweeping out to both sides, two ears, and one wide eye
   // with two green pupils. Curled up (spin dash, homing attack, loop) he's a spiky ball. As SUPER SONNET (k: how far
   // into his golden form) his quills rise up
@@ -7489,6 +7567,7 @@ function drawBoss(b) {
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
   if (fury && b.rage > 0 && key === 'phantom' && Math.random() < 0.4) ctx.globalAlpha *= 0.15; // (PHANTOM strobes as it's possessed)
   if (b.glitch && Math.random() < 0.04) ctx.globalAlpha *= 0.3; // (a GLITCH variant flickers)
+  if (b.reboot > 0 && Math.random() < 0.35) ctx.globalAlpha *= 0.2; // (ZERO flickers hard while it reboots)
   ctx.scale(sc, sc);
   const a0 = ctx.globalAlpha;
   if (b.glitch) drawGlitchGhosts(b, rot, k);
@@ -7765,10 +7844,13 @@ function drawBossDecor(b, layer, c, enraged) {
         ctx.restore();
       } else {
         ctx.lineWidth = 2;
-        for (let i = 0; i < 6; i++) {
-          const a = t * 0.8 * fast + i / 6 * Math.PI * 2, d = r * (1.7 + Math.sin(t * 3 + i) * 0.15);
-          ctx.save(); ctx.translate(Math.cos(a) * d, Math.sin(a) * d); ctx.rotate(t * 2 + i);
-          ctx.strokeStyle = i % 3 === 0 ? '#00ffff' : i % 3 === 1 ? '#ff00ff' : c; ctx.strokeRect(-6, -6, 12, 12); ctx.restore();
+        const f = b.zform || 1, nB = f === 2 ? 12 : 6, s = f === 2 ? 9 : 6, d0 = f === 2 ? 1.25 : 1.7; // (NULL: its broken-off pixels orbit its core)
+        for (let i = 0; i < nB; i++) {
+          const a = t * (f === 2 ? 1.4 : 0.8) * fast * (i % 2 && f === 2 ? -1 : 1) + i / nB * Math.PI * 2, d = r * (d0 + (i % 2) * 0.35 * (f === 2) + Math.sin(t * 3 + i) * 0.15);
+          ctx.save(); ctx.translate(Math.cos(a) * d + (f >= 3 && Math.random() < 0.1 ? (Math.random() - 0.5) * 20 : 0), Math.sin(a) * d); ctx.rotate(t * 2 + i);
+          ctx.strokeStyle = i % 3 === 0 ? '#00ffff' : i % 3 === 1 ? '#ff00ff' : c;
+          if (f === 2) { ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(-s, -s, s * 2, s * 2); }
+          ctx.strokeRect(-s, -s, s * 2, s * 2); ctx.restore();
         }
       }
       break;
@@ -8636,6 +8718,14 @@ function drawGimmick(b) {
       break;
     }
     case 'zero':
+      if (!b.entered || b.reboot > 0) { // its loading bar as it arrives, and its reboot between forms
+        const w = 170, x = b.x - w / 2, y = Math.max(b.y, 0) + b.r + 44, p = b.entered ? 1 - b.reboot / ZERO_REBOOT : Math.min(1, b.intro);
+        ctx.save(); ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, 10);
+        ctx.fillStyle = Math.random() < 0.1 ? '#ff00ff' : '#e8f4ff'; ctx.fillRect(x + 2, y + 2, (w - 4) * p * (Math.random() < 0.08 ? 0.5 : 1), 6);
+        ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(b.entered ? `REBOOTING ${ZERO_FORMS[b.zform]?.title || ''}... ${Math.floor(p * 100)}%` : `LOADING ZERO.EXE... ${Math.floor(p * 100)}%`, b.x + (Math.random() < 0.06 ? 6 : 0), y - 4);
+        ctx.restore();
+      }
       if (b.grid) { // the beam grid: flickering guides, then solid white beams
         const g = b.grid, live = g.t >= GRID_WARN, k = Math.min(1, g.t / GRID_WARN);
         ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff';
@@ -8964,7 +9054,7 @@ function drawHUD() {
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
   if (muts.length) { ctx.fillStyle = '#ff9a3d'; ctx.font = 'bold 11px system-ui'; ctx.fillText(muts.join(' · '), 16, combo > 1 ? 84 : 64); }
   const curses = CURSES.filter(c => curse(c.id)).map(c => c.name); // (and the run's curses)
-  if (curses.length) { ctx.fillStyle = '#ff5a70'; ctx.font = 'bold 11px system-ui'; ctx.fillText('☠ ' + curses.join(' · '), 16, (combo > 1 ? 84 : 64) + (muts.length ? 16 : 0)); }
+  if (curses.length) { ctx.fillStyle = '#ff5a70'; ctx.font = 'bold 11px system-ui'; ctx.fillText('🌀 ' + curses.join(' · '), 16, (combo > 1 ? 84 : 64) + (muts.length ? 16 : 0)); }
 
   ctx.textAlign = 'right';
   const compactHud = players.length > 4; // online 5-8 players: one short line each
@@ -9311,7 +9401,7 @@ function drawMenu() {
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
   const nCurse = cleanCurses(meta.curseSel).length, rw = Math.round(bw * 0.6);
   button(`RUN: ${RUN_LABEL[runType]}  [E]`, bx, top, rw - 4, 36, RUN_COLOR[runType], toggleRunType);
-  button(nCurse ? `☠ ${nCurse} CURSE${nCurse > 1 ? 'S' : ''} [X]` : '☠ CURSES [X]', bx + rw + 4, top, bw - rw - 4, 36, nCurse ? '#ff5a70' : '#8a5560', () => openCurses('menu'));
+  button(nCurse ? `🌀 ${nCurse} TURBULENCE [X]` : '🌀 TURBULENCE [X]', bx + rw + 4, top, bw - rw - 4, 36, nCurse ? '#ff5a70' : '#8a5560', () => openCurses('menu'));
   const cy = top + 46;
   button('SOLO  [1]', bx, cy, bw, bh, '#7df9ff', () => openShipSelect(1));
   button('2-PLAYER CO-OP  [2]', bx, cy + gap, bw, bh, '#9dff5d', () => openShipSelect(2));
@@ -9340,9 +9430,9 @@ function drawMenu() {
 
 // curses: switch handicaps on for the next run; each one adds to the shards it pays
 function drawCurses() {
-  title('CURSES', 52, '#ff5a70', 44);
+  title('TURBULENCE', 52, '#ff5a70', 44);
   const on = cleanCurses(meta.curseSel), bonus = Math.round(curseBonus(on) * 100);
-  fitText(on.length ? `${on.length} curse${on.length > 1 ? 's' : ''} on  ·  the next run pays +${bonus}% shards` : 'Make your next run harder, for more shards. Curses stack.', 90, 14, on.length ? '#ffb0bb' : '#9ab', 'bold');
+  fitText(on.length ? `${on.length} TURBULENCE on  ·  the next run pays +${bonus}% shards` : 'Make your next run harder, for more shards. They stack.', 90, 14, on.length ? '#ffb0bb' : '#9ab', 'bold');
   const cols = W >= 700 ? 2 : 1, gap = 8, bw = Math.min(cols > 1 ? 340 : 420, (W - 32 - gap * (cols - 1)) / cols), bh = H < 700 ? 50 : 58;
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 112;
   CURSES.forEach((c, i) => {
@@ -9942,7 +10032,7 @@ function drawOver() {
       : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
-    [`+◆ ${run.earned} shards${curseBonus() ? `  (☠ +${Math.round(curseBonus() * 100)}% from curses)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
+    [`+◆ ${run.earned} shards${curseBonus() ? `  (🌀 +${Math.round(curseBonus() * 100)}% from TURBULENCE)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
   ];
   lines.forEach(([t, c, s], i) => fitText(t, cy + 56 + i * 30, s, c, i === 2 ? 'bold' : ''));
   // run stats: time, kills and damage, then the ships
@@ -11417,7 +11507,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -12039,7 +12129,7 @@ function drawLobby() {
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   const lobbyCurses = host ? cleanCurses(meta.curseSel) : net.hostCurses || [];
-  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  ☠ ${lobbyCurses.length} curse${lobbyCurses.length > 1 ? 's' : ''} (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  curses [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"${dir.serving || dir.conn?.open ? '' : ' (getting listed…)'}` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
+  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  🌀 ${lobbyCurses.length} TURBULENCE (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  turbulence [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"${dir.serving || dir.conn?.open ? '' : ' (getting listed…)'}` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   if (!host && net.joinFail) button('TRY AGAIN  [Enter]', bx, by + 20, bw, 40, '#7df9ff', () => joinGame(net.joinFail)); // (joining didn't work)
   else button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
