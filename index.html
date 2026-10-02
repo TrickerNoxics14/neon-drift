@@ -1600,18 +1600,37 @@ const BOSSES = [
 // the secret boss: only in Endless, right after THE ABYSS falls (once you've beaten THE ABYSS at least once)
 const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero', rageMove: 'wipe', rageTitle: 'FATAL ERROR',
   hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
-  patterns: ['grid', 'steal', 'pixels', 'steal', 'blink', 'grid', 'steal'] };
+  patterns: ['steal', 'grid', 'pixels', 'steal', 'blink', 'steal', 'grid'] };
 const SECRET_MIN_SECS = 55;
 // ZERO's three forms: each one a new look (see its shape), a new title and new attacks; it reboots between them
 const ZERO_FORMS = {
-  1: { title: 'ZERO', color: '#e8f4ff', patterns: ['grid', 'steal', 'pixels', 'steal', 'blink', 'grid', 'steal'] },
+  1: { title: 'ZERO', color: '#e8f4ff', patterns: ['steal', 'grid', 'pixels', 'steal', 'blink', 'steal', 'grid'] },
   2: { title: 'NULL', color: '#7df9ff', patterns: ['grid', 'paste', 'steal', 'lag', 'steal', 'pixels', 'steal'] },
   3: { title: 'FATAL ERROR', color: '#ff2a3a', patterns: ['grid', 'steal', 'paste', 'lag', 'steal', 'pixels', 'steal'] },
 };
 const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55, ZERO_STOLEN_T = 1.2;
 // what ZERO can steal: every other boss's attacks, and (in FATAL ERROR) their rage moves, each with whose it was. A few are
 // left out because they only work with their owner's own machinery (SONNET's loop and booms, THE ABYSS's tentacles...)
-const ZERO_STEAL_SKIP = new Set(['loop', 'boom', 'steal', 'volley', 'phase', 'flak', 'fortress']), ZERO_RAGE_SKIP = new Set(['wipe']);
+// (also left out: the plain moves lots of bosses share, like rings and spirals, which wouldn't look stolen at all)
+const ZERO_STEAL_SKIP = new Set(['loop', 'boom', 'steal', 'volley', 'phase', 'flak', 'fortress', 'ring', 'fan', 'spiral', 'mines', 'blink', 'rain', 'wave']), ZERO_RAGE_SKIP = new Set(['wipe']);
+// ...and their mechanics: every so often ZERO runs another boss's whole mechanic on top of its own for a while
+const ZERO_MECHANICS = [ // [mechanic, whose it is, what it's called]
+  ['pylons', 'THE WARDEN', 'PYLONS'], ['overheat', 'HEXCORE', 'OVERHEAT'], ['halo', 'NULL SERAPH', 'MIRROR HALO'],
+  ['storm', 'STORMCALLER', 'LIGHTNING'], ['walls', 'THE ARCHITECT', 'WALLS'], ['judgment', 'THE ORACLE', 'JUDGMENT'],
+  ['gravity', 'THE SINGULARITY', 'SUPERNOVA'], ['echo', 'ECHO', 'ECHOES'], ['timestop', 'CHRONOS', 'TIME STOP'], ['decoys', 'PHANTOM', 'DECOYS'],
+];
+const ZERO_MECH_T = 10, ZERO_MECH_GAP = 5;
+function zeroMechanicEnd(b) { // switch off whatever a stolen mechanic left on
+  if (b.split) phantomRejoin(b, enemies.filter(e => e.type === 'decoy' && e.owner === b), false);
+  b.haloUp = b.haloW = 0; b.stop = b.stopW = 0; b.vent = 0; b.heat = 0; b.judge = null; b.strikes = []; b.nova = 0; b.guard = 0;
+  b.mech = null;
+}
+// announce a theft, big and in the middle, and wear the victim's face for a moment
+function zeroStole(b, d, what, long) {
+  b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T * (long ? 1.6 : 1) };
+  fxText(`STOLEN: ${d.name}'S ${what}`, W / 2, H * 0.24, '#ff00ff', long ? 26 : 22, long ? 2.2 : 1.5);
+  beep(1600, 0.06, 'square', 0.04); setTimeout(() => beep(400, 0.12, 'square', 0.04, -200), 70);
+}
 const zeroOwners = () => [...BOSSES, ...TEAMS.flatMap(t => t.members), DOKI_BOSS, NEMESIS_BOSS].filter(d => !d.final && d.gimmick !== 'zero');
 let zeroStealList = null, zeroRageList = null;
 function zeroSteals() { // [attack, the boss it belongs to]
@@ -3097,6 +3116,7 @@ const fmtBig = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3)
 function killEnemy(e, src) {
   const s = run.s;
   e.dead = true;
+  if (e.glitch && Math.random() < 0.25) eBullets.push({ x: e.x, y: e.y, vx: 0, vy: 110, r: 5, color: '#ff00ff' }); // (a GLITCH enemy can leave a dead pixel behind)
   run.coins = (run.coins || 0) + (e.r >= 20 ? 3 : 1); // shop money (big enemies are worth more)
   const pq = living().find(q => q.petX !== undefined && petOf(q) && Math.hypot(q.petX - e.x, q.petY - e.y) < PET_FETCH);
   if (pq && Math.random() < 0.5) { run.coins++; popups.push({ x: pq.petX, y: pq.petY - 18, text: '+1 ●', life: 0.7, color: '#ffd23d' }); } // (a pet fetched a coin)
@@ -3663,8 +3683,7 @@ const BOSS_ATTACKS = {
   },
   steal(b, enraged, rate, target) { // ZERO: STOLEN: a copy of another boss's attack, wearing that boss's face for a moment
     const [a, d] = randomOf(zeroSteals());
-    b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T };
-    fxText(`STOLEN: ${d.name}`, b.x, Math.max(40, b.y - b.r - 34), '#ff00ff', 22, 1.2);
+    zeroStole(b, d, a.toUpperCase());
     BOSS_ATTACKS[a](b, enraged, rate, target);
     b.atkT = Math.max(b.atkT, 1.1 * rate);
   },
@@ -4071,7 +4090,7 @@ const wyrmSegR = (b, i) => b.r * (0.72 - i * 0.03);
 // does a player bullet hit THE WYRM's body? (body hits do 60% damage; the head is the weak spot)
 const hitsWyrmBody = (bo, b) => bo.body && bo.body.some(([x, y], i) => distToSeg(x, y, b.px, b.py, b.x, b.y) < wyrmSegR(bo, i) + b.size);
 // CHRONOS's time stop: enemy bullets don't move
-const timeFlow = () => bosses.some(b => b.gimmick === 'timestop' && b.stop > 0) ? 0 : 1;
+const timeFlow = () => bosses.some(b => (b.gimmick === 'timestop' || b.mech?.g === 'timestop') && b.stop > 0) ? 0 : 1;
 // how fast enemy bullets fly right now (Chrono Field upgrade, CHRONOS's time stop, the HAILSTORM curse)
 const bulletFlow = () => run.s.chrono * timeFlow() * (curse('hail') ? 1.25 : 1);
 const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
@@ -4280,6 +4299,7 @@ const GIMMICKS = {
         b.zform = form; b.reboot = ZERO_REBOOT; b.grid = null; b.inv = b.invW = 0; b.charge = null; b.special = null;
         for (const e of eBullets) if (e.src === b && Math.random() < 0.3) burst(e.x, e.y, '#7df9ff', 2, 90);
         eBullets = eBullets.filter(e => e.src !== b);
+        if (b.mech) zeroMechanicEnd(b);
         fxText('SYSTEM REBOOT...', W / 2, H * 0.36, '#ffffff', 28, ZERO_REBOOT); shake = Math.max(shake, 16);
         [1760, 220, 1320, 110, 880].forEach((f, i) => setTimeout(() => beep(f, 0.09, 'square', 0.05, -f / 2), i * 90));
       }
@@ -4294,6 +4314,15 @@ const GIMMICKS = {
         }
         return 'hold';
       }
+      b.specialT ??= 8; // (its first stolen rage move comes a little way into the fight)
+      b._mechRet = undefined;
+      if (b.entered && !b.mech && !b.special && (b.mechT = (b.mechT ?? 4) - dt) <= 0) { // STOLEN: another boss's whole mechanic, for a while
+        const [g, who, what] = randomOf(ZERO_MECHANICS.filter(m => m[0] !== b.lastMech));
+        b.lastMech = g; b.mech = { g, t: ZERO_MECH_T }; b.mechT = ZERO_MECH_T + ZERO_MECH_GAP;
+        zeroStole(b, BOSSES.find(d => d.name === who) || b, what, true);
+        Object.assign(b, { judgeT: 1.5, boltT: 0.4, haloT: 0.8, stopT: 1.2, wallT: 0.4, echoT: 2.5, splitCd: 0.8, pylonT: 0.4 }); if (g === 'overheat') b.heat = 0.65; // (it gets going right away)
+      }
+      if (b.mech) { if ((b.mech.t -= dt) > 0) b._mechRet = GIMMICKS[b.mech.g].update?.(b, dt, enraged); else zeroMechanicEnd(b); }
       if (b.zform >= 3 && b.entered && !b.charge && !b.special && (b.skipT = (b.skipT ?? 3) - dt) <= 0) { // FATAL ERROR: it skips around
         b.skipT = 2.5 + Math.random() * 2;
         burst(b.x, b.y, '#ff00ff', 16, 240);
@@ -4311,8 +4340,13 @@ const GIMMICKS = {
       if (b.inv > 0) { b.inv -= dt; if (b.inv <= 0) { b.inv = 0; b.invT = enraged ? 8 : 11; } }
       else if (b.invW > 0) { b.invW -= dt; if (b.invW <= 0) { b.invW = 0; b.inv = 2.4; shake = Math.max(shake, 12); beep(60, 0.6, 'square', 0.08, 600); } }
       else if ((b.invT = (b.invT ?? 9) - dt) <= 0) { b.invW = 0.9; fxText('ERROR', b.x, b.y - b.r - 30, '#ffffff', 26, 0.9); }
+      return b._mechRet; // (a stolen mechanic can keep it quiet: JUDGMENT, OVERHEAT's venting, DECOYS...)
     },
-    dmg: b => b.reboot > 0 ? 0 : 1, // (untouchable while it reboots)
+    // (untouchable while it reboots; otherwise a stolen mechanic decides: OVERHEAT doubles damage, the MIRROR HALO blocks it...)
+    dmg: b => b.reboot > 0 ? 0 : b.mech ? (GIMMICKS[b.mech.g].dmg?.(b) ?? 1) : 1,
+    rate: b => b.mech ? (GIMMICKS[b.mech.g].rate?.(b) ?? 1) : 1,
+    onHit(b, dmg) { if (b.mech) GIMMICKS[b.mech.g].onHit?.(b, dmg); },
+    afterAttack(b, enraged) { if (b.mech) GIMMICKS[b.mech.g].afterAttack?.(b, enraged); },
   },
   nemesis: { // it copies the last ability you used and throws it straight back at you (see useAbility)
     update(b, dt, enraged) {
@@ -4904,7 +4938,7 @@ function updateRageMove(b, dt, tgt) {
     b.specialT = (b.specialT ?? 0) - dt;
     // wait until it's free: not mid-charge, split up, or in the middle of its own gimmick
     if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0 || b.run || b.xf >= 0) return;
-    if (b.gimmick === 'zero') { const [k, d] = randomOf(zeroRages()); b.rageMove = k; b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T * 1.5 }; fxText(`STOLEN: ${d.name}`, b.x, Math.max(40, b.y - b.r - 64), '#ff00ff', 20, 1.4); } // (ZERO: someone else's rage move)
+    if (b.gimmick === 'zero') { const [k, d] = randomOf(zeroRages()); b.rageMove = k; zeroStole(b, d, RAGE_MOVES[k].name.replace(/!$/, ''), true); } // (ZERO: someone else's rage move)
     b.special = { k: b.rageMove, t: 0 };
     m = RAGE_MOVES[b.rageMove];
     m.start?.(b, b.special, tgt);
@@ -4913,7 +4947,7 @@ function updateRageMove(b, dt, tgt) {
   const s = b.special;
   s.t += dt;
   const r = m.update?.(b, s, dt, tgt);
-  if (s.t >= m.len) { b.special = null; b.specialT = m.cd; }
+  if (s.t >= m.len) { b.special = null; b.specialT = m.cd * (b.gimmick === 'zero' && !b.forceRage ? 2 : 1); }
   return r;
 }
 // bullets orbiting their boss (THE SINGULARITY's rings, THE WARDEN's chains): they circle it, then fling off.
@@ -5086,7 +5120,7 @@ function updateBoss(b, dt) {
     for (const e of eBullets) if (e.src === b && e.lag) { e.vx = e.lag[0]; e.vy = e.lag[1]; e.x += e.vx * LAG_SKIP; e.y += e.vy * LAG_SKIP; e.lag = null; }
     shake = Math.max(shake, 8); beep(80, 0.25, 'square', 0.07, 400);
   }
-  const fury = b.rageMove && b.wasEnraged ? updateRageMove(b, dt, tgt) : null;
+  const fury = b.rageMove && (b.wasEnraged || (b.gimmick === 'zero' && b.entered)) ? updateRageMove(b, dt, tgt) : null; // (ZERO steals rage moves in every form)
   if (fury === 'hold') return;
 
   if (b.charge) {
@@ -5489,7 +5523,7 @@ function update(dt) {
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
     const seq0 = enemyIdSeq; spawnEnemy();
-    if (glitchWorld()) for (const e of enemies) if (e.id > seq0) e.glitch = true; // (GLITCH variants of every enemy)
+    if (glitchWorld()) for (const e of enemies) if (e.id > seq0) { e.glitch = true; e.born = time; } // (GLITCH variants of every enemy)
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
@@ -5498,7 +5532,7 @@ function update(dt) {
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
   prisms = enemies.filter(e => e.type === 'prism' && !e.dead);
   const vortexes = [...enemies.filter(e => e.type === 'vortex' && !e.dead).map(e => ({ x: e.x, y: e.y, r: VORTEX_R })),
-    ...bosses.filter(o => o.gimmick === 'gravity' && bossAlive(o)).map(o => ({ x: o.x, y: o.y, r: SINGULARITY_PULL }))];
+    ...bosses.filter(o => (o.gimmick === 'gravity' || o.mech?.g === 'gravity') && bossAlive(o)).map(o => ({ x: o.x, y: o.y, r: SINGULARITY_PULL }))];
   for (const b of bullets) {
     if ((s.homing && !b.rail) || b.missile) {
       const tgt = nearestTarget(b.x, b.y, b.missile ? 600 : 350);
@@ -6182,6 +6216,12 @@ function glitchEnemy(e, dt) {
 }
 function drawEnemy(e) {
   if (e.glitch) { // (a GLITCH enemy: flickering, in a cyan and magenta frame that jitters wildly just before it skips)
+    const age = time - (e.born ?? -9);
+    if (age < 0.45) { // materializing: a cloud of pixel noise that settles into it
+      ctx.save(); ctx.shadowBlur = 0;
+      for (let i = 0; i < 8; i++) { ctx.fillStyle = ['#ff00ff', '#00ffff', e.color][i % 3]; const s2 = 3 + Math.random() * 4, d = e.r * 1.6 * (1 - age / 0.45); ctx.fillRect(e.x + (Math.random() - 0.5) * 2 * d - s2 / 2, e.y + (Math.random() - 0.5) * 2 * d - s2 / 2, s2, s2); }
+      ctx.restore(); return;
+    }
     if (Math.random() < 0.05) return;
     const j = e.gwarn > 0 ? 3 + Math.random() * 4 : 2, s = e.r + 4;
     ctx.save(); ctx.lineWidth = 1.5; ctx.shadowBlur = 0; ctx.globalAlpha = 0.55;
@@ -8604,6 +8644,7 @@ function drawLoadBar(b) {
 }
 function drawGimmick(b) {
   if (b.dying <= 0 && !b.final && (b.gimmick === 'zero' || b.glitch) && (!b.entered || b.reboot > 0)) drawLoadBar(b);
+  if (b.mech && GIMMICKS[b.mech.g] && b.entered && b.dying <= 0) drawGimmick(Object.assign(Object.create(b), { gimmick: b.mech.g, mech: null })); // (ZERO's stolen mechanic)
   if (!b.gimmick || b.dying > 0 || !b.entered) return;
   const t = performance.now() / 1000;
   ctx.save(); ctx.lineCap = 'round';
@@ -9473,6 +9514,7 @@ function drawMenu() {
     fitText('4P: P1 = Mouse · P2 = WASD · P3 = Arrows · P4 = IJKL  ·  Gamepads work too', ty + 40, 13, '#789');
   }
   fitText('Pick upgrades each sector. Die, earn shards, buy permanent unlocks. Go again.', ty + 64, 13, '#567');
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.font = '11px monospace'; ctx.fillStyle = '#445'; ctx.fillText(`build ${BUILD}`, W - 10, H - 8); // (so you can tell you have the newest version)
 }
 
 // curses: switch handicaps on for the next run; each one adds to the shards it pays
@@ -10413,7 +10455,7 @@ function updateGlitch(dt) {
 // GLITCH variants: in the GLITCH SECTOR, and all through Endless once THE ABYSS is beaten, every boss is a glitched copy of
 // itself (a corrupted name, cyan and magenta ghosts, and every few seconds it skips: a flicker, then it's somewhere else),
 // and every zone's sky glitches now and then
-const glitchWorld = () => !!run && inRun() && (run.zone === 'glitch' || !!run.glitchy);
+const glitchWorld = () => !!run && inRun() && (run.zone === 'glitch' || !!run.glitchy || !!run.endless); // (every Endless run, too)
 const glitchName = s => s.replace(/[AEIO]/g, c => ({ A: '4', E: '3', I: '1', O: '0' })[c]);
 function glitchBoss(b) {
   if (!glitchWorld() || b.glitch) return;
@@ -11301,6 +11343,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
+const BUILD = '2026.10.03';
 const PEER_PREFIX = 'neondrift-v4-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -11555,7 +11598,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT', 'stolen']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT', 'stolen', 'mech']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
