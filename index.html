@@ -11076,7 +11076,7 @@ const GX_TRAITS = ['fork', 'buf', 'oc', 'leak', 'err'], GX_LOOK = GX_TRAITS.leng
 const GX_TAG = { fork: 'fork()', buf: 'BUFFER', oc: 'OVERCLOCK', leak: 'LEAK', err: 'CRASH' };
 const GX_FORKS = new Set(['drifter', 'zigzag', 'shooter', 'swarmer', 'dasher', 'seeker', 'kamikaze', 'spinner', 'bouncer', 'orbiter', 'warper']);
 const GX_PLAIN = new Set(['segment', 'linker', 'mimic', 'serpent', 'mine', 'rocket']); // (just the look: they're part of something else)
-const GX_DL = 0.55, GX_ERR_T = 1.1; // seconds to download in; seconds an error box waits before it bursts
+const GX_DL = 1.1, GX_ERR_T = 1.1; // how long it takes to download in (on the game clock: about half a second), and how long an error box waits before it bursts
 const gxTrait = e => GX_TRAITS[(e.gt || 0) - 1];
 function glitchEnemyInit(e) {
   const T = TYPES[e.type];
@@ -11451,7 +11451,7 @@ function drawGlitchEnemyFx(e) {
   if (!settings.lowfx && Math.random() < 0.03) gxDrip(e.x + (Math.random() - 0.5) * r, e.y + r * 0.6, Math.random() < 0.5 ? e.color : GX.green);
 }
 function drawBug(e) { // a little pixel beetle; its legs scuttle while it runs
-  const u = Math.max(1.6, e.r / 4.5), leg = e.state === 'run' ? Math.floor(time * 20) % 2 : 0, c = e.flash > 0 ? '#ffffff' : GX.green;
+  const u = Math.max(1.6, e.r / 4.5), leg = e.state === 'run' ? Math.floor(time * 7) % 2 : 0, c = e.flash > 0 ? '#ffffff' : GX.green;
   ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y)); ctx.rotate((e.aimA ?? Math.PI / 2) + Math.PI / 2); ctx.shadowBlur = 0;
   const px = (x, y, w = 1, h = 1) => ctx.fillRect(x * u, y * u, w * u, h * u);
   ctx.fillStyle = 'rgba(57,255,136,0.18)'; px(-5, -6, 10, 12);
@@ -12344,7 +12344,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.5';
+const BUILD = '2026.10.03.6';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12448,10 +12448,12 @@ async function hostGame() {
 // someone knocks: a friend with the code, or (for a public room) someone looking at the public list, who may join
 // from there. They only get into the game by saying hello (see onHello); until then they just get the room's
 // details now and then. Nobody gets in while the room is LOCKED, and only so many can wait at once.
-const MAX_WAITING = 24, WAIT_MAX_T = 120; // (seconds someone can sit on a room without joining)
+// (people looking at the public list and people joining with the code have separate limits, so a crowd of
+// lookers can never keep your friends out)
+const MAX_LOOKERS = 20, MAX_JOINING = 8, WAIT_MAX_T = 120; // (seconds someone can sit on a room without joining)
 function hostAccept(conn) {
-  const waiting = net.waiting ||= new Set();
-  if (net.role !== 'host' || waiting.size >= MAX_WAITING) { try { conn.close(); } catch (e) {} return; }
+  const waiting = net.waiting ||= new Set(), lookers = [...waiting].filter(c => c._pub).length;
+  if (net.role !== 'host' || (conn._pub ? lookers >= MAX_LOOKERS : waiting.size - lookers >= MAX_JOINING)) { try { conn.close(); } catch (e) {} return; }
   waiting.add(conn);
   const drop = () => { if (waiting.has(conn) && !conn.slots) { waiting.delete(conn); try { conn.close(); } catch (e) {} } };
   setTimeout(() => { if (!conn.open) drop(); }, 15000); // (never connected)
