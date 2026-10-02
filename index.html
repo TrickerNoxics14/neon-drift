@@ -318,6 +318,18 @@ const SONGS = {
       'q-------e---y---', 'w-------r---w---', 'e-------t---e---', 'q-------5---3---',
       'y-------e---q---', 'r-------w---7---', 'w-------5---w---', 't---------------'] } } },
 };
+// SONNET's fight: two recordings of one song that line up to the moment, sonnet.mp3 (the instrumental) and supersonnet.mp3 (with
+// vocals). When he turns golden it switches to the vocals right where the instrumental was (see playRecorded). These files
+// stay on the computer that has them (they aren't on the public site): without them, the written-out version below plays,
+// and turns into its heavy remake when he goes super
+SONGS.sonnet = { name: 'Golden Hour', file: 'sonnet.mp3', loop: [0.05, 186.5], gain: 1.48, bpm: 168, root: 45, scale: 'major', lead: 69, battle: true, form: ['A', 'B'], parts: {
+  A: { chords: '1 5 6 4 1 5 4 5', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
+    '1.3.5.q.5.3.5.q.', '5.7.w.7.5.2.7...', '6.1.3.6.3.1.6...', '4.6.q.6.4.6.q.w.',
+    '1.3.5.q.5.3.5.q.', '5.7.w.7.5.2.w.r.', '4.6.q.w.q.6.4.6.', '5-------7-------'] },
+  B: { chords: '4 5 6 6 4 5 1 1', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+    'q-------w---e---', 'w-------q---7---', 'q-------7---6---', '3-------5---6---',
+    'q-------w---e---', 'r-------e---w---', 'e-------w---q---', 'q---------------'] } } };
+SONGS.supersonnet = { ...SONGS.sonnet, name: 'Golden Hour (vocals)', file: 'supersonnet.mp3', gain: 0.92, syncWith: 'sonnet' };
 // turn the written songs into notes the sequencer can read
 const NOTE_KEYS = { z: [1, -1], x: [2, -1], c: [3, -1], v: [4, -1], b: [5, -1], n: [6, -1], m: [7, -1],
   1: [1, 0], 2: [2, 0], 3: [3, 0], 4: [4, 0], 5: [5, 0], 6: [6, 0], 7: [7, 0], q: [1, 1], w: [2, 1], e: [3, 1], r: [4, 1], t: [5, 1], y: [6, 1], u: [7, 1] };
@@ -344,7 +356,7 @@ function zoneSong(zone) {
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
   ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'],
-  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['victory', 'Victory'], ['gameover', 'Game over']];
+  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['sonnet', 'SONNET'], ['supersonnet', 'SUPER SONNET'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
   half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.9 },
@@ -366,6 +378,7 @@ function scheduleMusic() {
   // coin away, and in the last zone THE ABYSS's, and ZERO's too when it could crawl out after it
   if (run && !run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) prepRecorded(SONGS.doki);
   if (run?.zone === ZONE_LAST) { prepRecorded(SONGS.abyss); if (meta.ach.omega && (run.endless || run.rush)) prepRecorded(SONGS.zero); }
+  if (bosses.some(b => b.gimmick === 'sonnet')) prepRecorded(SONGS.supersonnet); // (ready for the moment he turns golden)
   if (inRun() && abyssCine()?.cine < CINE.rise) { stopRecorded(); music.next = ac.currentTime + 0.05; return; } // (its entrance: dead silence until it rises)
   const want = wantedSong();
   if (recordedOk(want)) { // a recorded song: the band sits out while it plays
@@ -405,7 +418,15 @@ function fadeEl(el, target) { el.volume = Math.max(0, Math.min(1, el.volume + Ma
 function fadeOthers(keep) { for (const el of Object.values(rec.els)) if (el !== keep && !el.paused) { fadeEl(el, 0); if (el.volume <= 0) el.pause(); } }
 function playRecorded(id) {
   const s = SONGS[id], el = prepRecorded(s);
-  if (rec.song !== id) { rec.song = id; el.currentTime = s.loop[0]; el.volume = 0; } // (from the top, fading in)
+  if (rec.song !== id) {
+    // two versions of one song (SONNET's): the new one picks up exactly where the other was, as loud, while the other
+    // fades out underneath; anything else starts from the top, fading in
+    const prev = SONGS[rec.song], prevEl = prev?.file && rec.els[prev.file];
+    const synced = prevEl && !prevEl.paused && (s.syncWith === rec.song || prev.syncWith === id);
+    rec.song = id;
+    if (synced) { el.currentTime = prevEl.currentTime + 0.04; el.volume = Math.min(1, recordedVolume(s)); } // (+0.04s: the seek's head start)
+    else { el.currentTime = s.loop[0]; el.volume = 0; }
+  }
   if (el.paused) el.play().catch(err => { // the browser wants a click first: play the written-out version until then
     if (err?.name !== 'NotAllowedError') return; // (any other hiccup, like a start cut short by a pause, just tries again next time)
     rec.blocked = true; rec.song = null;
@@ -427,6 +448,9 @@ function wantedSong() {
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
   if (bosses.some(b => b.gimmick === 'doki') || warn?.doki) return 'doki';
+  // SONNET: the instrumental, then the version with vocals once he's golden (if that file is here: if not, the written-out
+  // version carries on, turning into its heavy remake)
+  if (bosses.some(b => b.gimmick === 'sonnet')) return bosses.some(b => b.super) && recordedOk('supersonnet') ? 'supersonnet' : 'sonnet';
   if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
   if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
@@ -1007,6 +1031,7 @@ const ACHIEVEMENTS = [
   { id: 'zero',        cat: 'boss', name: 'Divide by Zero',       reward: 400, desc: 'Find and defeat the secret boss.' },
   { id: 'nemesis',     cat: 'boss', name: 'Know Thyself',         reward: 400, desc: 'Find and defeat the second secret boss.' },
   { id: 'doki',        cat: 'boss', name: 'Doki Doki',            reward: 250, desc: 'Open the pink door, and fill her DOKI meter.' },
+  { id: 'golden',      cat: 'boss', name: 'Faster Than Light',    reward: 200, desc: 'Defeat SUPER SONNET.' },
   { id: 'cursed',      cat: 'progress', name: 'Hexed',            reward: 300, desc: 'Destroy THE ABYSS with 3 or more curses on.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
@@ -1487,6 +1512,11 @@ const BOSSES = [
   { name: 'THE LEECH',   style: 'leech',   color: '#ff2d55', sides: 7, r: 54, lifesteal: true, hoverLow: true, rageMove: 'bloodmoon', rageTitle: 'BLOODLUST',
     hint: 'THE LEECH heals by draining you — shoot the blood orbs before they reach it, and outrun its drain beam!',
     patterns: ['drain', 'fan', 'drain', 'ring'] },
+  // a nod to a certain blue hedgehog: very fast and very cocky, and halfway through the fight seven emeralds turn him golden
+  // (SUPER SONNET: his health refills, he takes less damage, and everything gets faster). See the sonnet gimmick
+  { name: 'SONNET', style: 'sonnet', color: '#3d7dff', sides: 8, r: 50, gimmick: 'sonnet', rageMove: 'lightspeed', rageTitle: 'SUPER SONNET',
+    hint: 'SONNET is FAST: a lock-on means a homing attack, a dust cloud means a spin dash. Halfway through... he stops holding back.',
+    patterns: ['spindash', 'rings', 'boom', 'homing', 'loop', 'rings'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
   { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
@@ -1539,6 +1569,16 @@ function dokiSide(side) {
 const DOKI_SIDES = [dokiSide(-1), dokiSide(1)];
 // how far apart the two halves of her heart are (0 until she's possessed: k is how far into her rage form she is)
 const dokiGap = (s, b, k) => k ? s * k * (0.13 + Math.sin((b?.t || 0) * 3) * 0.03) : 0;
+// SONNET's head, its left half from the top of his head round to his chin (in sizes of r), with three quills: they sweep
+// out sideways, and rise up as he turns golden (k: 0-1)
+function sonnetHalf(k) {
+  const q = (a, b) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  return [[0, -0.8], [-0.26, -0.76], [-0.44, -1.16], [-0.6, -0.62], // (an ear)
+    [-0.7, -0.52], q([-1.34, -0.66], [-1.02, -1.24]), [-0.82, -0.3], // (the quills: normal, and SUPER)
+    q([-1.5, -0.12], [-1.4, -0.82]), [-0.88, 0.04],
+    q([-1.32, 0.44], [-1.46, -0.28]), [-0.76, 0.38],
+    [-0.54, 0.62], [-0.26, 0.76], [0, 0.8]];
+}
 const randomOf = a => a[Math.floor(Math.random() * a.length)];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
@@ -3125,7 +3165,7 @@ function updateDrain(b, dt) {
 }
 
 const bossAlive = b => b.dying <= 0 && !b.downed && !(b.cine < CINE_LEN); // (THE ABYSS can't be touched during its entrance)
-const isEnraged = b => b.hp < b.max / 2 || b.forceRage;
+const isEnraged = b => (b.hp < b.max / 2 && b.gimmick !== 'sonnet') || b.forceRage; // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
 
 // distance from point (px,py) to the segment a-b (for the Sol & Luna tether)
 function distToSeg(px, py, ax, ay, bx, by) {
@@ -3561,8 +3601,63 @@ const BOSS_ATTACKS = {
     for (let i = 0; i < n; i++) { const a = i / n * TAU; if (Math.abs(angleDiff(a, gap)) > 0.35) dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, '#ff3d6d'); }
     shake = Math.max(shake, 6); b.atkT = 0.55 * rate; beep(140, 0.2, 'sawtooth', 0.06, -60);
   },
+  // ----- SONNET: speed, rings and sonic booms -----
+  spindash(b, enraged, rate, target) { // he revs up as a spinning ball in a cloud of dust (the line shows where), then blasts at you
+    if (!target || b.charge) return;
+    b.charge = { phase: 'aim', t: enraged ? 0.6 : 0.85, tx: target.x, ty: target.y };
+    b.atkT = 1.8 * rate; beep(260, 0.8, 'sawtooth', 0.05, 900);
+  },
+  homing(b, enraged, rate, target) { // HOMING ATTACK: a lock-on snaps onto you, and a moment later he's there
+    if (!target || b.charge) return;
+    b.charge = { phase: 'aim', t: enraged ? 0.38 : 0.5, tx: target.x, ty: target.y, lock: 1 };
+    b.atkT = 1.1 * rate; beep(1600, 0.1, 'square', 0.04); setTimeout(() => beep(2000, 0.1, 'square', 0.04), 80);
+  },
+  rings(b, enraged, rate) { // RING TOSS: a fan of gold rings flies up and out, falls, and bounces along the bottom
+    const n = enraged ? 12 : 9;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.28, sp = (260 + Math.random() * 90) * BOSS_BULLET_SPEED;
+      eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 8, color: RING_COLOR, src: b, grav: 260, bounce: 3 });
+    }
+    b.atkT = 1.4 * rate; [1568, 2093, 2637].forEach((f, i) => setTimeout(() => beep(f, 0.08, 'triangle', 0.04), i * 45)); // (the ring sound)
+  },
+  boom(b, enraged, rate) { // SONIC BOOM: crescents of air, one after another, each aimed where you are (fired from the gimmick)
+    b.boomN = enraged ? 4 : 3; b.boomT = 0;
+    b.atkT = 1.3 * rate;
+  },
+  loop(b, enraged, rate) { // LOOP-DE-LOOP: he races around the arena (the circle shows first), flinging shots into the middle
+    if (b.charge) return;
+    b.run = { t: -SONNET_RUN_WARN, a0: r2(Math.atan2(b.y - H * 0.5, b.x - W / 2)), dir: Math.random() < 0.5 ? -1 : 1, fireT: 0, laps: enraged ? 2 : 1 };
+    b.atkT = 3.4 * rate; beep(200, 0.5, 'sawtooth', 0.05, 800);
+  },
 };
 function dokiShot(b, x, y, vx, vy, r, color) { eBullets.push({ x, y, vx, vy, r, color, src: b }); }
+// SONNET: his rings are drawn as rings (on guests' screens too: they're told apart by this color), his transformation's
+// timeline, and how much tougher SUPER SONNET is
+const RING_COLOR = '#ffd23e';
+const SONNET_RUN_WARN = 0.6, SONNET_RUN_T = 2.2;
+const SUPER_XF = { merge: 1.7, flash: 2.6, end: 4 }; // (the emeralds circle him, then sink in; the flash; done)
+const SUPER_ARMOR = 0.8, SUPER_RATE = 0.85; // (SUPER SONNET takes 80% damage, and attacks faster still)
+const EMERALDS = ['#5dff7a', '#3dd8ff', '#ffe93d', '#ff5a70', '#c05dff', '#ffffff', '#7df9ff'];
+const sonnetCenter = () => ({ x: W / 2, y: H * 0.5, R: Math.min(W, H) * 0.4 }); // (where his loop and his light-speed star go)
+const sonnetBall = b => !!(b.charge || (b.run && b.run.t >= 0) || (b.special?.k === 'lightspeed' && b.special.t >= LS_WARN)); // (curled into a ball)
+// halfway through: the emeralds come, and he turns golden (he can't be hurt while it happens)
+function startSuper(b) {
+  b.xf = 0; b.charge = null; b.run = null; b.boomN = 0; b.special = null;
+  for (const e of eBullets) if (Math.random() < 0.4) burst(e.x, e.y, e.color || '#ff8080', 2, 80);
+  eBullets = []; lasers = [];
+  fxText('...!', b.x, Math.max(40, b.y - b.r - 30), '#ffffff', 30, 1);
+  EMERALDS.forEach((c, i) => setTimeout(() => beep(523 * Math.pow(2, i / 7), 0.25, 'triangle', 0.05), i * 180)); // (a chime per emerald)
+}
+function goSuper(b) { // the flash: SUPER SONNET (his health refills; he takes less damage; he gets his light-speed move)
+  b.super = true; b.title = 'SUPER SONNET'; b.color = '#ffd23d'; b.ghostColor = '#ffd23d';
+  b.forceRage = true; b.wasEnraged = true; b.rage = RAGE_TRANSFORM; // (his golden form grows in, like a rage form)
+  b.hp = b.max; b.patterns = ['spindash', 'homing', 'boom', 'rings', 'loop', 'homing', 'boom']; b.pattern = 0; b.specialT = 3;
+  screenFlash = 1; shake = Math.max(shake, 30);
+  for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (3 + i * 1.6), 0.7, i === 1 ? '#ffffff' : '#ffd23d', 6, i * 0.15);
+  burst(b.x, b.y, '#ffd23d', 90, 450); burst(b.x, b.y, '#ffffff', 40, 300);
+  fxText('SUPER SONNET!', W / 2, H * 0.4, '#ffd23d', 40, 2.4);
+  beep(65, 1.4, 'sawtooth', 0.1, 400); beep(1046, 0.8, 'sine', 0.06, 1046);
+}
 // DOKI DOLL's meter, what she says, and how she reacts to you
 const dokiBoss = () => bosses.find(b => b.gimmick === 'doki' && b.entered && b.dying <= 0);
 // guns stay quiet during THE ABYSS's entrance, and the whole time DOKI DOLL is out (she's too cute to shoot)
@@ -3914,6 +4009,42 @@ const GIMMICKS = {
     dmg: b => { b.pout = 0.6; return 0; }, // (anything that hits her just makes her pout)
     rate: b => b.possessed ? 0.95 : 1, // (possessed counts as enraged too, which already speeds her up)
   },
+  sonnet: { // halfway, he turns into SUPER SONNET; he also runs his loop-de-loop and fires his sonic booms from here
+    update(b, dt) {
+      if (b.xf >= 0) { // the transformation: he floats to the middle of the top, and nothing can hurt him (see dmg)
+        const before = b.xf; b.xf += dt;
+        b.x += (W / 2 - b.x) * Math.min(1, dt * 3); b.y += (H * 0.28 - b.y) * Math.min(1, dt * 3);
+        if (before < SUPER_XF.merge && b.xf >= SUPER_XF.merge) { shake = Math.max(shake, 10); beep(130, 1, 'sawtooth', 0.07, 600); }
+        if (before < SUPER_XF.flash && b.xf >= SUPER_XF.flash) goSuper(b);
+        if (b.xf >= SUPER_XF.end) { b.xf = -1; b.atkT = 0.8; }
+        return 'hold';
+      }
+      if (!b.super && b.entered && b.hp <= b.max * 0.5) { startSuper(b); return 'hold'; }
+      if (b.run) { // LOOP-DE-LOOP: a moment's warning, then laps around the arena, firing into the middle
+        const r = b.run, c = sonnetCenter();
+        r.t += dt;
+        if (r.t < 0) return 'hold';
+        const T = SONNET_RUN_T * r.laps * (b.super ? 0.8 : 1), a = r.a0 + r.dir * Math.min(1, r.t / T) * TAU * r.laps;
+        b.x = c.x + Math.cos(a) * c.R; b.y = c.y + Math.sin(a) * c.R;
+        if ((b._ghostT = (b._ghostT || 0) - dt) <= 0) { b._ghostT = 0.03; fxGhost(b, 0.25); }
+        if ((r.fireT -= dt) <= 0) {
+          r.fireT = b.super ? 0.055 : 0.075;
+          const toward = Math.atan2(c.y - b.y, c.x - b.x) + (Math.random() - 0.5) * 0.5, sp = (b.super ? 170 : 140) * BOSS_BULLET_SPEED;
+          eBullets.push({ x: b.x, y: b.y, vx: Math.cos(toward) * sp, vy: Math.sin(toward) * sp, r: 5, color: b.super ? '#ffe98a' : '#7db4ff', src: b });
+        }
+        if (r.t >= T) { b.run = null; shake = Math.max(shake, 8); }
+        return 'hold';
+      }
+      if (b.boomN > 0 && (b.boomT -= dt) <= 0) { // SONIC BOOM: a crescent of air, aimed at whoever is closest
+        b.boomN--; b.boomT = 0.2;
+        const p = nearestPlayer(b.x, b.y), a = p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2, sp = (b.super ? 330 : 280) * BOSS_BULLET_SPEED;
+        for (let i = -4; i <= 4; i++) { const s = a + i * 0.09; eBullets.push({ x: b.x + Math.cos(s) * b.r, y: b.y + Math.sin(s) * b.r, vx: Math.cos(s) * sp, vy: Math.sin(s) * sp, r: 5, color: '#bfe8ff', src: b }); }
+        beep(900, 0.15, 'sawtooth', 0.04, -600); fxRing(b.x, b.y, b.r * 0.8, b.r * 2, 0.2, '#bfe8ff', 3);
+      }
+    },
+    dmg: b => b.xf >= 0 ? 0 : b.super ? SUPER_ARMOR : 1, // (untouchable while he transforms; SUPER SONNET is tougher)
+    rate: b => b.super ? SUPER_RATE : 1,
+  },
   abyss: {
     update(b, dt) {
       // three phases: at 66% the lights go out, at 33% it fully awakens
@@ -4187,6 +4318,9 @@ const gazeAngle = s => s.a + s.dir * GAZE_ARC * (Math.min(1, Math.max(0, s.t - G
 const wipeCell = (s, x, y) => (Math.floor(x / (W / s.cols)) + Math.floor(y / (H / s.rows))) % 2;
 const MIRRORED = ['ring', 'fan', 'wave', 'spiral']; // (the attacks ECHO's mirror image copies)
 const LINKB_WARN = 1.1, LINKB_T = 3, LINKB_W = 30, LINKB_SPIN = 0.75;    // NEMESIS's LINK BEAM
+const LS_WARN = 0.9, LS_SEG = 0.3;                                         // SUPER SONNET's LIGHT SPEED (warning, each stroke)
+// the five points of LIGHT SPEED's star, in the order he dashes between them (point i of the move's star)
+const lsPoint = (s, i) => { const k = [0, 2, 4, 1, 3, 0][i], a = s.a + k / 5 * TAU; return [s.cx + Math.cos(a) * s.R, s.cy + Math.sin(a) * s.R]; };
 const linkbAngle = s => s.a + s.dir * LINKB_SPIN * Math.max(0, s.t - LINKB_WARN);
 const RAGE_MOVES = {
   chains: { name: 'CHAINS!', len: CHAIN_WARN + CHAIN_LIFE + 0.2, cd: 7, // three chains of bullets swing around it, then snap off
@@ -4362,6 +4496,28 @@ const RAGE_MOVES = {
       }
       return 'hold';
     } },
+  lightspeed: { name: 'LIGHT SPEED!', len: LS_WARN + LS_SEG * 5 + 0.3, cd: 7, // SUPER SONNET dashes around a five-point star across the
+    // screen (it flashes first), leaving sparks along each stroke that drift apart
+    start(b, s) {
+      const c = sonnetCenter(); s.cx = Math.round(c.x); s.cy = Math.round(c.y); s.R = Math.round(c.R); s.a = r2(-Math.PI / 2 + (Math.random() - 0.5) * 0.6);
+      beep(800, 0.9, 'sine', 0.05, 1600);
+    },
+    update(b, s, dt) {
+      if (s.t < LS_WARN) { const [x, y] = lsPoint(s, 0), k = Math.min(1, dt * 6); b.x += (x - b.x) * k; b.y += (y - b.y) * k; return 'hold'; }
+      const f = (s.t - LS_WARN) / LS_SEG, i = Math.min(4, Math.floor(f)), u = Math.min(1, f - i);
+      if (f < 5) {
+        const [x0, y0] = lsPoint(s, i), [x1, y1] = lsPoint(s, i + 1);
+        b.x = x0 + (x1 - x0) * u; b.y = y0 + (y1 - y0) * u;
+        if ((b._ghostT = (b._ghostT || 0) - dt) <= 0) { b._ghostT = 0.025; fxGhost(b, 0.35); }
+        if ((b._sparkT = (b._sparkT || 0) - dt) <= 0) { // sparks drift off both sides of the stroke
+          b._sparkT = 0.045;
+          const a = Math.atan2(y1 - y0, x1 - x0) + Math.PI / 2, sp = 70 * BOSS_BULLET_SPEED;
+          for (const sd of [-1, 1]) eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp * sd, vy: Math.sin(a) * sp * sd, r: 5, color: '#ffe98a', src: b });
+        }
+        if (i !== s.lastI) { s.lastI = i; shake = Math.max(shake, 8); beep(1200 - i * 120, 0.12, 'sawtooth', 0.05, -500); }
+      }
+      return 'hold';
+    } },
 };
 // PHANTOM's next landing spot: right beside the target, on screen
 function hauntSpot(b, s, tgt) {
@@ -4376,7 +4532,7 @@ function updateRageMove(b, dt, tgt) {
   if (!b.special) {
     b.specialT = (b.specialT ?? 0) - dt;
     // wait until it's free: not mid-charge, split up, or in the middle of its own gimmick
-    if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0) return;
+    if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0 || b.run || b.xf >= 0) return;
     b.special = { k: b.rageMove, t: 0 };
     m.start?.(b, b.special, tgt);
     fxText(m.name, b.x, Math.max(40, b.y - b.r - 34), '#ff4d4d', 26, 1.2);
@@ -4540,7 +4696,7 @@ function updateBoss(b, dt) {
     if (b.rageTitle) fxText(b.rageTitle, b.x, b.y + b.r + 46, '#ffb13d', 24, 2);
   }
   if (b.style === 'phantom') { b.ghostT -= dt; if (b.ghostT <= 0) { b.ghostT = 0.09; fxGhost(b, 0.45); } }
-  else if (b.wasEnraged && !b.final && (b._rageGhostT = (b._rageGhostT || 0) - dt) <= 0) { b._rageGhostT = 0.16; fxGhost({ ...b, color: '#ff3a2a' }, 0.3); } // (seething red afterimages)
+  else if (b.wasEnraged && !b.final && (b._rageGhostT = (b._rageGhostT || 0) - dt) <= 0) { b._rageGhostT = 0.16; fxGhost({ ...b, color: b.ghostColor || '#ff3a2a' }, 0.3); } // (seething red afterimages; golden ones for SUPER SONNET)
 
   updateOrbiters(b, dt, enraged);
   const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
@@ -4661,6 +4817,7 @@ function onEncounterBeaten(enc, last) {
   if (last.secret) unlockAch('zero');
   if (last.nemesis) unlockAch('nemesis');
   if (last.gimmick === 'doki') unlockAch('doki');
+  if (last.gimmick === 'sonnet') unlockAch('golden');
   if (enc.kind === 'twins' && !enc.revived) unlockAch('twins');
   if (enc.kind === 'binary' && !enc.tetherHit) unlockAch('tether');
   if (enc.kind === 'aegis') unlockAch('aegis');
@@ -4999,7 +5156,8 @@ function update(dt) {
   for (const b of eBullets) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
     if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by their boss: see updateOrbiters)
-    if (b.bounce > 0) { // (DOKI DOLL's yarn bounces off the edges of the screen)
+    if (b.grav && flow) b.vy += b.grav * dt * flow; // (SONNET's rings arc up and fall)
+    if (b.bounce > 0) { // (DOKI DOLL's yarn, and SONNET's rings, bounce off the edges of the screen)
       if ((b.x < b.r && b.vx < 0) || (b.x > W - b.r && b.vx > 0)) { b.vx = -b.vx; b.bounce--; }
       if ((b.y < b.r && b.vy < 0) || (b.y > H - b.r && b.vy > 0)) { b.vy = -b.vy; b.bounce--; }
     }
@@ -6551,6 +6709,35 @@ const BOSS_SHAPES = {
     ctx.stroke(); ctx.restore();
   } },
   zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
+  // SONNET: a hedgehog's head seen from the front, quills sweeping out to both sides, two ears, a muzzle, and one wide eye
+  // with two green pupils. Curled up (spin dash, homing attack, loop) he's a spiky ball. As SUPER SONNET (k: how far
+  // into his golden form) his quills rise up
+  sonnet: { mode: 'up', eye: [0, -0.14, 1.05], path(r, b, k = 0) {
+    ctx.beginPath();
+    if (b && sonnetBall(b)) { for (let i = 0; i < 18; i++) { const a = i / 18 * TAU, rr = r * (i % 2 ? 0.78 : 1.08); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); return; }
+    const pts = sonnetHalf(k);
+    pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x * r, y * r));
+    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(-pts[i][0] * r, pts[i][1] * r);
+    ctx.closePath();
+  }, detail(r, b, k = 0) {
+    ctx.save(); ctx.scale(0.62, 0.62); BOSS_SHAPES.sonnet.path(r, b, k); ctx.restore(); ctx.stroke(); // (the double neon line)
+    if (b && sonnetBall(b)) return; // (curled up: nothing else shows)
+    // his muzzle, nose, and a cocky little smirk
+    ctx.save(); ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,214,160,0.85)'; ctx.beginPath(); ctx.ellipse(0, r * 0.42, r * 0.4, r * 0.25, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#10142a'; ctx.beginPath(); ctx.ellipse(0, r * 0.3, r * 0.09, r * 0.065, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#10142a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-r * 0.06, r * 0.5); ctx.quadraticCurveTo(r * 0.12, r * 0.57, r * 0.22, r * 0.44); ctx.stroke();
+    ctx.restore();
+  },
+  hideEye: b => sonnetBall(b), // (no eye on the spinning ball)
+  pupil(coreR, b, fury, blinking) { // two pupils in his one wide eye: green, or red once he's SUPER SONNET
+    ctx.scale(1, blinking ? 0.1 : 1);
+    for (const sd of [-1, 1]) {
+      ctx.fillStyle = b.super ? '#ff2a4a' : '#2fd36a'; ctx.beginPath(); ctx.ellipse(sd * coreR * 0.36, 0, coreR * 0.3, coreR * 0.42, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#05070f'; ctx.beginPath(); ctx.ellipse(sd * coreR * 0.36, coreR * 0.04, coreR * 0.15, coreR * 0.24, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(sd * coreR * 0.36 - coreR * 0.09, -coreR * 0.14, coreR * 0.07, 0, TAU); ctx.fill();
+    }
+  } },
   // DOKI DOLL: a stitched patchwork heart with cat ears and a little bow, beating. Possessed (her rage form), it breaks in
   // two along a jagged crack, the halves (an ear each) pulling apart around her eye. Her staff and tail: see drawBossDecor
   doki: { mode: 'up', eye: [0, 0.02, 1.1], path(r, b, k = 0) {
@@ -6666,6 +6853,7 @@ const headingOf = b => b.style === 'wyrm' && b.body?.length ? Math.atan2(b.y - b
 function bossRot(b) {
   const m = BOSS_SHAPES[shapeOf(b)]?.mode || 'spin', dieP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
   if (b.style === 'doki' && b.entered && b.dying <= 0 && b.patterns?.[b.pattern] === 'twirl') return (b.t || 0) * 7; // (DOKI DOLL twirling)
+  if (b.style === 'sonnet' && sonnetBall(b)) return (b.t || 0) * 22; // (SONNET curled up: a spinning ball)
   if (m === 'point') return headingOf(b) + (b.dying > 0 ? b.spin : 0);
   if (m === 'spin') return (b.spin || 0) * (b.side > 0 && shapeOf(b) === 'star' ? -1 : 1); // (the twins turn opposite ways)
   const t = b.t || 0, sway = m === 'swing' ? Math.sin(t * 1.9) * 0.16 : Math.sin(t * 1.2 + (b.slot || 0)) * 0.06;
@@ -6770,7 +6958,7 @@ function drawBoss(b) {
   const t = b.t;
   let rot = bossRot(b);
   if (fury && b.rage > 0 && key === 'lancer') rot += tr * TAU * 2; // (VOID LANCER spins itself into a frenzy)
-  const c = b.flash > 0 ? '#ffffff' : fury ? mixHex(b.color, '#ff2a1a', 0.3 + Math.sin(t * 6) * 0.1) : b.color; // (enraged, it burns redder)
+  const c = b.flash > 0 ? '#ffffff' : fury && !form.keepColor ? mixHex(b.color, '#ff2a1a', 0.3 + Math.sin(t * 6) * 0.1) : b.color; // (enraged, it burns redder, unless its rage form keeps its color)
   const deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
   const aiming = b.charge && b.charge.phase === 'aim';
   const windup = b.bigAtk && !b.charge && b.entered && b.atkT > 0 && b.atkT < 0.45 ? 1 - b.atkT / 0.45 : 0;
@@ -6839,7 +7027,7 @@ function drawBoss(b) {
   const [ox, oy, es] = shape.eye, ex = (Math.cos(rot) * ox - Math.sin(rot) * oy) * b.r, ey = (Math.sin(rot) * ox + Math.cos(rot) * oy) * b.r;
   const pulse = 1 + Math.sin(t * (enraged ? 12 : 5)) * 0.12;
   const coreR = b.r * 0.25 * es * pulse * (1 + windup * 0.7 + b.kick * 0.3) * (1 + deathP);
-  if (!(fury && form.noEye)) {
+  if (!(fury && form.noEye) && !shape.hideEye?.(b)) { // (some shapes hide it now and then: SONNET's spinning ball)
     ctx.save();
     if (shape.clipEye) { bossPath(b, b.r, rot, k); ctx.clip(); } // (THE ORACLE's iris stays inside its eyelids)
     ctx.translate(ex, ey);
@@ -6862,7 +7050,7 @@ function drawBoss(b) {
 
   drawBossDecor(b, 'front', c, enraged);
   rageLayer('front', coreR, ex, ey);
-  if (fury && !form.noEye) rageBrows(b, coreR, ex, ey);
+  if (fury && !form.noEye && !shape.hideEye?.(b)) rageBrows(b, coreR, ex, ey);
   if (b.shielded) { // Aegis' bubble — flares where bullets bounce off
     const pulse = 1 + Math.sin(b.t * 4) * 0.03;
     ctx.globalAlpha = 1; glow('#5dff7a', 20 + b.shieldHit * 100);
@@ -7227,6 +7415,27 @@ const RAGE_FORMS = {
       ctx.beginPath(); for (let i = 0; i < 7; i++) { const x = -w + i * w * 2 / 6; ctx.moveTo(x, y - w * 0.1); ctx.lineTo(x * 0.92, y - w * (i % 2 ? 0.45 : 0.8)); } ctx.stroke();
     } },
 
+  sonnet: { // SUPER SONNET: golden all over (it keeps its own color: no red), glowing from inside, with sparks rising off him
+    // and a golden aura that flickers like flame
+    keepColor: true,
+    back(b, k, tr, r) {
+      rageHaze(r, r * 2.3, '255,210,61', 0.38 * k);
+      ctx.globalCompositeOperation = 'lighter';
+      for (const [col, f] of [['rgba(255,200,40,0.45)', 1], ['rgba(255,250,200,0.5)', 0.55]]) {
+        ctx.fillStyle = col; ctx.beginPath();
+        for (let i = 0; i < 14; i++) {
+          const a = i / 14 * TAU, L = r * f * k * (0.45 + 0.25 * Math.sin(b.t * 10 + i * 2.3));
+          ctx.moveTo(Math.cos(a - 0.2) * r * 0.85, Math.sin(a - 0.2) * r * 0.85);
+          ctx.lineTo(Math.cos(a) * (r + L), Math.sin(a) * (r + L) - L * 0.6);
+          ctx.lineTo(Math.cos(a + 0.2) * r * 0.85, Math.sin(a + 0.2) * r * 0.85);
+        }
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      rageEmbers(b, r, 14, ['#fff7c0', '#ffd23d', '#ffffff']);
+    },
+    fill: (b, k, r) => litFill(r, '#ffd23d', k),
+  },
   doki: { // POSSESSED: her heart breaks in two (see BOSS_SHAPES.doki), dark red inside; a red haze, a glow along the crack, and
     // drops of red falling from the break
     back(b, k, tr, r) {
@@ -7660,6 +7869,18 @@ function drawRageMove(b) {
       }
       break;
     }
+    case 'lightspeed': { // the star he's about to dash around (flashing), then the stroke he's on, glowing
+      if (s.cx === undefined) break;
+      const done = (s.t - LS_WARN) / LS_SEG;
+      ctx.strokeStyle = '#ffd23d'; ctx.lineWidth = 3; glow('#ffd23d', 16);
+      ctx.globalAlpha = s.t < LS_WARN ? 0.3 + blink * 0.5 : 0.25; ctx.setLineDash(s.t < LS_WARN ? [14, 10] : []);
+      ctx.beginPath(); for (let i = 0; i <= 5; i++) ctx.lineTo(...lsPoint(s, i)); ctx.stroke(); ctx.setLineDash([]);
+      if (s.t >= LS_WARN && done < 5) { // (where he's been on this stroke: a bright streak)
+        const i = Math.floor(done), [x0, y0] = lsPoint(s, i);
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = '#fff7c0'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      break;
+    }
     case 'link': { // NEMESIS's copy on the far side of the circle, the circle itself, then the beam between them
       if (s.cx === undefined) break;
       const a = linkbAngle(s), ex = s.cx - Math.cos(a) * s.R, ey = s.cy - Math.sin(a) * s.R, live = s.t >= LINKB_WARN && s.t < LINKB_WARN + LINKB_T;
@@ -7763,6 +7984,37 @@ function drawGimmick(b) {
       }
       break;
     case 'abyss': drawAbyssWarnings(b); break;
+    case 'sonnet': {
+      if (b.xf >= 0 && b.xf < SUPER_XF.flash) { // the seven emeralds fly in and circle him, tighter and faster, then sink into him
+        const into = Math.max(0, (b.xf - SUPER_XF.merge) / (SUPER_XF.flash - SUPER_XF.merge));
+        ctx.globalAlpha = 1;
+        if (into > 0) { // (he glows white as they sink in)
+          const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 2.4);
+          g.addColorStop(0, `rgba(255,255,255,${0.6 * into})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.4, 0, TAU); ctx.fill();
+        }
+        EMERALDS.forEach((col, i) => {
+          const arrive = Math.min(1, b.xf / (0.35 + i * 0.18)), a = b.xf * (2 + into * 8) + i / 7 * TAU, R = b.r * (2.8 - arrive * 1.1) * (1 - into * 0.9);
+          const ox = Math.cos(i / 7 * TAU) * W, oy = -H * 0.2; // (they fly in from far off)
+          const x = b.x + Math.cos(a) * R + (ox - Math.cos(a) * R) * (1 - easeOut(arrive)) * 0.6, y = b.y + Math.sin(a) * R * 0.8 + (oy - b.y) * (1 - easeOut(arrive)) * 0.6;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(b.xf * 3 + i);
+          glow(col, 18); ctx.fillStyle = col; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+          const s = b.r * 0.2;
+          ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.7, -s * 0.3); ctx.lineTo(s * 0.45, s * 0.8); ctx.lineTo(-s * 0.45, s * 0.8); ctx.lineTo(-s * 0.7, -s * 0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.restore();
+        });
+      }
+      if (b.charge?.phase === 'aim' && !b.charge.lock) { // a spin dash revving up: dust kicking out behind him
+        ctx.globalAlpha = 0.5; ctx.fillStyle = '#c8d4ff';
+        for (let i = 0; i < 6; i++) { const ph = (t * 3 + i / 6) % 1, a = Math.atan2(b.y - b.charge.ty, b.x - b.charge.tx) + (i - 2.5) * 0.25; ctx.beginPath(); ctx.arc(b.x + Math.cos(a) * b.r * (0.9 + ph), b.y + Math.sin(a) * b.r * (0.9 + ph), b.r * 0.18 * (1 - ph), 0, TAU); ctx.fill(); }
+        ctx.globalAlpha = 1;
+      }
+      if (b.run && b.run.t < 0) { // LOOP-DE-LOOP coming: the circle he'll race around, flashing
+        const c = sonnetCenter(); ctx.globalAlpha = Math.floor(t * 10) % 2 ? 0.7 : 0.3; ctx.strokeStyle = b.color; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 80 * b.run.dir;
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.R, 0, TAU); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+      break;
+    }
     case 'doki': { // her question, in a speech bubble under her, with the four quick-chat answers (they can be clicked)
       dokiChips = [];
       const ask = b.ask && DOKI_ASKS[b.ask[0]];
@@ -7971,7 +8223,7 @@ function drawWorld() {
   drawEncounterFx();
   for (const bo of bosses) drawBoss(bo);
   for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); }
-  const shots = [], ink = [], hearts = [];
+  const shots = [], ink = [], hearts = [], goldRings = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
     if (b.fuse !== undefined) { // mine: pulsing ring that blinks faster as it's about to burst
@@ -7983,9 +8235,18 @@ function drawWorld() {
     }
     if (c === ABYSS_INK) { ink.push(b); continue; }
     if (DOKI_HEARTS.includes(c)) { hearts.push(b); continue; }
+    if (c === RING_COLOR) { goldRings.push(b); continue; }
     shots.push({ x: b.x, y: b.y, r: b.r || 5, color: c });
   }
   drawGlowDots(shots);
+  if (goldRings.length) { // SONNET's gold rings: spinning (seen edge-on now and then), with a glint
+    ctx.save(); glow('#ffd23d', 14); ctx.strokeStyle = '#ffd23d'; ctx.lineWidth = 3;
+    const t = performance.now() / 1000;
+    for (const b of goldRings) { const r = b.r || 8, sq = Math.abs(Math.cos(t * 6 + b.x * 0.05)); ctx.beginPath(); ctx.ellipse(b.x, b.y, r * Math.max(0.15, sq), r, 0, 0, TAU); ctx.stroke(); }
+    ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff';
+    for (const b of goldRings) { ctx.fillRect(b.x - 1, b.y - (b.r || 8) - 1, 2, 2); }
+    ctx.restore();
+  }
   if (hearts.length) { // DOKI DOLL's hearts, with a little shine on each
     ctx.save(); glow('#ff4fa3', 14);
     for (const col of DOKI_HEARTS) { ctx.fillStyle = col; ctx.beginPath(); for (const b of hearts) if (b.color === col) heartPath(b.x, b.y, (b.r || 6) * 1.15); ctx.fill(); }
@@ -8204,11 +8465,13 @@ function drawHUD() {
     else if (bo.shielded) { status = 'SHIELDED'; statusColor = '#5dff7a'; }
     else if (bo.regen) { status = 'REGENERATING'; statusColor = '#5dff7a'; }
     else if (bo.healT > 0) { status = 'HEALING'; statusColor = '#ff2d55'; }
+    else if (bo.xf >= 0) { status = 'TRANSFORMING — CAN\'T BE HURT'; statusColor = '#ffd23d'; } // (SONNET turning golden)
+    else if (bo.super) { status = 'GOLDEN'; statusColor = '#ffd23d'; }
     else if (isEnraged(bo) && bo.dying <= 0) status = 'ENRAGED';
     else if (bo.bond !== undefined) { status = `P${bo.bond + 1}'S TARGET`; statusColor = P_COLORS[bo.bond]; }
     // "NAME  ·  STATUS", centered as a whole, with the status in its own color
     ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = `bold ${compact ? 10 : 13}px system-ui`;
-    const head = bo.name + (status ? (compact ? ' · ' : '  ·  ') : ''), x0 = cx - ctx.measureText(head + status).width / 2;
+    const head = (bo.title || bo.name) + (status ? (compact ? ' · ' : '  ·  ') : ''), x0 = cx - ctx.measureText(head + status).width / 2;
     ctx.fillStyle = bo.color; ctx.fillText(head, x0, by);
     if (status) { ctx.fillStyle = statusColor; ctx.fillText(status, x0 + ctx.measureText(head).width, by); }
     if (!compact && !bo.downed) { ctx.textAlign = 'right'; ctx.fillStyle = '#cde'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${Math.ceil(fill * 100)}%`, bx + bw, by + 1); } // HP left (or DOKI)
@@ -8926,11 +9189,11 @@ function drawOver() {
 // regulars (enemies it spawns more of), its own bosses, and the middle ones have a hazard.
 const ZONES = [
   { id: 'deep', name: 'DEEP SPACE', sub: 'The edge of the known stars', color: '#7df9ff', tints: ['#3a2a8e', '#0d5a8e', '#1a3a8e'],
-    bosses: ['THE WARDEN', 'HEXCORE', 'VOID LANCER', 'STORMCALLER'] },
+    bosses: ['THE WARDEN', 'HEXCORE', 'VOID LANCER', 'STORMCALLER', 'SONNET'] },
   { id: 'belt', name: 'SHATTERED BELT', sub: 'All that is left of a world that broke apart', color: '#ffb13d', tints: ['#6e4a0d', '#5e2a0d'],
     hazard: 'METEORS', hazardDesc: 'Meteors tear across flashing lanes (they smash enemies too)',
     hint: 'SHATTERED BELT: when a lane flashes, a meteor is about to tear through it. Get clear (it smashes enemies too)!',
-    bosses: ['THE WYRM', 'THE ARCHITECT', 'THE HIVE', 'HEXCORE'], bias: { tank: 2.2, bulwark: 2, splitter: 2, mortar: 2, carrier: 1.8, layer: 1.6 } },
+    bosses: ['THE WYRM', 'THE ARCHITECT', 'THE HIVE', 'HEXCORE', 'SONNET'], bias: { tank: 2.2, bulwark: 2, splitter: 2, mortar: 2, carrier: 1.8, layer: 1.6 } },
   { id: 'nebula', name: 'CRIMSON NEBULA', sub: 'Thick red gas, and things hiding in it', color: '#ff4d8d', tints: ['#6e1a3e', '#5e0d2a'],
     hazard: 'ION STORM', hazardDesc: 'Lightning lands on pink circles (it fries enemies too)',
     hint: 'CRIMSON NEBULA: the gas is charged. Get out of the pink circles before the lightning lands!',
@@ -8942,7 +9205,7 @@ const ZONES = [
   { id: 'corona', name: 'SOLAR CORONA', sub: 'Skimming the fire of a dying star', color: '#ff8d2d', tints: ['#6e2a0d', '#5e1a0d'],
     hazard: 'SOLAR FLARES', hazardDesc: 'Pillars of fire burst down from the sun (they burn enemies too)',
     hint: 'SOLAR CORONA: when a column glows, a solar flare is about to blast down it. Move out of the way!',
-    bosses: ['HEXCORE', 'STORMCALLER', 'VOID LANCER', 'THE WYRM'], bias: { firework: 2.2, kamikaze: 2, bomber: 2, launcher: 2, dasher: 1.6 } },
+    bosses: ['HEXCORE', 'STORMCALLER', 'VOID LANCER', 'THE WYRM', 'SONNET'], bias: { firework: 2.2, kamikaze: 2, bomber: 2, launcher: 2, dasher: 1.6 } },
   { id: 'derelict', name: 'DERELICT FLEET', sub: 'A graveyard of warships from a forgotten war', color: '#9db4c8', tints: ['#2a3a4e', '#3a2a2e'],
     hazard: 'OLD TURRETS', hazardDesc: 'Broken turrets drift by and shoot at anything, enemies too',
     hint: 'DERELICT FLEET: the old turrets still fire at whatever is closest, you or the enemies. Shoot them down, or let them help!',
@@ -10170,7 +10433,8 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special',
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
-  'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns']; // (DOKI DOLL) // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)

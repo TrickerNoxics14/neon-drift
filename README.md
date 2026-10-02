@@ -25,9 +25,9 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 21 cosmetics (trails, bullet colors, kill effects) · 40 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 21 cosmetics (trails, bullet colors, kill effects) · 41 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### Ship abilities
 
@@ -92,6 +92,7 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
 - **Zero:** deletes half the screen in a checkerboard pattern.
+- **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog. His fight plays its song from files that stay on the creator's computer, switching to the version with vocals, in sync, when he turns golden; the public site plays a written-out version instead.)
 
 ### THE ABYSS
 
