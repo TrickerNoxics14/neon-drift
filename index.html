@@ -1446,6 +1446,7 @@ addEventListener('keydown', e => {
     if (e.code === 'Escape' && galleryPick >= 0) galleryPick = -1;
     else if (e.code === 'Escape' || e.code === 'KeyG') go('menu');
     if (galleryPick >= 0 && (e.code === 'Enter' || e.code === 'KeyD')) startPractice(galleryPick, e.code === 'KeyD');
+    if (galleryPick >= 0 && e.code === 'KeyV') galleryForm++;
     if (e.code === 'KeyR') galleryRage = !galleryRage;
   } else if (state === 'cosmetics') {
     if (e.code === 'Escape') go('hangar');
@@ -10247,12 +10248,12 @@ const LORE_HOW = ['Meet it', 'Beat it', 'Beat it 3 times', 'Beat it on HARD'];
 const PRACTICE_AT = 4;
 function startPractice(i, hard) {
   const e = galleryEntries()[i];
-  if (!e || !meta.bossLog[e.name]?.beat || net.role) return;
+  if (!e || !(meta.bossLog[e.name]?.beat || modOk()) || net.role) return; // (the mod menu can fight anything)
   const keep = runType; runType = 'standard';
   start(1, [lastShips[0]]);
   runType = keep;
   const n = e.defs[0].final ? 8 : PRACTICE_AT;
-  run.practice = { i, hard: !!hard && !e.noHard, name: e.name };
+  run.practice = { i, hard: !!hard && !e.noHard, name: e.name, form: galleryForm % bossForms(e.defs[0]).length };
   run.nemesisAt = 0; run.dokiMet = true;
   for (let k = 0; k < n * 2; k++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   run.bossOrder = Array(n).fill(e.order); bossCount = n; level = 1 + n * 2;
@@ -10309,6 +10310,7 @@ const MOD_ITEMS = () => [
     for (const c of COSMETICS) meta.cos.owned[c.id] = true;
     saveMeta(); showToast('Every ship (up to MK V) and cosmetic unlocked!');
   }],
+  ['ANY BOSS, ANY FORM (GALLERY)', '#ff8d5d', () => { galleryPick = -1; go('gallery'); }],
   [modRun() ? 'BACK TO THE RUN  [Esc]' : 'BACK  [Esc]', '#9ab', closeMod],
 ];
 function drawMod() {
@@ -10320,18 +10322,33 @@ function drawMod() {
 }
 // HARD: enraged from the start, attacks 25% faster and has 25% more health (SONNET keeps his transformation for halfway)
 function hardenBoss(b) {
+  const pf = run?.practice?.form; if (pf && !b.formSet) { b.formSet = true; const F = bossForms(b)[pf]; if (F) F[1](b); } // (the form picked in the gallery)
   if (!run?.practice?.hard || b.hardened) return;
   b.hardened = true; b.hp *= 1.25; b.max *= 1.25; b.atkMult = (b.atkMult || 1) * 0.75;
   if (b.gimmick !== 'sonnet' && !b.final) b.forceRage = true;
 }
 const galleryDummies = {};
-function galleryBoss(def, i, rage) { // a stand-in boss to draw (kept, so it animates)
-  const key = def.name + i + rage;
+// every form a boss has, for its gallery page: [name, how to set a stand-in up in it]
+let galleryForm = 0;
+function bossForms(d) {
+  const rage = b => { b.forceRage = true; b.wasEnraged = true; };
+  const f = [['NORMAL', () => {}], [d.gimmick === 'doki' ? 'POSSESSED' : 'ENRAGED', b => { rage(b); if (b.gimmick === 'doki') b.possessed = true; }]];
+  const A = !d.shape && d.gimmick !== 'sonnet' && ASCENDS[d.style];
+  if (A) f.push([A.title, b => { rage(b); Object.assign(b, { super: true, title: A.title, color: A.color, ghostColor: A.ghost }); }]);
+  if (d.gimmick === 'sonnet') f.push(['SUPER SONNET', b => { rage(b); Object.assign(b, { super: true, title: 'SUPER SONNET', color: '#ffd23d', ghostColor: '#ffd23d' }); }]);
+  if (d.gimmick === 'zero') f.splice(1, 1, ['NULL', b => { b.zform = 2; }], ['FATAL ERROR', b => { b.zform = 3; rage(b); }]);
+  if (d.gimmick === 'dawnny') f.push(['SUSPECT', b => { b.sus = { t: 1e9, knifeT: 1e9 }; }], ['THE BEAST', b => { b.beast = { t: 1e9, age: 0 }; b.color = '#ff3d3d'; }]);
+  f.push(['GLITCH', b => { b.glitch = true; b.title = glitchName(b.name); }]);
+  return f;
+}
+function galleryBoss(def, i, rage, form = 0) { // a stand-in boss to draw (kept, so it animates)
+  const key = def.name + i + rage + form;
   let b = galleryDummies[key];
   if (!b) {
     b = galleryDummies[key] = makeBoss(def, 0, 1, 0, i);
     Object.assign(b, { entered: true, intro: 1, look: { x: 0, y: 1 }, faceA: Math.PI / 2, hull: 'striker', body: [], cine: 999 });
     if (b.gimmick === 'doki') b.doki = 0.5;
+    if (form) bossForms(def)[form % bossForms(def).length][1](b);
     if (rage) {
       b.forceRage = true; b.wasEnraged = true;
       const A = ascendOf(b);
@@ -10352,7 +10369,7 @@ function drawGallery() {
   list.forEach((e, i) => {
     const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap), rec = log[e.name] || {};
     const seen = !!rec.met, color = rec.hard ? '#ff3d5a' : rec.beat ? '#ff8d5d' : seen ? '#889' : '#334';
-    if (seen && galleryPick < 0) buttons.push({ x, y, w: cw, h: ch, action: () => { galleryPick = i; } });
+    if ((seen || modOk()) && galleryPick < 0) buttons.push({ x, y, w: cw, h: ch, action: () => { galleryPick = i; galleryForm = 0; } });
     panel(x, y, cw, ch, color, false);
     if (!seen && e.secret) { // a secret you haven't found: nothing to see yet
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#445'; ctx.font = `bold ${Math.round(ch * 0.4)}px system-ui`;
@@ -10391,7 +10408,7 @@ function drawBossPage(e, rec, t) {
   const n = e.defs.length, size = Math.min(48, pw / (n * 3.2));
   ctx.save(); ctx.beginPath(); ctx.rect(px + 4, py + 56, pw - 8, 140); ctx.clip();
   e.defs.forEach((d, k) => {
-    const b = galleryBoss(d, k, galleryRage && !!rec.beat);
+    const b = galleryBoss(d, k, false, galleryForm);
     b.t = t + k; b.spin = t * 0.9; b.r = size; b.x = px + pw * (k + 1) / (n + 1); b.y = py + 126;
     try { drawBoss(b); } catch (err) {}
   });
@@ -10410,12 +10427,14 @@ function drawBossPage(e, rec, t) {
     });
   }
   const by = py + ph - 58, bw2 = (pw - 48) / 3;
-  if (rec.beat) {
+  if (rec.beat || modOk()) {
     button('FIGHT  [Enter]', px + 16, by, bw2, 42, '#5dff7a', () => startPractice(galleryPick, false));
     if (!e.noHard) button('☠ HARD  [D]', px + 24 + bw2, by, bw2, 42, '#ff3d5a', () => startPractice(galleryPick, true));
     else fitText('No HARD mode', by + 21, 12, '#778');
   } else { ctx.textAlign = 'center'; fitText('Beat it in a run to practice it here', by + 21, 12, '#9ab'); }
   button('BACK  [Esc]', px + 32 + bw2 * 2, by, bw2, 42, '#7df9ff', () => { galleryPick = -1; });
+  const forms = bossForms(e.defs[0]), fi = galleryForm % forms.length; // (cycle through every form it has)
+  button(`◀ FORM: ${forms[fi][0]} (${fi + 1}/${forms.length}) ▶  [V]`, px + 16, py + 172, pw - 32, 30, '#ff9ccf', () => { galleryForm = (galleryForm + 1) % forms.length; });
 }
 
 function drawHangar() {
