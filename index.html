@@ -1600,15 +1600,28 @@ const BOSSES = [
 // the secret boss: only in Endless, right after THE ABYSS falls (once you've beaten THE ABYSS at least once)
 const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r: 56, hpMult: 1.6, secret: true, gimmick: 'zero', rageMove: 'wipe', rageTitle: 'FATAL ERROR',
   hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
-  patterns: ['grid', 'pixels', 'spiral', 'blink', 'grid', 'ring'] };
+  patterns: ['grid', 'steal', 'pixels', 'steal', 'blink', 'grid', 'steal'] };
 const SECRET_MIN_SECS = 55;
 // ZERO's three forms: each one a new look (see its shape), a new title and new attacks; it reboots between them
 const ZERO_FORMS = {
-  1: { title: 'ZERO', color: '#e8f4ff', patterns: ['grid', 'pixels', 'spiral', 'blink', 'grid', 'ring'] },
-  2: { title: 'NULL', color: '#7df9ff', patterns: ['grid', 'paste', 'pixels', 'lag', 'fan', 'grid', 'mines'] },
-  3: { title: 'FATAL ERROR', color: '#ff2a3a', patterns: ['grid', 'paste', 'lag', 'pixels', 'spiral', 'grid', 'blink'] },
+  1: { title: 'ZERO', color: '#e8f4ff', patterns: ['grid', 'steal', 'pixels', 'steal', 'blink', 'grid', 'steal'] },
+  2: { title: 'NULL', color: '#7df9ff', patterns: ['grid', 'paste', 'steal', 'lag', 'steal', 'pixels', 'steal'] },
+  3: { title: 'FATAL ERROR', color: '#ff2a3a', patterns: ['grid', 'steal', 'paste', 'lag', 'steal', 'pixels', 'steal'] },
 };
-const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55;
+const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55, ZERO_STOLEN_T = 1.2;
+// what ZERO can steal: every other boss's attacks, and (in FATAL ERROR) their rage moves, each with whose it was. A few are
+// left out because they only work with their owner's own machinery (SONNET's loop and booms, THE ABYSS's tentacles...)
+const ZERO_STEAL_SKIP = new Set(['loop', 'boom', 'steal', 'volley', 'phase', 'flak', 'fortress']), ZERO_RAGE_SKIP = new Set(['wipe']);
+const zeroOwners = () => [...BOSSES, ...TEAMS.flatMap(t => t.members), DOKI_BOSS, NEMESIS_BOSS].filter(d => !d.final && d.gimmick !== 'zero');
+let zeroStealList = null, zeroRageList = null;
+function zeroSteals() { // [attack, the boss it belongs to]
+  if (!zeroStealList) { const m = {}; for (const d of zeroOwners()) for (const a of d.patterns || []) if (BOSS_ATTACKS[a] && !ZERO_STEAL_SKIP.has(a)) m[a] ??= d; zeroStealList = Object.entries(m); }
+  return zeroStealList;
+}
+function zeroRages() { // [rage move, the boss it belongs to]
+  if (!zeroRageList) { const m = {}; for (const d of zeroOwners()) if (d.rageMove && RAGE_MOVES[d.rageMove] && !ZERO_RAGE_SKIP.has(d.rageMove)) m[d.rageMove] ??= d; zeroRageList = Object.entries(m); }
+  return zeroRageList;
+}
 // FATAL ERROR's stolen faces: the silhouettes of other bosses it flickers between
 const ZERO_STOLEN = ['warden', 'hexcore', 'seraph', 'lancer', 'storm', 'hive', 'chronos', 'leech', 'echo'];
 // the second secret boss: a dark copy of one of your own ships. Once you've beaten ZERO, there's a chance it barges in
@@ -3643,6 +3656,13 @@ const BOSS_ATTACKS = {
     }
     b.atkT = (enraged ? 1.9 : 2.5) * rate; beep(240, 0.25, 'sawtooth', 0.05, -80);
   },
+  steal(b, enraged, rate, target) { // ZERO: STOLEN: a copy of another boss's attack, wearing that boss's face for a moment
+    const [a, d] = randomOf(zeroSteals());
+    b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T };
+    fxText(`STOLEN: ${d.name}`, b.x, Math.max(40, b.y - b.r - 34), '#ff00ff', 22, 1.2);
+    BOSS_ATTACKS[a](b, enraged, rate, target);
+    b.atkT = Math.max(b.atkT, 1.1 * rate);
+  },
   lag(b, enraged, rate) { // ZERO: LAG SPIKE: everything it has fired freezes for a moment... then skips ahead (see its gimmick)
     let n = 0;
     for (const e of eBullets) if (e.src === b && !e.lag) { e.lag = [e.vx, e.vy]; e.vx = e.vy = 0; n++; }
@@ -4258,6 +4278,7 @@ const GIMMICKS = {
         fxText('SYSTEM REBOOT...', W / 2, H * 0.36, '#ffffff', 28, ZERO_REBOOT); shake = Math.max(shake, 16);
         [1760, 220, 1320, 110, 880].forEach((f, i) => setTimeout(() => beep(f, 0.09, 'square', 0.05, -f / 2), i * 90));
       }
+      if (b.stolen?.t > 0) b.stolen.t -= dt;
       if (b.reboot > 0) {
         if ((b.reboot -= dt) <= 0) {
           b.reboot = 0; const F = ZERO_FORMS[b.zform];
@@ -4879,12 +4900,14 @@ function hauntSpot(b, s, tgt) {
 // runs the boss's rage move (once it's enraged); returns 'quiet' or 'hold' while one is going
 function updateRageMove(b, dt, tgt) {
   if (b.rage > 0) return 'quiet'; // (still transforming)
-  const m = RAGE_MOVES[b.rageMove];
+  let m = RAGE_MOVES[b.rageMove];
   if (!b.special) {
     b.specialT = (b.specialT ?? 0) - dt;
     // wait until it's free: not mid-charge, split up, or in the middle of its own gimmick
     if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0 || b.run || b.xf >= 0) return;
+    if (b.gimmick === 'zero') { const [k, d] = randomOf(zeroRages()); b.rageMove = k; b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T * 1.5 }; fxText(`STOLEN: ${d.name}`, b.x, Math.max(40, b.y - b.r - 64), '#ff00ff', 20, 1.4); } // (ZERO: someone else's rage move)
     b.special = { k: b.rageMove, t: 0 };
+    m = RAGE_MOVES[b.rageMove];
     m.start?.(b, b.special, tgt);
     fxText(m.name, b.x, Math.max(40, b.y - b.r - 34), '#ff4d4d', 26, 1.2);
   }
@@ -7282,6 +7305,7 @@ const BOSS_SHAPES = {
   } },
   zero: { mode: 'up', eye: [0, 0, 1], detail() {}, path(r, b) { // ZERO: its look changes with each form
     const f = b?.zform || 1, t = b?.t || 0;
+    if (b?.stolen?.t > 0 && BOSS_SHAPES[b.stolen.shape]) { BOSS_SHAPES[b.stolen.shape].path(r, { t, look: b.look || { x: 0, y: 1 } }, 0); return; } // (wearing a stolen face)
     if (f >= 3 && !(b.reboot > 0)) { // FATAL ERROR: corrupted memory, flickering between the faces of other bosses it has stolen
       BOSS_SHAPES[ZERO_STOLEN[Math.floor(t * 2.5) % ZERO_STOLEN.length]].path(r, { t, look: b.look || { x: 0, y: 1 } }, 0); return;
     }
@@ -11507,7 +11531,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT', 'stolen']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
