@@ -27,7 +27,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 21 cosmetics (trails, bullet colors, kill effects) · 41 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 41 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### Ship abilities
 
@@ -79,14 +79,14 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 
 - **The Warden:** swings chains of bullets around itself.
 - **Hexcore:** lobs magma bombs that leave burning pools.
-- **Null Seraph:** crosses beams of light over each player.
+- **Null Seraph:** crosses beams of light over each player. Its health running out isn't the end: it comes back as the golden **SERAPH OF SIX WINGS**.
 - **Void Lancer:** charges three times in a row.
 - **Stormcaller:** sends a wall of lightning across the screen with one safe lane.
 - **The Hive:** fires homing stingers.
 - **Phantom:** teleports right next to you.
 - **Echo:** summons a mirror image that copies its attacks.
 - **Chronos:** rewinds time so its bullets fly back.
-- **The Wyrm:** breathes fire.
+- **The Wyrm:** breathes fire. Bring it down and it sheds its skin, rising again as the **BONE WYRM**, a skeleton burning with green ghost fire.
 - **The Architect:** closes walls in from both sides.
 - **The Oracle:** sweeps a giant beam across a marked arc.
 - **The Singularity:** sucks every bullet in, then blasts them back out.
@@ -138,3 +138,15 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 - **Event Horizon:** a gravity tide that drags everything toward the black hole.
 
 The whole game is a single file: `index.html`.
+
+### Second lives
+
+Some bosses don't stay down. When THE WYRM or NULL SERAPH runs out of health, it stops, clears the screen, and comes back in a super form with 60% of its health. It can't be hurt while it transforms, and afterwards it takes less damage and attacks faster.
+
+### Boss gallery
+
+Press **G** on the menu (or open it from the Hangar) to see every boss fight you've met, drawn live, with how many times you've beaten it and your fastest kill. Bosses you haven't met are dark silhouettes, and the secret ones are just a **?** until you find them. Press **R** to see the rage and super forms of the bosses you've beaten.
+
+### Pets
+
+A little companion that follows your ship around, just for looks (Hangar → Skins & Cosmetics → Pets). Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
