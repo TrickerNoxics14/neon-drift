@@ -1370,7 +1370,11 @@ addEventListener('keydown', e => {
   ensureAudio();
   if (e.code === 'KeyM') { toggleSetting('music'); showToast(settings.music ? 'MUSIC ON' : 'MUSIC OFF'); return; }
   if (e.code === 'KeyF' && state !== 'joinCode') { toggleFullscreen(); return; }
-  if (e.code === 'Backquote' && modOk() && (state === 'menu' || (state === 'play' && paused))) { openMod(); return; } // (the owner's mod menu)
+  if (isModKey(e) && modUnlocked && state !== 'mod' && state !== 'joinCode') { // (the owner's mod menu: from anywhere, pausing a run first)
+    if (net.role) { showToast('The mod menu is off online'); return; }
+    if (state === 'play' && !paused) paused = true;
+    openMod(); return;
+  }
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
   const inMenu = paused || menuOpen; // (paused, or online, a menu of your own while the game keeps going)
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
@@ -1421,7 +1425,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyC') go('cosmetics');
     if (e.code === 'KeyG') go('gallery');
   } else if (state === 'mod') {
-    if (e.code === 'Escape' || e.code === 'Backquote') closeMod();
+    if (e.code === 'Escape' || isModKey(e)) closeMod();
   } else if (state === 'gallery') {
     if (e.code === 'Escape' && galleryPick >= 0) galleryPick = -1;
     else if (e.code === 'Escape' || e.code === 'KeyG') go('menu');
@@ -9740,6 +9744,8 @@ async function checkModHash() {
 checkModHash(); addEventListener('hashchange', checkModHash); // (also when the link is changed on an open page)
 const modOk = () => modUnlocked && !net.role;
 const modRun = () => !!run && modBack === 'play';
+// the key: ` (or ~, wherever a keyboard layout puts it), or F2
+const isModKey = e => e.code === 'Backquote' || e.code === 'F2' || e.key === '`' || e.key === '~' || e.code === 'IntlBackslash';
 function openMod() { if (!modOk()) return; modBack = state; if (state === 'play') paused = true; sel = 0; go('mod'); }
 function closeMod() { go(modBack); sel = 0; } // (back to the pause screen, or wherever it was opened from)
 function modStart(setup) { runType = 'standard'; start(1, [lastShips[0]]); setup(); } // (a fresh solo run, set up for a test)
