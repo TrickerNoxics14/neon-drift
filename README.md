@@ -13,6 +13,8 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 
 Online play checks everything other players send. Nobody can control someone else's ship, crash the game with bad data, mess with your shards, or remove other people's games from the public list. The online library is only run if it matches its known fingerprint.
 
+If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you have the same version, and know that a VPN or a strict network (like school Wi-Fi) can block the connection between two computers. The ONLINE CO-OP screen checks your connection and warns you if it looks blocked. Joining gives up with a message after a few tries instead of loading forever.
+
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
@@ -23,8 +25,8 @@ Online play checks everything other players send. Nobody can control someone els
 ## Features
 
 9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
-8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · two secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 39 achievements · online quick chat (1–4) · an original soundtrack (below)
+8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 21 cosmetics (trails, bullet colors, kill effects) · 40 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### Ship abilities
 
@@ -107,6 +109,8 @@ When the lights go out, its eyes glow in the dark and it whispers to you. When i
 Lose to it, and it leaves its mark: the main menu stays haunted until you finally beat it.
 
 And once you've found the first secret boss, keep an eye out. Someone else might join your game.
+
+Something pink is hiding out there too. Some enemies drop rare **pink coins**... and she can't be beaten the usual way. (A little nod to a certain pink doll from Deltarune.)
 
 Regular enemies are animated too. They warp in, squash when hit, and break into pieces when destroyed. Ships fly with engine flames, gunners aim their barrels, and slimes blink.
 

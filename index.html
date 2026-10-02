@@ -411,6 +411,7 @@ function wantedSong() {
   if (state === 'route') return 'starmap';
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
+  if (bosses.some(b => b.gimmick === 'doki') || warn?.doki) return zoneSong(run.zone); // (DOKI DOLL: her own song is on hold)
   if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
   if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
@@ -840,6 +841,7 @@ const COSMETICS = [
   { id: 'trail_rainbow',  cat: 'trail',  name: 'Rainbow Road',  cost: 300, sw: RAINBOW },
   { id: 'trail_void',     cat: 'trail',  name: 'Abyssal Wake',  cost: 350, sw: ['#000000', '#ff1f3d', '#000000'] },
   { id: 'trail_gold',     cat: 'trail',  name: 'Gold Dust',     cost: 400, sw: ['#fff3b0', '#ffd23d', '#c9a227'] },
+  { id: 'trail_hearts',   cat: 'trail',  name: 'Doki Hearts',   cost: 300, sw: ['#ff4fa3', '#ff9ccf', '#ffd6ec'], req: 'doki', reqText: 'Charm the pink secret' },
   // each ship's own trail, earned by mastering it (on a ship you haven't mastered yet it falls back to a plain comet)
   { id: 'trail_signature', cat: 'trail', name: 'Signature',     cost: 0,   sw: ['#ffd23d', '#ffffff', '#ffd23d'], mastery: true, reqText: 'Master any ship' },
   { id: 'bullet_default', cat: 'bullet', name: 'Ship Color',    cost: 0,   sw: ['#7df9ff'] },
@@ -908,6 +910,10 @@ function drawTrail(p) {
     else if (style === 'trail_void') {
       ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 4 + k * 10; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
       ctx.strokeStyle = '#000'; ctx.lineWidth = 2 + k * 7; ctx.stroke();
+    } else if (style === 'trail_hearts') { // little hearts, bobbing as they drift off
+      if (i % 3) continue;
+      ctx.fillStyle = ['#ffd6ec', '#ff9ccf', '#ff4fa3'][Math.min(2, Math.floor(k * 3))];
+      ctx.beginPath(); heartPath(x1 + Math.sin(i * 1.7 + t * 5) * 4, y1 + (1 - k) * 6, 1.5 + k * 3.5); ctx.fill();
     } else { // particle-style trails: fire, ice, gold
       const cols = style === 'trail_fire' ? ['#ff3d3d', '#ff9a3d', '#ffe93d'] : style === 'trail_ice' ? ['#5dc8ff', '#bfefff', '#ffffff'] : ['#c9a227', '#ffd23d', '#fff3b0'];
       ctx.fillStyle = cols[Math.min(2, Math.floor(k * 3))];
@@ -985,6 +991,7 @@ const ACHIEVEMENTS = [
   { id: 'starved',     cat: 'boss', name: 'Starved',              reward: 150, desc: 'Defeat The Leech without letting a single blood orb heal it.' },
   { id: 'zero',        cat: 'boss', name: 'Divide by Zero',       reward: 400, desc: 'Find and defeat the secret boss.' },
   { id: 'nemesis',     cat: 'boss', name: 'Know Thyself',         reward: 400, desc: 'Find and defeat the second secret boss.' },
+  { id: 'doki',        cat: 'boss', name: 'Doki Doki',            reward: 250, desc: 'Open the pink door, and fill her DOKI meter.' },
   { id: 'cursed',      cat: 'progress', name: 'Hexed',            reward: 300, desc: 'Destroy THE ABYSS with 3 or more curses on.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
@@ -1337,6 +1344,8 @@ cv.addEventListener('pointerdown', e => {
   const w = toWorld(e.clientX, e.clientY);
   ensureAudio();
   if (state === 'play' && !paused && run) {
+    const chip = dokiChips.find(c => w.x >= c.x && w.x <= c.x + c.w && w.y >= c.y && w.y <= c.y + c.h);
+    if (chip) { sendEmote(chip.k); return; } // (answering DOKI DOLL by clicking)
     const mk = mouseOwner();
     if (e.pointerType !== 'mouse' && mk >= 0 && touchAbHit(w.x, w.y)) { abTouchId = e.pointerId; localAbility(mk); return; }
     if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
@@ -1463,6 +1472,24 @@ const NEMESIS_BOSS = { name: 'NEMESIS', style: 'nemesis', color: '#ff2a4a', side
   hint: 'NEMESIS — a dark copy of your ship. It fights with your own abilities, and whatever ability you use, it copies right back at you.',
   patterns: ['mimic', 'charge', 'nova', 'mimic', 'rail', 'missiles', 'phase', 'mimic', 'flak', 'fortress'] };
 const NEMESIS_CHANCE = 0.4, NEMESIS_MIN_SECS = 30;
+// the pink secret boss: a cursed plush doll that can't be hurt, only charmed. Enemies sometimes drop pink coins (from
+// sector 2 on); collect 3 in one run and a pink door opens. Grazing her bullets and answering her questions (quick chat)
+// fill her DOKI meter; halfway, the doll gets possessed; full, she's charmed and leaves you a reward
+const DOKI_BOSS = { name: 'DOKI DOLL', style: 'doki', color: '#ff6fd8', sides: 8, r: 60, gimmick: 'doki',
+  hint: 'DOKI DOLL can\'t be hurt (your guns won\'t even fire). CHARM her: graze her bullets (fly close without getting hit), and answer her questions with quick chat (1-4, or click an answer)!',
+  patterns: ['hearts', 'paws', 'yarn', 'hearts', 'kisses', 'twirl'] };
+const DOKI_POSSESSED = ['hearts', 'tantrum', 'charge', 'paws', 'yarn', 'kisses', 'tantrum', 'twirl'];
+const PINK_DROP = 0.006, PINK_NEED = 3; // (chance per kill of a pink coin; coins needed)
+// how much each thing moves her meter (0-1), how long she waits for an answer, how close counts as a graze
+const DOKI_GRAZE = 0.007, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 5, GRAZE_R = 20;
+// [what she asks, the quick chat that charms her (0 HELP!, 1 REVIVE ME!, 2 ON MY WAY, 3 NICE!), only once she's possessed]
+const DOKI_ASKS = [
+  ['Do you think I\'m cute?~', 3], ['Come here and play with me!', 2], ['Are you scared of me?~', 0],
+  ['Is my cuteness too much for you?', 1], ['Isn\'t my bow pretty?', 3],
+  ['Will you stay with me... FOREVER?', 2, true], ['Say I\'m CUTE.', 3, true], ['You\'re not scared... are you?', 0, true],
+  ['Can you even breathe right now?', 1, true]];
+const DOKI_HEARTS = ['#ff4fa3', '#ff9ccf']; // (enemy bullets in these colors are drawn as hearts, on guests' screens too)
+const randomOf = a => a[Math.floor(Math.random() * a.length)];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
 const TEAMS = [
@@ -1530,6 +1557,7 @@ function encounterDef(n) {
 }
 function encounterInfo(n) {
   if (run.nemesisNext) return { name: '???', nemesis: true };
+  if (run.dokiNext) return { name: '???', doki: true };
   if (run.secretNext) return { name: '???', final: true };
   const e = encounterDef(n);
   return e.team !== undefined ? { name: TEAMS[e.team].name, team: true } : { name: BOSSES[e.single].name, final: BOSSES[e.single].final };
@@ -2818,6 +2846,9 @@ function killEnemy(e, src) {
   if (e.type === 'pylon') fxRing(e.x, e.y, 6, 50, 0.3, e.color, 3);
   if (e.elite) eliteDeath(e);
   if (e.loot?.length) e.loot.forEach((kind, i) => pickups.push({ x: e.x + (i - (e.loot.length - 1) / 2) * 26, y: e.y, kind, t: 0 })); // a Magnet gives back what it stole
+  // a rare pink coin (three of them open the pink door: see update)
+  if (!run.rush && !run.dokiMet && level >= 2 && (run.pinkCoins || 0) + pickups.filter(k => k.kind === 'pink').length < PINK_NEED && Math.random() < PINK_DROP)
+    pickups.push({ x: e.x, y: e.y, kind: 'pink', t: 0 });
   if (s.absZero && e.slow > 0) { // Absolute Zero evolution: frozen enemies shatter into ice shards
     const off = Math.random() * Math.PI;
     for (let k = 0; k < 6; k++) fire(e.x, e.y, off + k / 6 * Math.PI * 2, '#bfefff');
@@ -2944,6 +2975,18 @@ function spawnEncounter() {
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
   const baseHp = bossBaseHp();
+  if (run.dokiNext) { // DOKI DOLL, the pink secret boss (her meter is her "health": see the doki gimmick)
+    run.dokiNext = false;
+    encounter = { kind: 'single', name: DOKI_BOSS.name, doki: true };
+    const b = makeBoss(DOKI_BOSS, W / 2, 1000, loop, 0);
+    b.doki = 0; b.askT = 4;
+    bosses = [b];
+    for (const e of enemies) if (!TYPES[e.type].ghost) burst(e.x, e.y, '#ff9ccf', 8, 140); // (everyone else clears out)
+    enemies = []; eBullets = [];
+    hint = { text: DOKI_BOSS.hint, life: 8 };
+    [1568, 1319, 1047, 1319, 1568, 2093].forEach((f, i) => setTimeout(() => beep(f, 0.14, 'sine', 0.05), i * 110));
+    return;
+  }
   if (run.nemesisNext) { // NEMESIS, the second secret boss: it takes the shape of one of your ships
     run.nemesisNext = false;
     encounter = { kind: 'single', name: NEMESIS_BOSS.name, nemesis: true };
@@ -3412,7 +3455,91 @@ const BOSS_ATTACKS = {
     b.ramp = 4; burst(b.x, b.y, '#ff3050', 40, 300); shake = Math.max(shake, 10);
     b.atkT = 0.5; beep(90, 0.6, 'sawtooth', 0.09, -30);
   },
+  // ----- DOKI DOLL: everything is cute, and everything is made to be grazed -----
+  hearts(b, enraged, rate) { // a ring of hearts in the shape of one big heart, swelling outward
+    const n = b.possessed ? 30 : 24, sp = 9 * BOSS_BULLET_SPEED * (b.possessed ? 1.2 : 1);
+    for (let i = 0; i < n; i++) {
+      const t = i / n * TAU, hx = 16 * Math.sin(t) ** 3, hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      dokiShot(b, b.x, b.y, hx * sp, hy * sp, 7, DOKI_HEARTS[0]);
+    }
+    b.atkT = 1.5 * rate; beep(880, 0.2, 'sine', 0.05, 440);
+  },
+  paws(b, enraged, rate, target) { // a cat-paw swipe: three claw marks of bullets raking across where you are
+    if (!target) return;
+    const side = b._pawSide = -(b._pawSide || 1), a0 = Math.atan2(target.y - b.y, target.x - b.x);
+    for (let c = -1; c <= 1; c++) for (let k = 0; k < 6; k++) {
+      const a = a0 + c * 0.13 + side * (k - 2.5) * 0.06, sp = (190 + k * 22) * BOSS_BULLET_SPEED;
+      dokiShot(b, b.x + side * b.r * 0.6, b.y + b.r * 0.3, Math.cos(a) * sp, Math.sin(a) * sp, 5, '#ffd6ec');
+    }
+    b.paw = side; b.pawT = 0.35; // (her paw swipes out: see drawDoki)
+    b.atkT = 0.9 * rate; beep(600, 0.12, 'triangle', 0.05, -300);
+  },
+  yarn(b, enraged, rate) { // balls of yarn that bounce around the screen, shedding bits of thread
+    const n = b.possessed ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI / 2 + (i - (n - 1) / 2) * 0.7 + (Math.random() - 0.5) * 0.3, sp = 230 * BOSS_BULLET_SPEED;
+      eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 14, color: '#ff7ab8', src: b, bounce: 4, shed: 0.22 });
+    }
+    b.atkT = 2.2 * rate; beep(300, 0.3, 'triangle', 0.05, 200);
+  },
+  kisses(b, enraged, rate, target) { // blown kisses that drift after you for a moment
+    if (!target) return;
+    const a = Math.atan2(target.y - b.y, target.x - b.x), sp = 170 * BOSS_BULLET_SPEED;
+    for (let i = -2; i <= 2; i++) { const s = a + i * 0.4; eBullets.push({ x: b.x, y: b.y + b.r * 0.2, vx: Math.cos(s) * sp, vy: Math.sin(s) * sp, r: 7, color: DOKI_HEARTS[1], src: b, home: STING_HOME * 0.8 }); }
+    fxText('MWAH!', b.x, b.y + b.r + 24, '#ff9ccf', 20, 0.8);
+    b.atkT = 1.3 * rate; beep(1200, 0.15, 'sine', 0.05, -600);
+  },
+  twirl(b, enraged, rate) { // she twirls around, flinging a spiral of hearts
+    b.aim += 0.42;
+    for (const o of [0, Math.PI]) { const a = b.aim + o, sp = 190 * BOSS_BULLET_SPEED; dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, DOKI_HEARTS[o ? 1 : 0]); }
+    b.atkT = 0.1 * rate;
+  },
+  tantrum(b, enraged, rate) { // possessed (or answered wrong): she screams, and a ring bursts out of her, with one gap
+    const gap = Math.random() * TAU, n = 26, sp = 200 * BOSS_BULLET_SPEED;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; if (Math.abs(angleDiff(a, gap)) > 0.35) dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, '#ff3d6d'); }
+    shake = Math.max(shake, 6); b.atkT = 0.55 * rate; beep(140, 0.2, 'sawtooth', 0.06, -60);
+  },
 };
+function dokiShot(b, x, y, vx, vy, r, color) { eBullets.push({ x, y, vx, vy, r, color, src: b }); }
+// DOKI DOLL's meter, what she says, and how she reacts to you
+const dokiBoss = () => bosses.find(b => b.gimmick === 'doki' && b.entered && b.dying <= 0);
+// guns stay quiet during THE ABYSS's entrance, and the whole time DOKI DOLL is out (she's too cute to shoot)
+const holstered = () => !!abyssCine() || bosses.some(b => b.gimmick === 'doki' && b.dying <= 0);
+function dokiAdd(b, d) { b.doki = Math.max(0, Math.min(1, (b.doki || 0) + d)); }
+function dokiSay(b, text, happy) { fxText(text, b.x, Math.max(40, b.y - b.r - 44), happy ? '#ff9ccf' : '#ff5a70', 22, 1.3); }
+// flying close past one of her bullets without getting hit
+function dokiGraze(b, p) {
+  dokiAdd(b, DOKI_GRAZE);
+  if ((p.grazeFx || 0) < time) { // (a sparkle and a tick, but not for every single bullet)
+    p.grazeFx = time + 0.12;
+    popups.push({ x: p.x + (Math.random() - 0.5) * 24, y: p.y - 24, text: '♥', life: 0.5, color: '#ff9ccf' });
+    beep(1500 + Math.random() * 400, 0.04, 'sine', 0.02);
+  }
+}
+// a quick chat (1-4) while she's asking something: the right one charms her, the wrong one sets off a tantrum
+function dokiAnswer(k) {
+  const b = dokiBoss(); if (!b?.ask) return;
+  const right = DOKI_ASKS[b.ask[0]][1] === k, fast = b.ask[1] > DOKI_ASK_T * 0.5;
+  b.ask = null; b.askT = 5 + Math.random() * 3;
+  if (right) {
+    dokiAdd(b, DOKI_RIGHT + (fast ? 0.04 : 0));
+    dokiSay(b, randomOf(b.possessed ? ['...good. ♥', 'Hehe... hehehe... ♥', 'GOOD answer.'] : ['Kyaa~! ♥', 'Hehe~ ♥', 'You mean it?! ♥', 'Doki doki~ ♥']), true);
+    burst(b.x, b.y, '#ff9ccf', 30, 220); [1047, 1319, 1568].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'sine', 0.05), i * 70));
+  } else {
+    dokiAdd(b, -DOKI_WRONG); b.pout = 1.2;
+    dokiSay(b, randomOf(['HMPH!', 'MEANIE!', 'How RUDE!', 'Wrong answer!!']), false);
+    BOSS_ATTACKS.tantrum(b, false, 1);
+  }
+}
+// her meter is full: she's charmed. She floats off in a shower of hearts (her "death", see updateBoss), leaving a reward
+function charmDoki(b) {
+  b.doki = 1; b.charmed = true; b.ask = null; b.charge = null;
+  startBossDeath(b);
+  fxText('DOKI DOKI!', b.x, Math.max(40, b.y - b.r - 40), '#ff9ccf', 34, 2);
+  [784, 988, 1175, 1568, 2093].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'sine', 0.06), i * 110));
+}
+// the four quick-chat answers drawn under her question (so they can be clicked or tapped too)
+let dokiChips = [];
 
 // ---------- boss gimmicks ----------
 // each solo boss has one twist. update() returns 'hold' (no moving or attacking) or 'quiet' (no attacking);
@@ -3683,6 +3810,33 @@ const GIMMICKS = {
     },
     dmg: b => b.phased > 0 ? 0 : 1, // (untouchable while phased out)
     rate: b => b.ramp > 0 ? 0.55 : 1, // (RAMPAGE: attacks come much faster)
+  },
+  doki: { // can't be hurt, only charmed: grazing her bullets and answering her questions fill her DOKI meter (b.doki, 0-1)
+    update(b, dt) {
+      if (b.pout > 0) b.pout -= dt;
+      if (b.pawT > 0) b.pawT -= dt;
+      if (!b.entered) return;
+      if (!b.possessed && b.doki >= 0.5) { // halfway there, the curse in the doll wakes up
+        b.possessed = true; b.wasEnraged = true; // (the battle music turns into its heavy remake, and she trails red afterimages)
+        b.patterns = DOKI_POSSESSED; b.pattern = 0; b.atkT = 1.4; b.ask = null; b.askT = 3;
+        fxText('THE DOLL IS POSSESSED!', W / 2, H * 0.4, '#ff3d6d', 32, 2.2); shake = Math.max(shake, 24); screenFlash = Math.max(screenFlash, 0.3);
+        for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (3 + i * 1.5), 0.6, i % 2 ? '#ffffff' : '#ff3d6d', 5, i * 0.18);
+        beep(55, 1.4, 'sawtooth', 0.1, -20); beep(1800, 0.4, 'square', 0.03, -1500);
+      }
+      if (b.ask) { // waiting for an answer: run out of time and she's hurt you ignored her
+        if ((b.ask[1] -= dt) <= 0) {
+          b.ask = null; b.askT = 5 + Math.random() * 3;
+          dokiAdd(b, -DOKI_IGNORED); dokiSay(b, randomOf(['...hello?!', 'Are you IGNORING me?!', 'Rude...']), false);
+        }
+      } else if ((b.askT = (b.askT ?? 3) - dt) <= 0) { // a new question (creepier ones once she's possessed)
+        const pool = DOKI_ASKS.map((q, i) => i).filter(i => !!DOKI_ASKS[i][2] === !!b.possessed && i !== b.lastAsk);
+        b.lastAsk = randomOf(pool); b.ask = [b.lastAsk, DOKI_ASK_T];
+        beep(1320, 0.12, 'sine', 0.05); setTimeout(() => beep(1760, 0.12, 'sine', 0.05), 110);
+      }
+      if (b.doki >= 1) charmDoki(b);
+    },
+    dmg: b => { b.pout = 0.6; return 0; }, // (anything that hits her just makes her pout)
+    rate: b => b.possessed ? 0.75 : 1,
   },
   abyss: {
     update(b, dt) {
@@ -4189,25 +4343,31 @@ function updateBoss(b, dt) {
     // death throes: spin up, crack open, sputter explosions, then shatter
     const p = 1 - b.dying / DEATH_TIME;
     b.dying -= dt; b.spin += dt * (2 + p * 14);
-    if (Math.random() < dt * (10 + p * 30)) {
+    if (b.charmed) { // DOKI DOLL: no explosions, just hearts and happy chimes as she floats away
+      if (Math.random() < dt * 14) {
+        burst(b.x + (Math.random() - 0.5) * b.r * 2, b.y + (Math.random() - 0.5) * b.r * 2, Math.random() < 0.5 ? '#ff9ccf' : '#ffffff', 10, 150);
+        popups.push({ x: b.x + (Math.random() - 0.5) * b.r * 3, y: b.y + (Math.random() - 0.5) * b.r * 2, text: '♥', life: 1, color: Math.random() < 0.5 ? '#ff4fa3' : '#ff9ccf' });
+        if (Math.random() < 0.3) beep(1200 + Math.random() * 800, 0.08, 'sine', 0.03);
+      }
+    } else if (Math.random() < dt * (10 + p * 30)) {
       burst(b.x + (Math.random() - 0.5) * b.r * 2, b.y + (Math.random() - 0.5) * b.r * 2, Math.random() < 0.5 ? b.color : '#ffffff', 20, 300);
       beep(80 + Math.random() * 120, 0.15, 'sawtooth', 0.05, -60);
       shake = Math.max(shake, 6 + p * 10);
     }
     if (Math.random() < dt * 3) fxRing(b.x, b.y, b.r * 0.5, b.r * 1.8, 0.35, '#ffffff', 2);
     // shed a few pieces as it cracks
-    if (Math.random() < dt * 6 * p) {
+    if (!b.charmed && Math.random() < dt * 6 * p) {
       const a = Math.random() * Math.PI * 2;
       bossFx.shards.push({ x: b.x + Math.cos(a) * b.r * 0.8, y: b.y + Math.sin(a) * b.r * 0.8, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150,
         rot: Math.random() * 6, vr: (Math.random() - 0.5) * 10, len: 8 + Math.random() * 12, life: 1, max: 1, color: b.color });
     }
     if (b.dying <= 0) {
       burst(b.x, b.y, b.color, 200, 700); burst(b.x, b.y, '#ffffff', 120, 500);
-      shake = 35; beep(60, 1.2, 'sawtooth', 0.15, -40);
+      if (b.charmed) { shake = 8; beep(2093, 0.6, 'sine', 0.06, -800); } else { shake = 35; beep(60, 1.2, 'sawtooth', 0.15, -40); }
       screenFlash = 1;
       for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r * 0.5, b.r * (4 + i * 2), 0.8 + i * 0.2, i === 1 ? '#ffffff' : b.color, 6 - i * 1.5, i * 0.12);
-      shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
-      fxText(b.final ? 'THE ABYSS IS SILENCED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      if (!b.charmed) shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
+      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
       bosses = bosses.filter(o => o !== b);
       // the last boss of an encounter drops the full set; a partner that falls first drops one pickup
       const drops = bosses.length ? [['power', 'shield', 'life'][Math.floor(Math.random() * 3)]] : ['power', 'shield', 'life'];
@@ -4234,6 +4394,8 @@ function updateBoss(b, dt) {
           const m = startNextCycle();
           run.zoneEnd = ZONE_FIRST; // the next cycle starts the route over
           openUpgrade(`CYCLE ${run.cycle} — NEW MUTATOR: ${m.name}`, true);
+        } else if (b.doki) { // (a detour: the run carries on in the same zone afterwards)
+          openUpgrade('♥ DOKI DOLL IS CHARMED — CHOOSE A REWARD', true);
         } else if (!b.nemesis && run.nemesisAt && bossCount >= run.nemesisAt && !run.nemesisDone) {
           // NEMESIS barges in before you can catch your breath (the reward comes after it)
           run.nemesisDone = true; run.nemesisNext = true; bossWarn = 3.6;
@@ -4422,6 +4584,7 @@ function onEncounterBeaten(enc, last) {
   if (last.final) { unlockAch('omega'); clearAbyssMark(); if (Object.keys(run.curses || {}).length >= 3) unlockAch('cursed'); }
   if (last.secret) unlockAch('zero');
   if (last.nemesis) unlockAch('nemesis');
+  if (last.gimmick === 'doki') unlockAch('doki');
   if (enc.kind === 'twins' && !enc.revived) unlockAch('twins');
   if (enc.kind === 'binary' && !enc.tetherHit) unlockAch('tether');
   if (enc.kind === 'aegis') unlockAch('aegis');
@@ -4438,7 +4601,7 @@ function onEncounterBeaten(enc, last) {
 function startBossDeath(b) {
   b.dying = DEATH_TIME; b.charge = null; b.drain = null;
   b.cracks = Array.from({ length: 8 }, () => ({ a: Math.random() * Math.PI * 2, len: 0.6 + Math.random() * 0.5, bend: (Math.random() - 0.5) * 0.8 }));
-  bossRoar(b, true);
+  if (!b.charmed) bossRoar(b, true);
   addScore(5000 * bossCount * (encounter.kind === 'single' ? 1 : 0.6)); // no combo multiplier: it made boss kills dwarf everything
   if (bosses.every(o => o.dying > 0)) { // the whole encounter is beaten: clear the screen
     for (const e of eBullets) burst(e.x, e.y, e.color || '#ff8080', 3, 80);
@@ -4470,6 +4633,7 @@ function flashHurt(p, amount) {
 function hurt(p) {
   if (p.inv > 0 || !p.alive || p.phaseOn > 0 || abActive(p, 'juggernaut')) return false; // (Wraiths are untouchable while phased; so is a FORTRESS)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
+  const doki = dokiBoss(); if (doki) dokiAdd(doki, -DOKI_HURT); // (DOKI DOLL thinks you're no fun when you get hit)
   if (run.s.nova) nova(p);
   if (p.shield > 0) {
     p.shield = 0; p.inv = 1 + run.s.invBonus * 0.5; p.aegisT = 0; flashHurt(p, 0.4); beep(300, 0.2, 'sawtooth', 0.06, -200); burst(p.x, p.y, '#7df9ff', 30);
@@ -4549,6 +4713,12 @@ function update(dt) {
   popups = popups.filter(pp => pp.life > 0);
 
   updateWarp(dt);
+  // three pink coins: a pink door opens (once a run, between boss fights) and DOKI DOLL comes out to play
+  if ((run.pinkCoins || 0) >= PINK_NEED && !run.dokiMet && !bosses.length && bossWarn <= 0 && !run.warp && !run.victoryT) {
+    run.dokiMet = true; run.dokiNext = true; bossWarn = 3.4;
+    fxText('A PINK DOOR OPENS…', W / 2, H * 0.4, '#ff9ccf', 30, 3);
+    [1047, 1319, 1568, 2093].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.05), 300 + i * 120));
+  }
   // sector clock — stops while a boss is incoming or alive (and during a warp to a new zone)
   const bossActive = bosses.length > 0 || bossWarn > 0 || !!run.warp;
   if (!bossActive) {
@@ -4598,9 +4768,9 @@ function update(dt) {
     p.power = Math.max(0, p.power - dt);
     p.sapped = Math.max(0, (p.sapped || 0) - dt);
 
-    // auto fire (held during THE ABYSS's entrance)
+    // auto fire (held during THE ABYSS's entrance, and around DOKI DOLL: see holstered)
     p.shotT -= dt;
-    if (p.shotT <= 0 && !abyssCine()) {
+    if (p.shotT <= 0 && !holstered()) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
@@ -4612,7 +4782,7 @@ function update(dt) {
         for (let i = 0; i < 14; i++) fire(p.x, p.y, i / 14 * Math.PI * 2, p.color, undefined, p);
       beep(880 + p.id * 110, 0.04, 'square', 0.012);
     }
-    if (dronesOf(p) && !abyssCine()) {
+    if (dronesOf(p) && !holstered()) {
       p.droneT -= dt;
       if (p.droneT <= 0) {
         p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25); // (Drone Swarm: twice as fast)
@@ -4637,7 +4807,7 @@ function update(dt) {
         }
       }
     }
-    if (s.missiles) { // pairs of homing missiles peel off the wings
+    if (s.missiles && !holstered()) { // pairs of homing missiles peel off the wings
       p.missileT = (p.missileT ?? 1) - dt;
       if (p.missileT <= 0) {
         p.missileT = Math.max(p.missileT, -0.05) + (s.missiles >= 2 ? 0.85 : 1.15) * (s.inferno ? 0.5 : 1); // (Inferno Barrage: twice as often)
@@ -4648,7 +4818,7 @@ function update(dt) {
         beep(300, 0.12, 'sawtooth', 0.025, 300);
       }
     }
-    if (s.railgun) {
+    if (s.railgun && !holstered()) {
       p.railT = (p.railT ?? 1.5) - dt;
       if (p.railT <= 0) {
         p.railT = Math.max(p.railT, -0.05) + (s.railgun >= 2 ? 1.3 : 1.9);
@@ -4749,9 +4919,15 @@ function update(dt) {
 
   const shrapnel = [], flow = bulletFlow(); // (Chrono Field slows enemy fire; CHRONOS can stop it; HAILSTORM speeds it up)
   const ice = enemies.filter(e => e.type === 'ice' && !e.dead); // (FROZEN RINGS: ice chunks are cover)
+  const doki = dokiBoss(); // (DOKI DOLL: flying close past her bullets charms her)
   for (const b of eBullets) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
     if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by their boss: see updateOrbiters)
+    if (b.bounce > 0) { // (DOKI DOLL's yarn bounces off the edges of the screen)
+      if ((b.x < b.r && b.vx < 0) || (b.x > W - b.r && b.vx > 0)) { b.vx = -b.vx; b.bounce--; }
+      if ((b.y < b.r && b.vy < 0) || (b.y > H - b.r && b.vy > 0)) { b.vy = -b.vy; b.bounce--; }
+    }
+    if (b.shed && flow && (b.shedT = (b.shedT ?? b.shed) - dt) <= 0) { b.shedT = b.shed; shrapnel.push({ x: b.x, y: b.y, vx: (Math.random() - 0.5) * 30, vy: 50, r: 3, color: '#ffd6ec' }); } // (loose thread)
     if (b.home > 0 && flow) { // THE HIVE's stingers steer toward the nearest player for a moment
       b.home -= dt;
       const p = nearestPlayer(b.x, b.y);
@@ -4781,6 +4957,8 @@ function update(dt) {
       if (abActive(p, 'juggernaut')) { fire(b.x, b.y, -Math.PI / 2 + (Math.random() - 0.5) * 0.9, p.color, undefined, p); if (Math.random() < 0.4) burst(b.x, b.y, '#ffe93d', 3, 120); } // FORTRESS: it bounces back
       else if (hurt(p) && b.src) leech(b.src, p);
     }
+    if (doki && !b.dead && !b.grazed) for (const p of living()) // a graze: close, but not a hit
+      if (Math.hypot(b.x - p.x, b.y - p.y) < p.r * 0.7 + (b.r || 5) + GRAZE_R) { b.grazed = true; dokiGraze(doki, p); break; }
   }
   eBullets.push(...shrapnel);
   if (state !== 'play') return;
@@ -4867,6 +5045,11 @@ function update(dt) {
       k.dead = true; beep(660, 0.25, 'triangle', 0.08, 660);
       burst(k.x, k.y, '#ffffff', 15, 150);
       if (k.kind === 'power') p.power = s.powerDur;
+      if (k.kind === 'pink') {
+        run.pinkCoins = (run.pinkCoins || 0) + 1;
+        fxText(run.pinkCoins >= PINK_NEED ? '♥ ♥ ♥' : `PINK COIN ${run.pinkCoins}/${PINK_NEED}`, k.x, k.y - 24, '#ff9ccf', 18, 1.3);
+        [1568, 2093].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'sine', 0.05), i * 90));
+      }
       if (k.kind === 'shield') p.shield = 1;
       if (k.kind === 'life') {
         // a life pickup revives a downed teammate first
@@ -6292,6 +6475,12 @@ const BOSS_SHAPES = {
     ctx.stroke(); ctx.restore();
   } },
   zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
+  // DOKI DOLL (drawn by drawDoki; this outline is for her afterimages): a round head with cat ears
+  doki: { mode: 'up', eye: [0, -0.28, 0.5], path(r) {
+    const R = r * 0.62, hy = -r * 0.28;
+    ctx.beginPath(); ctx.arc(0, hy, R, 0, TAU);
+    for (const s of [-1, 1]) { ctx.moveTo(s * R * 0.3, hy - R * 0.85); ctx.lineTo(s * R * 0.95, hy - R * 1.45); ctx.lineTo(s * R * 0.92, hy - R * 0.4); }
+  } },
   // NEMESIS: a giant copy of one of your ships (b.hull), turned to face you, with its engines burning behind it
   nemesis: { mode: 'point', eye: [0.2, 0, 0.55], path(r, b) {
     const h = HULLS[b?.hull] || HULLS.striker, k = r / 17 * (b?.mk2 ? 1.12 : 1);
@@ -6366,8 +6555,113 @@ function bossPath(b, r, rot, k = 0) {
   ctx.save(); ctx.rotate(rot); s.path(r, b, k); ctx.restore();
 }
 
+// a heart about 2s wide, centered on (x, y) (adds to the current path)
+function heartPath(x, y, s) {
+  ctx.moveTo(x, y + s * 0.85);
+  ctx.bezierCurveTo(x - s * 1.5, y - s * 0.1, x - s * 0.75, y - s * 1.25, x, y - s * 0.4);
+  ctx.bezierCurveTo(x + s * 0.75, y - s * 1.25, x + s * 1.5, y - s * 0.1, x, y + s * 0.85);
+  ctx.closePath();
+}
+// DOKI DOLL: a stitched plush cat-girl doll in a frilly dress, with a big bow. Her eyes shine and her blush deepens as her
+// DOKI meter fills. Possessed, her eyes go black and red, a seam tears open across her face and her mouth is stitched shut.
+// Hit by anything, she pouts. Charmed, her eyes turn into hearts and she floats away.
+function drawDoki(b) {
+  const t = b.t || 0, r = b.r, k = b.doki || 0, poss = !!b.possessed && !b.charmed, deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  const pink = poss ? '#ff3d6d' : '#ff6fd8', R = r * 0.62, hy = -r * 0.28; // (her head: radius and center)
+  let sc = 1 + Math.sin(t * 2.4) * 0.04 + (b.kick || 0) * 0.08;
+  if (!b.entered) sc *= 0.3 + 0.7 * easeOut(b.intro);
+  if (b.appear > 0) sc *= 1 - b.appear * 0.8;
+  if (b.charmed) sc *= 1 + deathP * 0.25;
+  const jit = poss ? 2 + (Math.random() < 0.05 ? 7 : 0) : 0, spin = b.patterns?.[b.pattern] === 'twirl' && b.entered && !b.charmed;
+  ctx.save();
+  ctx.translate(b.x + (Math.random() - 0.5) * jit, b.y + Math.sin(t * 2) * 4 + (Math.random() - 0.5) * jit - (b.charmed ? deathP * 60 : 0));
+  ctx.scale(sc, sc);
+  if (!b.entered) ctx.globalAlpha = 0.3 + 0.7 * b.intro;
+  if (b.charmed) ctx.globalAlpha *= Math.max(0, 1 - Math.max(0, deathP - 0.55) / 0.45); // (fading out as she floats away)
+  // a soft glow (dark red once possessed), and hearts circling her: more as her meter fills
+  const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2.2);
+  g.addColorStop(0, poss ? 'rgba(140,0,30,0.35)' : `rgba(255,111,216,${0.12 + k * 0.2})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, TAU); ctx.fill();
+  const nh = Math.floor(k * 8) + (b.charmed ? 6 : 0);
+  ctx.fillStyle = poss ? '#ff3d6d' : '#ff9ccf'; glow(ctx.fillStyle, 10);
+  for (let i = 0; i < nh; i++) { const a = t * 1.2 + i / Math.max(1, nh) * TAU; ctx.beginPath(); heartPath(Math.cos(a) * r * 1.5, Math.sin(a) * r * 1.2, 5); ctx.fill(); }
+  ctx.rotate(spin ? t * 7 : Math.sin(t * 1.6) * 0.08); // (she sways; during a twirl she spins)
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const body = 'rgba(42,10,36,0.92)';
+  // her tail, swishing behind her
+  ctx.strokeStyle = pink; ctx.lineWidth = 4; glow(pink, 14);
+  ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.62); ctx.quadraticCurveTo(r * 0.95, r * 0.75, r * 0.8 + Math.sin(t * 3) * r * 0.2, r * 0.15); ctx.stroke();
+  // the frilly dress, with scalloped frills along the hem
+  ctx.fillStyle = body; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(-r * 0.24, r * 0.12); ctx.lineTo(r * 0.24, r * 0.12); ctx.lineTo(r * 0.56, r * 0.8);
+  for (let i = 0; i < 5; i++) { const x0 = r * (0.56 - i * 0.224); ctx.quadraticCurveTo(x0 - r * 0.112, r * 0.98, x0 - r * 0.224, r * 0.8); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.6; ctx.beginPath(); ctx.moveTo(-r * 0.4, r * 0.55); ctx.lineTo(r * 0.4, r * 0.55); ctx.stroke(); ctx.globalAlpha /= 0.6; // (a ribbon round the skirt)
+  // stubby arms: waving (one swipes out when she claws)
+  for (const s of [-1, 1]) {
+    const swipe = b.pawT > 0 && b.paw === s ? Math.min(1, b.pawT / 0.35) : 0, a = s * (0.5 + Math.sin(t * 4 + s) * 0.25 + swipe * 1.1);
+    ctx.save(); ctx.translate(s * r * 0.26, r * 0.22); ctx.rotate(a);
+    ctx.beginPath(); ctx.ellipse(0, r * 0.2, r * 0.1, r * 0.22, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    if (swipe) { ctx.lineWidth = 2; for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(c * r * 0.06, r * 0.4); ctx.lineTo(c * r * 0.09, r * 0.58); ctx.stroke(); } } // (claws out)
+    ctx.restore();
+  }
+  // her head, with cat ears
+  ctx.lineWidth = 2.5; ctx.fillStyle = body; ctx.strokeStyle = pink; glow(pink, 18);
+  for (const s of [-1, 1]) {
+    const tw = Math.sin(t * 5 + s) > 0.97 ? 0.15 : 0; // (an ear twitches now and then)
+    ctx.beginPath(); ctx.moveTo(s * R * 0.3, hy - R * 0.85); ctx.lineTo(s * R * (0.95 + tw), hy - R * (1.45 - tw)); ctx.lineTo(s * R * 0.92, hy - R * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.fillStyle = hexA(pink, 0.4); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.moveTo(s * R * 0.45, hy - R * 0.8); ctx.lineTo(s * R * (0.86 + tw), hy - R * (1.25 - tw)); ctx.lineTo(s * R * 0.82, hy - R * 0.55); ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(0, hy, R, 0, TAU); ctx.fill(); ctx.stroke();
+  // a big bow on her right ear
+  ctx.save(); ctx.translate(R * 0.75, hy - R * 0.95); ctx.rotate(0.3 + Math.sin(t * 3) * 0.08);
+  ctx.fillStyle = poss ? '#5a0016' : '#ff3d8d'; ctx.strokeStyle = poss ? '#ff3d6d' : '#ffd6ec'; ctx.lineWidth = 1.5;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s * R * 0.42, -R * 0.2); ctx.lineTo(s * R * 0.42, R * 0.22); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.1, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  // the doll's seam: neat cross-stitches down one side... torn wide open across her face once she's possessed
+  ctx.shadowBlur = 0; ctx.strokeStyle = hexA(pink, 0.7); ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.arc(0, hy, R * 0.88, -2.2, -1.2); ctx.stroke();
+  for (let i = 0; i < 5; i++) { const a = -2.2 + i * 0.25, x = Math.cos(a) * R * 0.88, y = hy + Math.sin(a) * R * 0.88; ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.stroke(); }
+  if (poss) {
+    ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 2.5; glow('#ff1f3d', 14);
+    ctx.beginPath(); ctx.moveTo(-R * 0.85, hy - R * 0.5); ctx.lineTo(-R * 0.35, hy - R * 0.25); ctx.lineTo(-R * 0.1, hy - R * 0.45); ctx.lineTo(R * 0.25, hy - R * 0.1); ctx.lineTo(R * 0.7, hy - R * 0.3); ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  // her eyes: shiny (blinking, looking at you), hearts when she's charmed, > < when she pouts, black and red when possessed
+  const blink = (t % 3.6) < 0.12 && !poss, lx = (b.look?.x || 0) * R * 0.06, ly = (b.look?.y || 0) * R * 0.05;
+  for (const s of [-1, 1]) {
+    const ex = s * R * 0.4 + lx, ey = hy + R * 0.02 + ly;
+    if (b.charmed) { ctx.fillStyle = '#ff4fa3'; glow('#ff4fa3', 12); ctx.beginPath(); heartPath(ex, ey, R * 0.15); ctx.fill(); ctx.shadowBlur = 0; continue; }
+    if (b.pout > 0 && !poss) { ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex - s * R * 0.14, ey - R * 0.1); ctx.lineTo(ex + s * R * 0.06, ey); ctx.lineTo(ex - s * R * 0.14, ey + R * 0.1); ctx.stroke(); continue; }
+    if (blink) { ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ex - R * 0.14, ey); ctx.quadraticCurveTo(ex, ey + R * 0.08, ex + R * 0.14, ey); ctx.stroke(); continue; }
+    ctx.fillStyle = poss ? '#000' : '#ffffff'; ctx.beginPath(); ctx.ellipse(ex, ey, R * 0.16, R * 0.22, 0, 0, TAU); ctx.fill();
+    if (poss) { glow('#ff1f3d', 16); ctx.fillStyle = '#ff1f3d'; ctx.beginPath(); ctx.arc(ex + lx * 0.5, ey + ly * 0.5, R * (0.07 + (Math.random() < 0.1 ? 0.03 : 0)), 0, TAU); ctx.fill(); ctx.shadowBlur = 0; }
+    else {
+      const ig = ctx.createLinearGradient(ex, ey - R * 0.18, ex, ey + R * 0.18);
+      ig.addColorStop(0, '#5a1a7a'); ig.addColorStop(1, '#ff6fd8');
+      ctx.fillStyle = ig; ctx.beginPath(); ctx.ellipse(ex + lx * 0.6, ey + R * 0.02 + ly * 0.6, R * 0.12, R * 0.17, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex - R * 0.04, ey - R * 0.07, R * 0.05, 0, TAU); ctx.arc(ex + R * 0.05, ey + R * 0.06, R * 0.025, 0, TAU); ctx.fill(); // (two glints)
+    }
+  }
+  // blush (deeper as her meter fills), whiskers, and her mouth
+  if (!poss) { ctx.fillStyle = `rgba(255,90,170,${0.25 + k * 0.55})`; for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * R * 0.58, hy + R * 0.3, R * 0.15, R * 0.07, 0, 0, TAU); ctx.fill(); } }
+  ctx.strokeStyle = hexA(pink, 0.6); ctx.lineWidth = 1.2;
+  for (const s of [-1, 1]) for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(s * R * 0.75, hy + R * 0.25 + i * R * 0.08); ctx.lineTo(s * R * 1.12, hy + R * 0.2 + i * R * 0.16); ctx.stroke(); }
+  ctx.strokeStyle = poss ? '#ff3d6d' : '#ffd6ec'; ctx.lineWidth = 2;
+  const my = hy + R * 0.42;
+  if (poss) { // stitched shut
+    ctx.beginPath(); ctx.moveTo(-R * 0.25, my); ctx.lineTo(R * 0.25, my); ctx.stroke(); ctx.lineWidth = 1.5;
+    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * R * 0.1, my - R * 0.07); ctx.lineTo(i * R * 0.1, my + R * 0.07); ctx.stroke(); }
+  } else if (b.pout > 0) { ctx.beginPath(); ctx.arc(0, my + R * 0.08, R * 0.09, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); } // (a little frown)
+  else { ctx.beginPath(); ctx.arc(-R * 0.07, my - R * 0.03, R * 0.07, 0.1, Math.PI - 0.1); ctx.arc(R * 0.07, my - R * 0.03, R * 0.07, 0.1, Math.PI - 0.1); ctx.stroke(); } // (a cat smile, :3)
+  ctx.restore();
+}
+
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
+  if (b.style === 'doki') { drawDoki(b); return; }
   if (b.style === 'abyss') { if (!(b.cine < CINE.rise)) drawAbyss(b); return; } // (during its entrance it only appears once it rises)
   if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
   const enraged = isEnraged(b), fury = enraged && b.dying <= 0 && b.entered; // (fury: wearing its rage form)
@@ -7332,6 +7626,29 @@ function drawGimmick(b) {
       }
       break;
     case 'abyss': drawAbyssWarnings(b); break;
+    case 'doki': { // her question, in a speech bubble under her, with the four quick-chat answers (they can be clicked)
+      dokiChips = [];
+      const ask = b.ask && DOKI_ASKS[b.ask[0]];
+      if (!ask) break;
+      const bw = Math.min(320, W - 40), bh = 34, bx = Math.max(20, Math.min(W - 20 - bw, b.x - bw / 2)), by = Math.min(H - 150, b.y + b.r * 1.25 + 16);
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.fillStyle = b.possessed ? 'rgba(30,0,8,0.92)' : 'rgba(255,240,248,0.95)'; ctx.strokeStyle = b.possessed ? '#ff3d6d' : '#ff6fd8'; ctx.lineWidth = 2;
+      const tx = Math.max(bx + 14, Math.min(bx + bw - 14, b.x));
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 12); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx - 8, by + 1); ctx.lineTo(tx, by - 10); ctx.lineTo(tx + 8, by + 1); ctx.fill(); ctx.stroke(); // (the bubble's tail)
+      const jig = b.possessed ? (Math.random() - 0.5) * 2 : 0; // (possessed, her words tremble)
+      ctx.fillStyle = b.possessed ? '#ff5a70' : '#a0306a'; ctx.font = `${b.possessed ? 'bold italic' : 'bold'} 14px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ask[0], bx + bw / 2 + jig, by + bh / 2, bw - 16);
+      ctx.fillStyle = b.possessed ? '#ff3d6d' : '#ff6fd8'; ctx.fillRect(bx + 10, by + bh - 5, (bw - 20) * Math.max(0, b.ask[1] / DOKI_ASK_T), 2); // (time left)
+      const cw = Math.min(118, (W - 40) / 4 - 6), cx0 = Math.max(20, Math.min(W - 20 - (cw * 4 + 18), b.x - (cw * 4 + 18) / 2)), cy = by + bh + 10;
+      EMOTES.forEach(([text, col], i) => {
+        const x = cx0 + i * (cw + 6);
+        dokiChips.push({ x, y: cy, w: cw, h: 26, k: i });
+        ctx.fillStyle = 'rgba(10,12,28,0.88)'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(x, cy, cw, 26, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = col; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${i + 1}  ${text}`, x + cw / 2, cy + 13, cw - 8);
+      });
+      break;
+    }
     case 'nemesis':
       if (b.copyT > 0) { // copying you: your ability's name glitches in above it, and a ring closes in
         const k = 1 - b.copyT / NEMESIS_COPY_T;
@@ -7492,7 +7809,7 @@ function drawPlayerBullets() {
   if (missiles.length) drawGlowDots(missiles.map(b => ({ x: b.x, y: b.y, r: 4, color: '#ff9a3d' })));
 }
 
-const PICK = { power: ['#ffe93d', 'P'], shield: ['#7df9ff', 'S'], life: ['#ff6fb5', '+'] };
+const PICK = { power: ['#ffe93d', 'P'], shield: ['#7df9ff', 'S'], life: ['#ff6fb5', '+'], pink: ['#ff4fa3', '♥'] };
 
 function drawWorld() {
   drawTide();
@@ -7515,7 +7832,7 @@ function drawWorld() {
   drawEncounterFx();
   for (const bo of bosses) drawBoss(bo);
   for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); }
-  const shots = [], ink = [];
+  const shots = [], ink = [], hearts = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
     if (b.fuse !== undefined) { // mine: pulsing ring that blinks faster as it's about to burst
@@ -7526,9 +7843,17 @@ function drawWorld() {
       continue;
     }
     if (c === ABYSS_INK) { ink.push(b); continue; }
+    if (DOKI_HEARTS.includes(c)) { hearts.push(b); continue; }
     shots.push({ x: b.x, y: b.y, r: b.r || 5, color: c });
   }
   drawGlowDots(shots);
+  if (hearts.length) { // DOKI DOLL's hearts, with a little shine on each
+    ctx.save(); glow('#ff4fa3', 14);
+    for (const col of DOKI_HEARTS) { ctx.fillStyle = col; ctx.beginPath(); for (const b of hearts) if (b.color === col) heartPath(b.x, b.y, (b.r || 6) * 1.15); ctx.fill(); }
+    ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath();
+    for (const b of hearts) { const r = b.r || 6; ctx.moveTo(b.x - r * 0.35 + r * 0.22, b.y - r * 0.4); ctx.arc(b.x - r * 0.35, b.y - r * 0.4, r * 0.22, 0, TAU); }
+    ctx.fill(); ctx.restore();
+  }
   if (ink.length) { // THE ABYSS's ink: black drops with a red rim
     ctx.save(); glow('#ff1f3d', 12); ctx.fillStyle = '#000'; ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 2; ctx.beginPath();
     for (const b of ink) { const r = b.r || 5; ctx.moveTo(b.x + r, b.y); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); }
@@ -7642,12 +7967,30 @@ function drawLinks() {
   }
 }
 
+// DOKI DOLL's meter, big on the right side of the screen: a tall bar that fills with pink, topped with a beating heart
+function drawDokiMeter(b) {
+  const k = b.doki || 0, t = performance.now() / 1000, poss = !!b.possessed;
+  const top = Math.max(14 + players.length * hudRowH() + 40, H * 0.28), h = Math.min(H * 0.4, H - top - 90), w = 16, x = W - 30 - w / 2;
+  if (h < 60) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,12,28,0.75)'; ctx.strokeStyle = poss ? '#ff3d6d' : '#ff6fd8'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(x, top, w, h, 8); ctx.fill(); ctx.stroke();
+  const fh = (h - 4) * k, g = ctx.createLinearGradient(0, top + h, 0, top);
+  g.addColorStop(0, poss ? '#8a0020' : '#ff4fa3'); g.addColorStop(1, poss ? '#ff3d6d' : '#ffd6ec');
+  glow('#ff4fa3', 14); ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x + 2, top + h - 2 - fh, w - 4, fh, 6); ctx.fill();
+  const beat = 1 + Math.max(0, Math.sin(t * (6 + k * 6))) * 0.18; // (it beats faster as she gets flustered)
+  ctx.fillStyle = poss ? '#ff3d6d' : '#ff4fa3'; ctx.beginPath(); heartPath(x + w / 2, top - 16, 11 * beat); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('DOKI', x + w / 2, top + h + 6); ctx.fillText(`${Math.floor(k * 100)}%`, x + w / 2, top + h + 18);
+  ctx.restore();
+}
+
 // ---------- draw: HUD & screens ----------
 function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `SECTOR ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}`, 16, 42);
+  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `SECTOR ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42);
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -7716,7 +8059,9 @@ function drawHUD() {
     const bx = compact ? (W - full) / 2 + (i % 2) * (bw + 10) : (W - bw) / 2;
     const by = compact ? top + Math.floor(i / 2) * 28 : top + i * 34, cx = bx + bw / 2;
     let status = '', statusColor = bo.color;
-    if (bo.downed) { status = `REVIVING IN ${Math.ceil(bo.reviveT)}s`; statusColor = '#ff5a70'; }
+    const fill = bo.doki !== undefined ? bo.doki : Math.max(0, bo.hp / bo.max); // (DOKI DOLL's bar is her DOKI meter, filling up)
+    if (bo.doki !== undefined) { status = bo.possessed ? 'POSSESSED · DOKI ♥' : 'DOKI ♥'; statusColor = bo.possessed ? '#ff3d6d' : '#ff9ccf'; }
+    else if (bo.downed) { status = `REVIVING IN ${Math.ceil(bo.reviveT)}s`; statusColor = '#ff5a70'; }
     else if (bo.shielded) { status = 'SHIELDED'; statusColor = '#5dff7a'; }
     else if (bo.regen) { status = 'REGENERATING'; statusColor = '#5dff7a'; }
     else if (bo.healT > 0) { status = 'HEALING'; statusColor = '#ff2d55'; }
@@ -7727,21 +8072,30 @@ function drawHUD() {
     const head = bo.name + (status ? (compact ? ' · ' : '  ·  ') : ''), x0 = cx - ctx.measureText(head + status).width / 2;
     ctx.fillStyle = bo.color; ctx.fillText(head, x0, by);
     if (status) { ctx.fillStyle = statusColor; ctx.fillText(status, x0 + ctx.measureText(head).width, by); }
-    if (!compact && !bo.downed) { ctx.textAlign = 'right'; ctx.fillStyle = '#cde'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${Math.ceil(Math.max(0, bo.hp / bo.max) * 100)}%`, bx + bw, by + 1); } // HP left
+    if (!compact && !bo.downed) { ctx.textAlign = 'right'; ctx.fillStyle = '#cde'; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${Math.ceil(fill * 100)}%`, bx + bw, by + 1); } // HP left (or DOKI)
     const barY = by + (compact ? 14 : 19), barH = compact ? 5 : 7;
     ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(bx, barY, bw, barH);
     if (bo.downed) { // the revive timer drains across the empty bar
       ctx.fillStyle = hexA('#ff5a70', 0.5); ctx.fillRect(bx, barY, bw * bo.reviveT / TWIN_REVIVE(), barH);
     } else {
       glow(bo.color, 12); ctx.fillStyle = bo.color;
-      ctx.fillRect(bx, barY, bw * Math.max(0, bo.hp / bo.max), barH);
+      ctx.fillRect(bx, barY, bw * fill, barH);
       ctx.shadowBlur = 0;
       if (bo.shielded) { ctx.strokeStyle = '#5dff7a'; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 2, barY - 2, bw + 4, barH + 4); }
     }
   });
   if (state === 'play') drawZoneCard();
-  if (bossWarn > 0 && !run.warp && Math.floor(bossWarn * 4) % 2 === 0) {
-    const info = net.role === 'guest' ? net.warnInfo || { name: '???' } : encounterInfo(bossCount); // (guests don't know the boss order)
+  const db = bosses.find(o => o.doki !== undefined);
+  if (db) drawDokiMeter(db);
+  const warnInfo = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || { name: '???' } : encounterInfo(bossCount)) : null;
+  if (warnInfo?.doki && !run.warp) { // the pink door: a softer, sparklier warning
+    const k = Math.min(1, (3.4 - bossWarn) / 0.5);
+    ctx.fillStyle = `rgba(255,111,216,${0.1 * k})`; ctx.fillRect(0, H / 2 - 60, W, 120);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; glow('#ff6fd8', 30); ctx.fillStyle = '#ffd6ec';
+    ctx.font = `900 ${Math.min(50, W / 10)}px system-ui`; ctx.fillText('♥  SOMEONE WANTS TO PLAY  ♥', W / 2, H / 2 - 14, W - 32);
+    ctx.shadowBlur = 0; fitText('A PINK DOOR HAS OPENED', H / 2 + 30, 16, '#ff9ccf');
+  } else if (bossWarn > 0 && !run.warp && Math.floor(bossWarn * 4) % 2 === 0) {
+    const info = warnInfo;
     ctx.fillStyle = 'rgba(255,40,60,0.12)'; ctx.fillRect(0, H / 2 - 60, W, 120);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     glow('#ff3050', 30); ctx.fillStyle = '#ff5a70';
@@ -8227,7 +8581,7 @@ function sendEmote(k) {
   if (!p || (p.emoteCd || 0) > performance.now()) return; // no spamming
   p.emoteCd = performance.now() + 700;
   showEmote(me, k);
-  if (net.role === 'guest') net.host?.send({ emote: k }); else netRec(['e', me, k]);
+  if (net.role === 'guest') net.host?.send({ emote: k }); else { netRec(['e', me, k]); dokiAnswer(k); } // (it may be answering DOKI DOLL)
 }
 // callouts, name tags (online) and arrows pointing to downed teammates
 function drawTeamUi() {
@@ -9480,6 +9834,7 @@ async function hostGame() {
     const code = randomCode(), peer = new Peer(PEER_PREFIX + code, { config });
     net.peer = peer;
     peer.on('open', () => { net.code = code; net.status = 'Share the room code with your friends'; });
+    keepAlive(peer, () => { if (net.peer === peer) net.status = 'Lost the matchmaking server — reconnecting… (players already here can keep playing)'; });
     peer.on('error', err => {
       if (err.type === 'unavailable-id') { peer.destroy(); open(); } // code already taken: try another
       else net.status = 'Network problem: ' + err.type;
@@ -9544,7 +9899,7 @@ function onHostData(conn, d) {
   if (d.ab === 1 && p) useAbility(p, num(d.dx, -1, 1, 0), num(d.dy, -1, 1, 0)); // (the cooldown keeps it honest)
   if (p && okIdx(d.emote, EMOTES.length) && !((p.emoteCd || 0) > performance.now())) { // (no spamming)
     p.emoteCd = performance.now() + 500; // (a little under the sender's own 700ms, for network jitter)
-    showEmote(id, d.emote); netRec(['e', id, d.emote]);
+    showEmote(id, d.emote); netRec(['e', id, d.emote]); dokiAnswer(d.emote);
   }
 }
 // host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
@@ -9630,6 +9985,7 @@ function packSnap() {
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
     lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
     td: [r2(run.tide || 0), r2(run.tideW || 0)], // (EVENT HORIZON's gravity tide: guests pull their own ships)
+    pc: run.dokiMet ? 0 : run.pinkCoins || 0, // (pink coins found so far)
     ev: net.events.splice(0),
   };
 }
@@ -9645,7 +10001,8 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
   'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special',
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
-  'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp']; // (NEMESIS) // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
+  'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns']; // (DOKI DOLL) // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -9671,24 +10028,55 @@ function hostTick(dt) {
 }
 
 // ----- guest -----
-async function joinGame(code) {
-  Object.assign(net, { role: 'guest', status: 'Connecting…', slots: [], myId: 0, mine: [] });
+// PeerJS peers lose their link to the free matchmaking server now and then (Wi-Fi blips, sleeping laptops, strict
+// networks). Until they're back, nobody can find them by their code, so keep reconnecting (onLost: tell the player)
+function keepAlive(peer, onLost) {
+  let timer = null;
+  const again = () => {
+    timer = null;
+    if (peer.destroyed || !peer.disconnected) return;
+    try { peer.reconnect(); } catch (e) {}
+    timer = setTimeout(again, 4000); // (and again, until it works)
+  };
+  peer.on('disconnected', () => { if (peer.destroyed) return; onLost?.(); if (!timer) timer = setTimeout(again, 800); });
+}
+// joining: if the two computers can't reach each other, don't spin forever. Try a few times, then say what's wrong
+const JOIN_WAIT = 12, JOIN_TRIES = 3; // seconds per try, and how many tries
+const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi) can block online play: once the game has loaded, try turning the VPN off on both computers, or try another network.';
+async function joinGame(code, attempt = 1) {
+  Object.assign(net, { role: 'guest', status: attempt > 1 ? `Still connecting… (try ${attempt} of ${JOIN_TRIES})` : 'Connecting…', slots: [], myId: 0, mine: [], joinFail: null, lastCode: code });
   go('lobby');
-  try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
+  const failed = msg => { net.status = msg; net.joinFail = code; net.peer = null; };
+  try { await loadPeer(); } catch (e) { failed('Could not load the online library — check your internet connection.'); return; }
   const config = await iceConfig();
+  if (net.role !== 'guest' || net.lastCode !== code || net.peer) return; // (left, or tried another code, while loading)
   const peer = new Peer({ config });
   net.peer = peer;
+  let opened = false;
+  // this try didn't work: try again, or give up with a message (msg: give up right away, with this message)
+  const giveUp = msg => {
+    if (net.peer !== peer || opened) return;
+    clearTimeout(timer); net.peer = null;
+    try { peer.destroy(); } catch (e) {}
+    if (!msg && attempt < JOIN_TRIES) joinGame(code, attempt + 1); else failed(msg || JOIN_BLOCKED);
+  };
+  const timer = setTimeout(() => giveUp(), JOIN_WAIT * 1000);
   peer.on('open', () => {
     const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
     net.host = conn;
     conn.on('open', () => { // say hello: how many of us share this computer, and our ships
+      opened = true; clearTimeout(timer);
       net.status = 'Connected! Pick your ship — the host starts the game.';
       conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq } });
     });
     conn.on('data', d => safely(() => onGuestData(d)));
-    conn.on('close', () => { if (net.role === 'guest') leaveOnline('The host left the game'); });
+    conn.on('close', () => { if (!opened) giveUp(); else if (net.role === 'guest' && net.host === conn) leaveOnline('The host left the game'); });
+    conn.on('error', () => { if (!opened) giveUp(); });
   });
-  peer.on('error', err => { net.status = err.type === 'peer-unavailable' ? `No game found with code ${code}` : 'Network problem: ' + err.type; });
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable') giveUp(`No game found with code ${code}. Check the code, and make sure you both refreshed the page (Ctrl+F5) so you have the same version.`);
+    else if (!opened) giveUp();
+  });
 }
 // a sane world size from the host (anything else is ignored)
 const okSize = (w, h) => Number.isFinite(w) && Number.isFinite(h) && w >= 200 && h >= 200 && w <= 10000 && h <= 10000;
@@ -9730,6 +10118,7 @@ function onGuestData(d) {
 // the list, and if that player leaves, the next one online takes over (and hosts simply re-send their rooms).
 const DIR_ID = PEER_PREFIX + 'directory';
 const DIR_BEAT = 3, DIR_STALE = 10; // seconds between updates; forget rooms not heard from for this long
+const DIR_WAIT = 9; // seconds to wait for the list before starting over
 const dir = { peer: null, conn: null, serving: false, connecting: false, rooms: new Map(), list: [], status: '', clients: new Set(), retryT: 0, beatT: 0 };
 const ROOM_WORDS = [['Neon', 'Turbo', 'Cosmic', 'Pixel', 'Laser', 'Hyper', 'Shadow', 'Solar', 'Frosty', 'Crimson', 'Atomic', 'Mega'],
   ['Foxes', 'Comets', 'Rockets', 'Dragons', 'Sharks', 'Wizards', 'Ninjas', 'Raptors', 'Ghosts', 'Titans', 'Falcons', 'Squad']];
@@ -9745,19 +10134,28 @@ async function dirConnect() {
   const serve = new Peer(DIR_ID, { config });
   dir.peer = serve;
   serve.on('open', () => { dir.serving = true; dir.connecting = false; dir.status = ''; dirBeat(); });
+  keepAlive(serve); // (if the list's keeper drops off the server, nobody else could reach the list)
+  setTimeout(() => { if (dir.peer === serve && !dir.serving) { dir.status = 'Can\'t reach the matchmaking server — retrying…'; dirReset(3 + Math.random() * 3); } }, DIR_WAIT * 1000);
   serve.on('connection', c => {
     dir.clients.add(c);
     c.on('data', d => { if (!overBudget(c, 5)) safely(() => dirServe(c, d)); });
     c.on('close', () => { dir.clients.delete(c); for (const [k, r] of dir.rooms) if (r.by === c) dir.rooms.delete(k); }); // (their rooms go with them)
   });
   serve.on('error', err => {
-    if (err.type === 'unavailable-id') { serve.destroy(); dirJoin(config); }
+    if (err.type === 'unavailable-id') { serve.destroy(); dir.serving = false; dir.clients.clear(); dirJoin(config); } // (someone else keeps the list)
     else if (!dir.serving) { dir.status = 'Network problem: ' + err.type; dirReset(4); }
   });
 }
 function dirJoin(config) {
   const p = new Peer({ config });
   dir.peer = p;
+  // the list's keeper can't be reached (its network blocks it, or it just left and the server hasn't noticed yet):
+  // don't hang on "Looking for public games…" forever, start over (and maybe become the keeper ourselves)
+  setTimeout(() => {
+    if (dir.peer !== p || dir.conn?.open) return;
+    dir.status = 'Can\'t reach the public game list right now — retrying… (joining with a code still works)';
+    dirReset(2 + Math.random() * 3);
+  }, DIR_WAIT * 1000);
   p.on('open', () => {
     const c = p.connect(DIR_ID, { reliable: true, serialization: 'json' });
     dir.conn = c;
@@ -9912,6 +10310,7 @@ function applySnap(s) {
   run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
   run.curses = Object.fromEntries(cleanCurses(s.cu).map(id => [id, true])); // (the host's curses)
   if (Array.isArray(s.td)) { run.tide = num(s.td[0], 0, TIDE_T, 0); run.tideW = num(s.td[1], 0, TIDE_WARN, 0); }
+  run.pinkCoins = Math.round(num(s.pc, 0, PINK_NEED, 0));
   run.linkView = Array.isArray(s.lk) ? s.lk.slice(0, 28).filter(l => Array.isArray(l) && okIdx(l[0], MAX_ONLINE) && okIdx(l[1], MAX_ONLINE))
     .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0)]) : [];
   if (bosses.some(b => b.final && b.dying > 0)) clearAbyssMark(); // (THE ABYSS is falling: its mark on my menu lifts)
@@ -10066,6 +10465,7 @@ function onlineKey(e) {
     if (net.role === 'host' && e.code === 'KeyX') { openCurses('lobby'); return true; }
     if (net.role === 'host' && e.code === 'KeyP') { togglePublic(); return true; }
     if (net.role === 'host' && e.code === 'Enter') { startOnline(); return true; }
+    if (net.role === 'guest' && net.joinFail && e.code === 'Enter') { joinGame(net.joinFail); return true; }
     return true;
   }
   if (net.role === 'guest' && net.playing) {
@@ -10098,8 +10498,32 @@ function drawOnline() {
   button('JOIN WITH A CODE', bx, oy + 112, bw, 46, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
   button('BACK  [Esc]', bx, oy + 168, bw, 40, '#9ab', () => go('menu'));
   ctx.font = '13px system-ui';
-  wrap('Everyone needs an internet connection and this same version of the game. The host runs the game; friends join with a 4-digit room code. Some strict networks (like school or work) can block the connection.', Math.min(460, W - 40))
-    .forEach((l, i) => fitText(l, oy + 186 + i * 18, 13, '#789'));
+  const lines = wrap(`Everyone needs an internet connection and this same version of the game (online version ${ONLINE_VERSION}). The host runs the game; friends join with a 4-digit room code.`, Math.min(460, W - 40));
+  lines.forEach((l, i) => fitText(l, oy + 186 + i * 18, 13, '#789'));
+  // can this browser make direct connections at all? (a VPN or strict Wi-Fi often blocks them; see checkNetwork)
+  if (!netCheck) checkNetwork();
+  const ny = oy + 196 + lines.length * 18;
+  if (netCheck === 'blocked') {
+    ctx.font = 'bold 13px system-ui';
+    wrap('⚠ Online connections look blocked here — usually by a VPN, or a strict network like school Wi-Fi. Once the game has loaded, try turning the VPN off (on both computers), or try another network.', Math.min(460, W - 40))
+      .forEach((l, i) => fitText(l, ny + i * 18, 13, '#ff8d8d', 'bold'));
+  } else fitText(netCheck === 'ok' ? '✓ Your connection looks fine for online play' : 'Checking your connection…', ny, 12, netCheck === 'ok' ? '#5dff7a' : '#789');
+}
+// a quick test: can this browser find its public address (what direct connections need)? If not, something blocks them
+const ONLINE_VERSION = PEER_PREFIX.match(/v(\d+)/)?.[1] || '?';
+let netCheck = null; // null (not run yet), 'checking', 'ok' or 'blocked'
+async function checkNetwork() {
+  netCheck = 'checking';
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] });
+    let ok = false;
+    pc.onicecandidate = e => { if (e.candidate && / typ srflx /.test(e.candidate.candidate + ' ')) ok = true; };
+    pc.createDataChannel('check');
+    await pc.setLocalDescription(await pc.createOffer());
+    for (let i = 0; i < 25 && !ok; i++) await new Promise(r => setTimeout(r, 200));
+    pc.close();
+    netCheck = ok ? 'ok' : 'blocked';
+  } catch (e) { netCheck = 'blocked'; } // (no WebRTC at all)
 }
 // typing the last digit joins straight away
 function typeCodeDigit(d) {
@@ -10188,8 +10612,9 @@ function drawLobby() {
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   const lobbyCurses = host ? cleanCurses(meta.curseSel) : net.hostCurses || [];
-  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  ☠ ${lobbyCurses.length} curse${lobbyCurses.length > 1 ? 's' : ''} (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  curses [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
-  button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
+  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  ☠ ${lobbyCurses.length} curse${lobbyCurses.length > 1 ? 's' : ''} (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  curses [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"${dir.serving || dir.conn?.open ? '' : ' (getting listed…)'}` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
+  if (!host && net.joinFail) button('TRY AGAIN  [Enter]', bx, by + 20, bw, 40, '#7df9ff', () => joinGame(net.joinFail)); // (joining didn't work)
+  else button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
     const ready = net.conns.length > 0; // (needs at least one friend from another computer)
