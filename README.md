@@ -2,7 +2,7 @@
 
 A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or online co-op for up to 8 friends.
 
-**▶ Play: https://trickernoxics14.github.io/neon-drift/**
+**▶ Play: https://trickernoxics14.github.io/project-nd/**
 
 ## Playing online with friends
 
