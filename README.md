@@ -158,7 +158,23 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 
 **The Glitch Sector:** a secret zone. Beat THE ABYSS in a Standard run and press the (very glitchy) **CONTINUE INTO ENDLESS** button, and Endless starts right there. Once you've beaten ZERO, it can also show up on the route map. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. Its song is **Normal World**, made by the game's creator. It sends fewer enemies than other zones (its glitches are the danger), and gives you a few calm seconds when you arrive.
 
-**GLITCH variants:** in the Glitch Sector and in every Endless run, every boss is a glitched copy of itself: a corrupted name (THE WARDEN becomes TH3 W4RD3N), cyan and magenta ghosts around it, and every few seconds it flickers and skips to somewhere else. They load in with a **LOADING ...EXE** bar, borrow ZERO's moves now and then (DEAD PIXELS, COPY-PASTE and LAG SPIKE), and die with **CORRUPTED**. Regular enemies get GLITCH variants there too: they flicker in cyan and magenta frames, and every few seconds twitch and skip a little way sideways. In that Endless, every zone's sky glitches now and then too.
+**GLITCH variants:** in the Glitch Sector and in every Endless run, every boss is a corrupted copy of itself (THE WARDEN becomes **TH3 W4RD3N**), running on broken memory:
+
+- **How it looks:** chunks of its body are missing (black-and-violet "missing texture"), a band of it breaks up into big pixels and slowly slides, its pixels melt off it in streaks, dead pixels drip from it, and hex codes swarm around it. It **downloads** in (> DOWNLOADING TH3_W4RD3N.EXE) as blocks fly together.
+- **NOT RESPONDING:** right before each glitch attack it freezes (its animation stops, it frosts over, and a busy spinner appears). That's your warning.
+- **Its glitch attacks:** it knows two to start with (one each in a team fight):
+  - **BINARY RAIN:** rows of 0s and 1s fall, each with a gap that wanders from row to row.
+  - **FORK BOMB:** processes split in two, then split again, into a spray of dead pixels.
+  - **ERROR:** error boxes pop up around the screen, fill their progress bars, then crash into rings of dead pixels.
+  - **BIT FLIP:** spreads of 0s and 1s, but only one kind moves at a time. They swap twice a second (the frozen ones are dim).
+  - **SEGMENTATION FAULT:** the lower screen splits into memory blocks, and about a third of them go bad after a warning.
+  - **MEMORY LEAK:** leaked blocks spray out and creep down at you, until the **GARBAGE COLLECTOR** sweeps them away.
+  - **PING FLOOD:** streams of packets shoot across the screen from the sides, along marked lines.
+- **CORRUPTION:** its health bar shows how corrupted it is, with holes in the bar. Every 25% the whole screen breaks into pixels for a moment, **BUGS** (little pixel beetles) crawl out of it, and it learns another glitch attack.
+- **SYSTEM CRASH:** at 75% corruption every bullet is wiped, and a **REBOOT SCAN** sweeps down the screen twice. Each pass has one open **PORT** to slip through, and both ports are shown from the start. It can't attack while it reboots.
+- **When it dies** it stops working ("TH3 W4RD3N has stopped working") and is deleted top down into falling pixels: **CORRUPTED (core dumped)**.
+
+Regular enemies get GLITCH variants there too. They download in behind a scan line, have holes and scanlines, fall apart into pixels, and each carries a bug of its own (shown above it): **fork()** splits in two when destroyed, **BUFFER** fills up as you hit it and then overflows into a ring of dead pixels, **OVERCLOCK** glows amber and then runs at double speed for a moment, **LEAK** drips leaked memory behind it, and **CRASH** leaves an error box behind that bursts. In that Endless, the sky glitches now and then too. You can see (and practice) every boss's GLITCH form in the gallery.
 
 **Elite zones:** from cycle 2 of Endless, every zone gets a second hazard on top of its own:
 - **Deep Space:** Starfall, with falling stars down marked columns.

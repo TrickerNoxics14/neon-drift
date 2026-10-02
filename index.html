@@ -1803,7 +1803,7 @@ function encounterInfo(n) {
 let lasers = [];
 const DEATH_TIME = 2.6;
 // boss visual effects that outlive a single frame (and the boss itself, for death debris)
-let bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }, screenFlash = 0;
+let bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }, screenFlash = 0;
 
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
@@ -2257,7 +2257,7 @@ function start(m, ships, cosList) {
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
   if (curse('slim')) run.rerolls = 0;
-  lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }; screenFlash = 0;
+  lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
   bullets = []; enemies = []; particles = []; pickups = []; eBullets = [];
@@ -2431,6 +2431,8 @@ const TYPES = {
   turret:   { r: 20, hp: 7, color: '#ffb13d', pts: 300, drop: 0.5, harmless: true },        // DERELICT FLEET: shoots at anything
   prism:    { r: 22, hp: 1, color: '#e0d0ff', pts: 0, drop: 0, harmless: true, ghost: true }, // PRISM REACH: splits shots in three
   suspect:  { r: 44, hp: 1, color: '#ff8fc8', pts: 100, drop: 0, harmless: true }, // DAWNNY's innocent suspects (WHO DUNNIT?)
+  gbug:     { r: 9,  hp: 2, color: '#39ff88', pts: 80, drop: 0, label: 'BUG' },     // GLITCH bosses let bugs out (see gxSpike)
+  gerr:     { r: 18, hp: 1, color: '#ffb52e', pts: 0, drop: 0, harmless: true, ghost: true }, // a CRASH enemy's error box (see gxEnemyDeath)
 };
 
 // which enemies can appear from which sector, and how often (relative weight)
@@ -3131,6 +3133,7 @@ function damageEnemy(e, dmg, src) {
   if (e.guardedT > 0) dmg *= 0.5; // shielded by a Guardian
   e.hp -= dmg; e.flash = 0.08;
   dmgNumber(e, dmg, false);
+  if (e.gt && e.hp > 0 && src !== 'flare' && src !== 'turret') gxEnemyHit(e); // (a GLITCH BUFFER fills up)
   if (run.s.cryo) e.slow = 1 + run.s.cryo * 0.5;
   if (e.hp <= 0) killEnemy(e, src);
 }
@@ -3151,7 +3154,7 @@ const fmtBig = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3)
 function killEnemy(e, src) {
   const s = run.s;
   e.dead = true;
-  if (e.glitch && Math.random() < 0.25) eBullets.push({ x: e.x, y: e.y, vx: 0, vy: 110, r: 5, color: '#ff00ff' }); // (a GLITCH enemy can leave a dead pixel behind)
+  if (e.gt) gxEnemyDeath(e); // (a GLITCH enemy: see GX_TRAITS)
   run.coins = (run.coins || 0) + (e.r >= 20 ? 3 : 1); // shop money (big enemies are worth more)
   const pq = living().find(q => q.petX !== undefined && petOf(q) && Math.hypot(q.petX - e.x, q.petY - e.y) < PET_FETCH);
   if (pq && Math.random() < 0.5) { run.coins++; popups.push({ x: pq.petX, y: pq.petY - 18, text: '+1 ●', life: 0.7, color: '#ffd23d' }); } // (a pet fetched a coin)
@@ -3584,6 +3587,8 @@ function updateBossFx(dt) {
   for (const t of bossFx.texts) { t.life -= dt; t.y -= 18 * dt; }
   for (const z of bossFx.zaps) z.life -= dt;
   bossFx.zaps = bossFx.zaps.filter(z => z.life > 0);
+  for (const p of bossFx.pix ||= []) { p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; } // (GLITCH pixel debris falls)
+  bossFx.pix = bossFx.pix.filter(p => p.life > 0 && p.y < H + 10);
   bossFx.rings = bossFx.rings.filter(r => r.life > 0);
   bossFx.ghosts = bossFx.ghosts.filter(g => g.life > 0);
   bossFx.shards = bossFx.shards.filter(s => s.life > 0);
@@ -3738,11 +3743,6 @@ const BOSS_ATTACKS = {
   knives(b, enraged, rate) { // the murderer's THROWING KNIFE: a red line locks on (from wherever she is), then the knife flies
     for (let i = 0; i < (enraged ? 4 : 3); i++) (b.knives ||= []).push([-i * 0.5, null]);
     b.atkT = 2.2 * rate;
-  },
-  glitchmove(b, enraged, rate, target) { // a GLITCH variant borrows one of ZERO's moves
-    const k = randomOf(['pixels', 'paste', 'lag']);
-    if (k === 'pixels') fxText('DEAD PIXELS', b.x, Math.max(40, b.y - b.r - 34), '#ff00ff', 20, 1);
-    BOSS_ATTACKS[k](b, enraged, rate, target);
   },
   steal(b, enraged, rate, target) { // ZERO: STOLEN: a copy of another boss's attack, wearing that boss's face for a moment
     const [a, d] = randomOf(zeroSteals());
@@ -5109,7 +5109,7 @@ function updateRageMove(b, dt, tgt) {
   if (!b.special) {
     b.specialT = (b.specialT ?? 0) - dt;
     // wait until it's free: not mid-charge, split up, or in the middle of its own gimmick
-    if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0 || b.run || b.xf >= 0) return;
+    if (b.specialT > 0 || !tgt || b.charge || b.split || b.grid || b.judge || b.stop > 0 || b.stopW > 0 || b.vent > 0 || b.stun > 0 || b.run || b.xf >= 0 || b.gx?.mv || b.gx?.crash) return;
     if (b.gimmick === 'zero') { const [k, d] = randomOf(zeroRages()); b.rageMove = k; zeroStole(b, d, RAGE_MOVES[k].name.replace(/!$/, ''), true); } // (ZERO: someone else's rage move)
     b.special = { k: b.rageMove, t: 0 };
     m = RAGE_MOVES[b.rageMove];
@@ -5178,7 +5178,8 @@ function updateBoss(b, dt) {
       screenFlash = 1;
       for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r * 0.5, b.r * (4 + i * 2), 0.8 + i * 0.2, i === 1 ? '#ffffff' : b.color, 6 - i * 1.5, i * 0.12);
       if (!b.charmed) shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
-      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : b.gimmick === 'zero' ? 'PROCESS TERMINATED' : b.glitch ? 'CORRUPTED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : b.gimmick === 'zero' ? 'PROCESS TERMINATED' : b.gx ? 'CORRUPTED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      if (b.gx) { fxText('(core dumped)', b.x, b.y + 36, GX.green, 16, 2); gxPixels(b.x, b.y, b.r * 1.5, b.color, 60); }
       bosses = bosses.filter(o => o !== b);
       // the last boss of an encounter drops the full set; a partner that falls first drops one pickup
       const drops = bosses.length ? [['power', 'shield', 'life'][Math.floor(Math.random() * 3)]] : ['power', 'shield', 'life'];
@@ -5282,13 +5283,13 @@ function updateBoss(b, dt) {
   if (b.style === 'phantom') { b.ghostT -= dt; if (b.ghostT <= 0) { b.ghostT = 0.09; fxGhost(b, 0.45); } }
   else if (b.wasEnraged && !b.final && (b._rageGhostT = (b._rageGhostT || 0) - dt) <= 0) { b._rageGhostT = 0.16; fxGhost({ ...b, color: b.ghostColor || '#ff3a2a' }, 0.3); } // (seething red afterimages; golden ones for SUPER SONNET)
 
+  if (b.gx && updateGlitchBoss(b, dt) === 'hold') return; // (a GLITCH variant: its corruption and glitch attacks; frozen while it hangs)
   updateOrbiters(b, dt, enraged);
   if (b.ships?.length || b.knives?.length) updateShipsKnives(b, dt); // (DAWNNY's ships and knives, or ZERO's stolen ones)
   const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
   if (gim === 'hold') return;
   if (updateAscend(b, dt)) return;
   if (b.super && b.dying <= 0) ascendOf(b)?.update?.(b, dt); // (a second life's own new attack)
-  if (b.glitch) updateGlitchBoss(b, dt); // (a GLITCH variant skips around)
   if (b.lagT > 0 && (b.lagT -= dt) <= 0) { // LAG SPIKE wears off: its bullets jump ahead to where they should be
     for (const e of eBullets) if (e.src === b && e.lag) { e.vx = e.lag[0]; e.vy = e.lag[1]; e.x += e.vx * LAG_SKIP; e.y += e.vy * LAG_SKIP; e.lag = null; }
     shake = Math.max(shake, 8); beep(80, 0.25, 'square', 0.07, 400);
@@ -5381,7 +5382,7 @@ function hitBoss(b, dmg, fx, fy) {
   const partner = bosses.find(o => o !== b);
   if (encounter.kind === 'twins' && partner && bossAlive(partner)) {
     // soul link: this twin falls, and comes back unless its twin goes down too
-    b.downed = true; b.reviveT = TWIN_REVIVE(); b.charge = null;
+    b.downed = true; b.reviveT = TWIN_REVIVE(); b.charge = null; gxStop(b);
     burst(b.x, b.y, b.color, 60, 350); fxRing(b.x, b.y, b.r, b.r * 3, 0.5, b.color, 4);
     fxText(`${b.name} DOWN!`, b.x, b.y - b.r - 30, b.color, 28, 1.6);
     showToast(`Destroy ${partner.name} before ${b.name} revives!`);
@@ -5429,7 +5430,7 @@ function onEncounterBeaten(enc, last) {
 }
 
 function startBossDeath(b) {
-  b.dying = DEATH_TIME; b.charge = null; b.drain = null;
+  b.dying = DEATH_TIME; b.charge = null; b.drain = null; gxStop(b);
   b.cracks = Array.from({ length: 8 }, () => ({ a: Math.random() * Math.PI * 2, len: 0.6 + Math.random() * 0.5, bend: (Math.random() - 0.5) * 0.8 }));
   if (!b.charmed) bossRoar(b, true);
   addScore(5000 * bossCount * (encounter.kind === 'single' ? 1 : 0.6)); // no combo multiplier: it made boss kills dwarf everything
@@ -5697,7 +5698,7 @@ function update(dt) {
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
     const seq0 = enemyIdSeq; spawnEnemy();
-    if (glitchWorld()) for (const e of enemies) if (e.id > seq0) { e.glitch = true; e.born = time; } // (GLITCH variants of every enemy)
+    if (glitchWorld()) for (const e of enemies) if (e.id > seq0) glitchEnemyInit(e); // (GLITCH variants of every enemy)
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
@@ -5774,6 +5775,9 @@ function update(dt) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
     if (!b.orb) { b.x += b.vx * dt * flow; b.y += b.vy * dt * flow; } // (orbiting bullets are moved by their boss: see updateOrbiters)
     if (b.grav && flow) b.vy += b.grav * dt * flow; // (SONNET's rings arc up and fall)
+    if (b.drag && flow) { const k = Math.exp(-b.drag * dt * flow), sink = b.sink || 0; b.vx *= k; b.vy = (b.vy - sink) * k + sink; } // (GLITCH leaked memory slows to a creep)
+    if (b.fork && flow && !b.dead && (b.fork[0] -= dt * flow) <= 0) { b.dead = true; gxFork(b, shrapnel); } // (a GLITCH FORK BOMB splits)
+    if (b.hold && !bosses.includes(b.src)) { b.vx = b.hold[0]; b.vy = b.hold[1]; b.hold = null; } // (a frozen bit whose boss is gone moves again)
     if (b.sway && flow) b.vx = Math.sin(time * b.sway[1] + b.sway[2]) * b.sway[0]; // (DAWNNY's pages flutter side to side)
     if (b.bounce > 0) { // (DOKI DOLL's yarn, and SONNET's rings, bounce off the edges of the screen)
       if ((b.x < b.r && b.vx < 0) || (b.x > W - b.r && b.vx > 0)) { b.vx = -b.vx; b.bounce--; }
@@ -5840,7 +5844,7 @@ function update(dt) {
     e.healFx = Math.max(0, (e.healFx || 0) - dt); e.guardedT = Math.max(0, (e.guardedT || 0) - dt);
     e.x += e.vx * edt; e.y += e.vy * edt;
     ENEMY_AI[e.type]?.(e, edt);
-    if (e.glitch) glitchEnemy(e, edt);
+    if (e.gt && glitchEnemy(e, edt)) { e.x += e.vx * edt; e.y += e.vy * edt; e.t += edt; ENEMY_AI[e.type]?.(e, edt); } // (OVERCLOCKED: twice as fast at everything)
     for (const b of bullets) {
       if (b.dead || e.dead || TYPES[e.type].ghost || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
       if (b.bomb) { bombBlast(b); continue; } // (BOMBER: it blows up on whatever it touches, shields and all)
@@ -6388,27 +6392,10 @@ function enemyFlame(x, y, w, k = 1) { // a flickering engine flame
   ctx.fillStyle = 'rgba(255,240,180,0.85)'; ctx.beginPath(); ctx.moveTo(x - w * 0.45, y); ctx.lineTo(x, y - L * 0.55); ctx.lineTo(x + w * 0.45, y); ctx.fill();
   ctx.restore();
 }
-// GLITCH enemies: they flicker, wear cyan and magenta frames, and every few seconds twitch and skip a little way sideways
-const GLITCH_PINNED = new Set(['segment', 'serpent', 'linker', 'decoy']); // (these stay put: they're tied to something else)
-function glitchEnemy(e, dt) {
-  if (GLITCH_PINNED.has(e.type)) return;
-  if (e.gwarn > 0) { if ((e.gwarn -= dt) <= 0) { burst(e.x, e.y, '#ff00ff', 5, 140); e.x = Math.max(20, Math.min(W - 20, e.x + (Math.random() - 0.5) * 150)); burst(e.x, e.y, '#00ffff', 5, 140); } }
-  else if ((e.gT = (e.gT ?? 2 + Math.random() * 4) - dt) <= 0) { e.gT = 3 + Math.random() * 4; e.gwarn = 0.35; }
-}
 function drawEnemy(e) {
-  if (e.glitch) { // (a GLITCH enemy: flickering, in a cyan and magenta frame that jitters wildly just before it skips)
-    const age = time - (e.born ?? -9);
-    if (age < 0.45) { // materializing: a cloud of pixel noise that settles into it
-      ctx.save(); ctx.shadowBlur = 0;
-      for (let i = 0; i < 8; i++) { ctx.fillStyle = ['#ff00ff', '#00ffff', e.color][i % 3]; const s2 = 3 + Math.random() * 4, d = e.r * 1.6 * (1 - age / 0.45); ctx.fillRect(e.x + (Math.random() - 0.5) * 2 * d - s2 / 2, e.y + (Math.random() - 0.5) * 2 * d - s2 / 2, s2, s2); }
-      ctx.restore(); return;
-    }
-    if (Math.random() < 0.05) return;
-    const j = e.gwarn > 0 ? 3 + Math.random() * 4 : 2, s = e.r + 4;
-    ctx.save(); ctx.lineWidth = 1.5; ctx.shadowBlur = 0; ctx.globalAlpha = 0.55;
-    ctx.strokeStyle = '#00ffff'; ctx.strokeRect(e.x - s - j, e.y - s, s * 2, s * 2); ctx.strokeStyle = '#ff00ff'; ctx.strokeRect(e.x - s + j, e.y - s + 1, s * 2, s * 2);
-    ctx.restore();
-  }
+  if (e.gt && !e._dl && drawGlitchDownload(e)) return; // (a GLITCH enemy downloading in)
+  if (e.type === 'gbug') { drawBug(e); return; }
+  if (e.type === 'gerr') { drawErrBox(e); return; }
   if (e.type === 'shell' || e.type === 'puddle') return; // (drawn under everything, in drawEnemyTelegraph)
   if (e.type === 'meteor') { if (e.state === 'go') drawMeteor(e); return; }
   if (e.type === 'bolt') return; // (drawn in drawEnemyTelegraph)
@@ -7849,11 +7836,10 @@ function drawBoss(b) {
   const sp = b.special;
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
   if (fury && b.rage > 0 && key === 'phantom' && Math.random() < 0.4) ctx.globalAlpha *= 0.15; // (PHANTOM strobes as it's possessed)
-  if (b.glitch && Math.random() < 0.04) ctx.globalAlpha *= 0.3; // (a GLITCH variant flickers)
   if (b.reboot > 0 && Math.random() < 0.35) ctx.globalAlpha *= 0.2; // (ZERO flickers hard while it reboots)
   ctx.scale(sc, sc);
   const a0 = ctx.globalAlpha;
-  if (b.glitch) drawGlitchGhosts(b, rot, k);
+  if (b.gx && b.dying > 0) { ctx.beginPath(); ctx.rect(-b.r * 3, -b.r * 1.7 + b.r * 3.4 * gxWipe(deathP), b.r * 6, b.r * 5); ctx.clip(); } // (a dying GLITCH is deleted, top down)
   const rageLayer = (layer, ...args) => { if (fury && form[layer]) { ctx.save(); form[layer](b, k, tr, b.r, ...args); ctx.restore(); } };
 
   rageLayer('back');
@@ -7870,9 +7856,10 @@ function drawBoss(b) {
   ctx.restore();
   rageLayer('shell');
   ctx.restore();
+  if (b.gx) drawGlitchBody(b, rot, k); // (a GLITCH variant: holes in its memory, scanlines)
 
-  // cracks spreading across the shell as it dies
-  if (b.dying > 0 && !b.charmed) {
+  // cracks spreading across the shell as it dies (a GLITCH gets deleted instead)
+  if (b.dying > 0 && !b.charmed && !b.gx) {
     ctx.strokeStyle = '#ffffff'; glow('#ffffff', 20); ctx.lineWidth = 2;
     for (const k of b.cracks) {
       const L = b.r * k.len * Math.min(1, deathP * 1.6);
@@ -7916,6 +7903,7 @@ function drawBoss(b) {
   }
 
   drawBossDecor(b, 'front', c, enraged);
+  if (b.gx) drawGlitchHalo(b);
   rageLayer('front', coreR, ex, ey);
   if (fury && !form.noEye && !shape.hideEye?.(b)) rageBrows(b, coreR, ex, ey);
   if (b.shielded) { // Aegis' bubble — flares where bullets bounce off
@@ -8916,6 +8904,13 @@ function drawRageMove(b) {
 // gimmick visuals: shields, heat gauges, halos, rifts, lightning... (drawn in world space)
 // a loading bar under a boss as it arrives (ZERO, and every GLITCH variant), and while ZERO reboots between forms
 function drawLoadBar(b) {
+  if (b.gx && !b.entered) { // a GLITCH variant downloading in: a terminal line and a block bar
+    const p = Math.min(1, b.intro || 0), n = 20, done = Math.round(p * n), y = Math.max(b.y, 0) + b.r + 46;
+    ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = GX.green;
+    ctx.textBaseline = 'bottom'; ctx.fillText(`> DOWNLOADING ${(b.title || b.name).replace(/ /g, '_')}.EXE`, b.x, y - 4);
+    ctx.textBaseline = 'top'; ctx.fillText(`[${'█'.repeat(done)}${'░'.repeat(n - done)}] ${Math.floor(p * 100)}%`, b.x, y);
+    ctx.restore(); return;
+  }
   const w = 170, x = b.x - w / 2, y = Math.max(b.y, 0) + b.r + 44, p = b.entered ? 1 - b.reboot / ZERO_REBOOT : Math.min(1, b.intro || 0);
   const label = b.entered ? `REBOOTING ${ZERO_FORMS[b.zform]?.title || ''}...` : `LOADING ${(b.gimmick === 'zero' ? 'ZERO' : glitchName(b.name)).replace(/ /g, '_')}.EXE...`;
   ctx.save(); ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, 10);
@@ -9276,9 +9271,11 @@ function drawWorld() {
   }
   drawBossFx('under');
   drawEncounterFx();
+  for (const bo of bosses) drawGlitchUnder(bo);
   for (const bo of bosses) drawBoss(bo);
-  for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); }
-  const shots = [], ink = [], hearts = [], goldRings = [], pages = [], speech = [], blades = [];
+  for (const bo of bosses) drawGlitchPost(bo);
+  for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); drawGlitchOver(bo); }
+  const shots = [], ink = [], hearts = [], goldRings = [], pages = [], speech = [], blades = [], gxb = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
     if (b.fuse !== undefined) { // mine: pulsing ring that blinks faster as it's about to burst
@@ -9294,9 +9291,11 @@ function drawWorld() {
     if (c === PAGE_COLOR) { pages.push(b); continue; }
     if (c === BUBBLE_COLOR) { speech.push(b); continue; }
     if (c === KNIFE_COLOR) { blades.push(b); continue; }
+    if (GX_BULLETS.has(c)) { gxb.push(b); continue; }
     shots.push({ x: b.x, y: b.y, r: b.r || 5, color: c });
   }
   drawGlowDots(shots);
+  if (gxb.length) drawGlitchBullets(gxb); // (GLITCH 0s and 1s, dead pixels, forks, packets, leaks)
   if (pages.length || speech.length || blades.length) { // DAWNNY's manga pages, speech bubbles and knives
     const t = performance.now() / 1000;
     ctx.save(); ctx.lineWidth = 1.5;
@@ -9341,7 +9340,7 @@ function drawWorld() {
   drawPlayerBullets();
   drawAbFx();
   for (const e of enemies) drawEnemyTelegraph(e);
-  for (const e of enemies) drawEnemy(e);
+  for (const e of enemies) { drawEnemy(e); if (e.gt) drawGlitchEnemyFx(e); }
   for (const k of pickups) {
     if (k.kind === 'gold') { drawGoldShard(k); continue; }
     if (!PICK[k.kind]) continue;
@@ -9357,6 +9356,7 @@ function drawWorld() {
   for (const p of players) drawPet(p);
   drawTeamUi();
   drawBossFx('over');
+  drawPix();
   // floating score from kills
   ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const pp of popups) {
@@ -9559,6 +9559,10 @@ function drawHUD() {
     else if (bo.tired > 0) { status = 'DIZZY · ×2 DAMAGE'; statusColor = '#ffffff'; }
     else if (bo.xf >= 0) { status = 'TRANSFORMING — CAN\'T BE HURT'; statusColor = bo.ghostColor || '#ffd23d'; } // (SONNET turning golden; a second life)
     else if (bo.super) { status = ascendOf(bo) ? 'SECOND LIFE' : 'GOLDEN'; statusColor = bo.ghostColor || '#ffd23d'; }
+    else if (bo.gx && bo.dying <= 0 && !bo.final) { // a GLITCH variant: frozen, crashing, or how corrupted it is
+      status = bo.gx.hang > 0 ? 'NOT RESPONDING' : bo.gx.crash ? 'SYSTEM CRASH · REBOOTING' : `${isEnraged(bo) ? 'ENRAGED · ' : ''}CORRUPTION ${Math.round(bo.gx.c * 100)}%`;
+      statusColor = bo.gx.crash ? GX.amber : GX.green;
+    }
     else if (isEnraged(bo) && bo.dying <= 0) status = 'ENRAGED';
     else if (bo.bond !== undefined) { status = `P${bo.bond + 1}'S TARGET`; statusColor = P_COLORS[bo.bond]; }
     // "NAME  ·  STATUS", centered as a whole, with the status in its own color
@@ -9575,6 +9579,10 @@ function drawHUD() {
       glow(bo.color, 12); ctx.fillStyle = bo.color;
       ctx.fillRect(bx, barY, bw * fill, barH);
       ctx.shadowBlur = 0;
+      if (bo.gx) { // (a GLITCH's bar has holes in it, and they move now and then)
+        const k = Math.floor(performance.now() / 600), n = 2 + Math.round(bo.gx.c * 4);
+        for (let j = 0; j < n; j++) { const hx = bx + bw * ((Math.sin(k * 1.7 + j * 2.3 + bo.gx.seed) + 1) / 2), hw = 3 + (j % 3) * 3; if (hx < bx + bw * fill) checker(Math.round(hx), barY, hw, barH, Math.max(2, barH / 2)); }
+      }
       if (bo.shielded) { ctx.strokeStyle = '#5dff7a'; ctx.lineWidth = 1.5; ctx.strokeRect(bx - 2, barY - 2, bw + 4, barH + 4); }
     }
   });
@@ -10294,7 +10302,7 @@ function bossForms(d) {
   if (d.gimmick === 'sonnet') f.push(['SUPER SONNET', b => { rage(b); Object.assign(b, { super: true, title: 'SUPER SONNET', color: '#ffd23d', ghostColor: '#ffd23d' }); }]);
   if (d.gimmick === 'zero') f.splice(1, 1, ['NULL', b => { b.zform = 2; }], ['FATAL ERROR', b => { b.zform = 3; rage(b); }]);
   if (d.gimmick === 'dawnny') f.push(['SUSPECT', b => { b.sus = { t: 1e9, knifeT: 1e9 }; }], ['THE BEAST', b => { b.beast = { t: 1e9, age: 0 }; b.color = '#ff3d3d'; }]);
-  f.push(['GLITCH', b => { b.glitch = true; b.title = glitchName(b.name); }]);
+  if (d.gimmick !== 'zero') f.push(['GLITCH', b => makeGlitch(b, state === 'gallery')]); // (practice it, and it's the real thing)
   return f;
 }
 function galleryBoss(def, i, rage, form = 0) { // a stand-in boss to draw (kept, so it animates)
@@ -10743,7 +10751,7 @@ function updateHazards(dt) {
       beep(90, 0.3, 'square', 0.05, 900);
     } else if (k === 'blink') { // a few enemies flicker, then teleport
       const pool = enemies.filter(e => !e.dead && !TYPES[e.type].ghost && !(e.blinkT > 0));
-      for (const e of shuffle(pool).slice(0, 4)) { e.blinkT = GLITCH_WARN; fxRing(e.x, e.y, e.r * 3, e.r, GLITCH_WARN, '#ff3df2', 2); }
+      for (const e of shuffle(pool).slice(0, 4)) { e.blinkT = GLITCH_WARN; fxRing(e.x, e.y, e.r * 3, e.r, GLITCH_WARN, GX.amber, 2); }
       beep(1800, 0.15, 'square', 0.03, -1500);
     } else { // INPUT ERROR: a warning, then everyone's left and right swap for a moment
       run.flipW = GLITCH_WARN;
@@ -10776,66 +10784,722 @@ function updateGlitch(dt) {
   if (run.flipW > 0) { if ((run.flipW -= dt) <= 0) { run.flipW = 0; run.flipT = FLIP_TIME; beep(220, 0.4, 'square', 0.05, -110); } }
   else if (run.flipT > 0) run.flipT = Math.max(0, run.flipT - dt);
 }
-// GLITCH variants: in the GLITCH SECTOR, and all through Endless once THE ABYSS is beaten, every boss is a glitched copy of
-// itself (a corrupted name, cyan and magenta ghosts, and every few seconds it skips: a flicker, then it's somewhere else),
-// and every zone's sky glitches now and then
+// ====================================================================================================
+// GLITCH variants: in the GLITCH SECTOR and all through Endless, every boss and enemy is a corrupted copy of itself.
+// A GLITCH boss runs on broken memory: chunks of its body are missing (black-and-violet "missing texture"), a band
+// of it breaks up into big pixels and slides, its pixels melt off it, and hex codes swarm around it. Before each of
+// its glitch attacks it hangs (NOT RESPONDING). As it loses health its CORRUPTION climbs: every 25% corrupts the
+// screen for a moment, lets BUGS out, and teaches it another glitch attack, and at 75% its whole SYSTEM CRASHES.
+// It downloads in when it arrives; when it dies it stops working and gets deleted, top down, into falling pixels.
+// GLITCH enemies download in, have holes and scanlines, fall apart into pixels, and each carries a bug of its own
+// (see GX_TRAITS). The Endless sky glitches now and then too.
+// ====================================================================================================
 const glitchWorld = () => !!run && inRun() && (run.zone === 'glitch' || !!run.glitchy || !!run.endless); // (every Endless run, too)
 const glitchName = s => s.replace(/[AEIO]/g, c => ({ A: '4', E: '3', I: '1', O: '0' })[c]);
-function glitchBoss(b) {
-  if (!glitchWorld() || b.glitch) return;
-  b.glitch = true; if (!b.title) b.title = glitchName(b.name);
-  if (!b.final && b.gimmick !== 'doki' && b.gimmick !== 'zero' && b.patterns) b.patterns = b.patterns.flatMap((p, i) => i % 3 === 2 ? [p, 'glitchmove'] : [p]); // (and ZERO's glitch moves, now and then)
+// the look: terminal-green data, dead-pixel white, error amber, and black-and-violet missing texture
+const GX = { green: '#39ff88', white: '#f2fff6', amber: '#ffb52e', violet: '#a33dff', void: '#05050a' };
+// glitch bullets are told apart by their exact color (that's all an online guest gets for each bullet):
+// 0s and 1s, dead pixels, forking processes, network packets and leaked memory
+const GX_B0 = '#39ff89', GX_B1 = '#39ff8a', GX_PIX = '#f2fff7', GX_FORK = '#7dffc8', GX_PKT = '#ffb52f', GX_LEAK = '#b9ffd6';
+const GX_BULLETS = new Set([GX_B0, GX_B1, GX_PIX, GX_FORK, GX_PKT, GX_LEAK]);
+const GX_HANG = 0.6;                    // how long it hangs (NOT RESPONDING) before a glitch attack
+const GXW_POP = 1.5;                    // ERROR: seconds until a box crashes
+const GXS_WARN = 1.3, GXS_LIVE = 1.0;   // SEGMENTATION FAULT: warning, then the bad memory hurts
+const GXP_WARN = 0.65;                  // PING FLOOD: warning before the packets come
+const CRASH_FREEZE = 1.2, CRASH_SCAN = 2.2, CRASH_GAP = 0.5, CRASH_BAND = 46; // SYSTEM CRASH
+const CRASH_LEN = CRASH_FREEZE + CRASH_SCAN * 2 + CRASH_GAP;
+const GX_ERRORS = ['Not Responding', '0xC0000005', 'Out of memory', 'Stack overflow', 'File not found', 'Access denied', 'Divide by zero', 'Bad pointer'];
+const HEX_BITS = ['0x00', 'FF', '0xDEAD', '01', '10', 'NULL', '0xBEEF', 'ERR', '7F', '0b101', '??', '0x0C', 'EOF', 'NaN', '404', '0xFF'];
+// its glitch attacks: [name, seconds it takes] (what each one does is in GX_RUN)
+const GX_MOVES = {
+  rain: ['BINARY RAIN', 3.6], fork: ['FORK BOMB', 2.4], popup: ['ERROR', 2.6], flip: ['BIT FLIP', 4.6],
+  seg: ['SEGMENTATION FAULT', GXS_WARN + GXS_LIVE + 0.3], leak: ['MEMORY LEAK', 5.4], ping: ['PING FLOOD', 3.6],
+};
+const GX_LIST = Object.keys(GX_MOVES);
+
+// ----- turning a boss into its GLITCH variant -----
+// (show: just the look, for the gallery's stand-in)
+function makeGlitch(b, show = false) {
+  if (b.gx) return;
+  b.glitch = true; b.title = glitchName(b.title || b.name);
+  // (synced to online guests: corruption 0-1 and its step, the hang, the attack going on, and the hazards on screen)
+  b.gx = { c: show ? 0.55 : 0, lv: 0, hang: 0, mv: '', win: [], seg: null, ping: [], gc: -1, crash: null, flip: -1, spike: 0, seed: Math.round(Math.random() * 1000) };
+  if (show) return;
+  // the glitch attacks it knows: two to start with (one each in a team fight), and one more at each corruption step
+  const solo = !encounter || encounter.kind === 'single';
+  b._gxMoves = shuffle(GX_LIST.slice()); b._gxI = 0; b._gm = {};
+  b._gxN = b.final || b.gimmick === 'doki' || !b.patterns?.length ? 0 : solo ? 2 : 1;
+  if (b._gxN) { b._basePatterns = b.patterns.slice(); b.patterns = gxPatterns(b); }
 }
+function glitchBoss(b) { if (glitchWorld() && !b.gx && b.gimmick !== 'zero') makeGlitch(b); } // (ZERO is the real thing)
+// its own attacks, with its glitch attacks spread evenly between them
+function gxPatterns(b) {
+  const base = b._basePatterns, n = Math.min(b._gxN, base.length), out = [], every = base.length / Math.max(1, n);
+  let next = every, used = 0;
+  base.forEach((p, i) => { out.push(p); if (used < n && i + 1 >= next - 1e-9) { out.push('gx'); used++; next += every; } });
+  return out;
+}
+// a glitch attack: it hangs for a moment (NOT RESPONDING), then does the next one it knows
+BOSS_ATTACKS.gx = (b, enraged, rate) => {
+  const g = b.gx;
+  if (!g || !b._gxN) { b.atkT = 0.5 * rate; return; }
+  if (g.mv || g.crash || b.special) { b.atkT = 0.4; b.patternT = Math.min(b.patternT, 3.5); return; } // (busy with something else: its turn waits)
+  const k = b._gxMoves[b._gxI++ % Math.min(b._gxN, b._gxMoves.length)];
+  if (!GX_MOVES[k]) { b.atkT = 0.5 * rate; return; }
+  const len = GX_HANG + GX_MOVES[k][1];
+  g.mv = k; g.hang = GX_HANG; b._gm = { t: 0 }; b._gxEnr = enraged;
+  b.atkT = len + 0.3; b.patternT = Math.min(b.patternT, 4.5 - len - 0.3); // (its turn lasts until it's done)
+  fxText(GX_MOVES[k][0], b.x, Math.max(40, b.y - b.r - 34), GX.green, 22, 1.3);
+  beep(220, 0.45, 'square', 0.04, -150);
+};
+
+// ----- the host runs a GLITCH boss: corruption, its glitch attacks and their hazards ('hold': it's frozen) -----
 function updateGlitchBoss(b, dt) {
-  if (b.dying > 0 || b.final || b.gimmick === 'doki' || b.charge || b.special || b.run || b.xf >= 0 || b.split || b.downed) return;
-  if (b.gwarn > 0) {
-    if ((b.gwarn -= dt) <= 0) {
-      burst(b.x, b.y, '#ff3df2', 20, 260);
-      b.x = Math.max(b.r, Math.min(W - b.r, b.x + (Math.random() - 0.5) * 320)); b.y = Math.max(80, Math.min(H * 0.45, b.y + (Math.random() - 0.5) * 120));
-      burst(b.x, b.y, '#7df9ff', 20, 260); beep(1800, 0.08, 'square', 0.03, -1500);
+  const g = b.gx; if (!g) return;
+  g.spike = Math.max(0, g.spike - dt);
+  b.title = glitchName(b.title || b.name); // (a second life's new name gets corrupted too)
+  if (b._gxN && !b.patterns.includes('gx')) { b._basePatterns = b.patterns.slice(); b.patterns = gxPatterns(b); b.pattern %= b.patterns.length; } // (new attacks of its own: mix the glitches back in)
+  if (b.doki === undefined && b.max > 0) { // corruption climbs as it loses health, and never comes back down
+    g.c = Math.max(g.c, Math.min(1, 1 - b.hp / b.max));
+    const lv = Math.min(3, Math.floor(g.c * 4 + 1e-6));
+    if (lv > g.lv) { g.lv = lv; gxSpike(b, lv); }
+  }
+  gxHazards(b, dt);
+  if (g.flip >= 0 && g.mv !== 'flip') { gxUnfreeze(b); g.flip = -1; } // (BIT FLIP was cut short: nothing stays frozen)
+  if (g.crash) { gxCrash(b, dt); return 'hold'; }
+  if (g.hang > 0) { // frozen, NOT RESPONDING (even its animation stops)... then it does it
+    b.t -= dt;
+    if ((g.hang -= dt) <= 0) { g.hang = 0; GX_RUN[g.mv]?.(b, 0, 0, b._gxEnr, true); }
+    return 'hold';
+  }
+  if (g.mv) {
+    const m = b._gm; m.t += dt;
+    GX_RUN[g.mv]?.(b, dt, m.t, b._gxEnr, false);
+    if (m.t >= GX_MOVES[g.mv][1]) { GX_END[g.mv]?.(b); g.mv = ''; }
+  } else if (b._crashDue && bosses.length === 1) { b._crashDue = false; gxCrashStart(b); return 'hold'; }
+}
+// every 25% of corruption: the screen corrupts for a moment, bugs crawl out, and it learns another glitch attack
+function gxSpike(b, lv) {
+  const g = b.gx; g.spike = 0.5;
+  fxText(`CORRUPTION ${lv * 25}%`, b.x, Math.max(50, b.y - b.r - 40), GX.green, 26, 1.6);
+  shake = Math.max(shake, 14); beep(1800, 0.15, 'square', 0.04, -1700); beep(60, 0.5, 'sawtooth', 0.07, -20);
+  gxPixels(b.x, b.y, b.r, b.color, 26);
+  if (b.final || b.doki !== undefined) return;
+  const solo = !encounter || encounter.kind === 'single';
+  for (let i = 0; i < (solo ? 1 + lv : 1); i++) {
+    const a = Math.PI / 2 + (i - lv / 2) * 0.7, e = makeEnemy('gbug', b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r);
+    e.vx = Math.cos(a) * 160; e.vy = Math.sin(a) * 160; e.aimA = a; e.state = 'run'; e.timer = 0.35; // (they burst out of it first)
+  }
+  if (solo && b._gxN && b._gxN < GX_LIST.length) { b._gxN++; b.patterns = gxPatterns(b); b.pattern %= b.patterns.length; }
+  if (lv >= 3 && solo) b._crashDue = true; // (and at 75%, its system crashes: see gxCrashStart)
+}
+// it died (or went down) mid-glitch: everything it had going stops, and frozen bits move again
+function gxStop(b) {
+  const g = b.gx; if (!g) return;
+  gxUnfreeze(b);
+  Object.assign(g, { mv: '', hang: 0, win: [], seg: null, ping: [], gc: -1, crash: null, flip: -1 });
+}
+function gxUnfreeze(b) { for (const e of eBullets) if (e.src === b && e.hold) { e.vx = e.hold[0]; e.vy = e.hold[1]; e.hold = null; } }
+
+// each glitch attack, run every frame while it lasts (t: seconds in; first: the moment it starts)
+const GX_RUN = {
+  rain(b, dt, t, enr, first) { // BINARY RAIN: rows of 0s and 1s fall, each with a gap that wanders from row to row
+    const m = b._gm;
+    if (first) { m.n = 0; m.wt = 0; m.gap = null; }
+    if (m.n >= (enr ? 5 : 4) || (m.wt -= dt) > 0) return;
+    m.wt = 0.72;
+    const cols = Math.max(10, Math.round(W / 56));
+    if (m.gap === null) { const p = nearestPlayer(W / 2, H); m.gap = Math.round((p ? p.x : W / 2) / W * cols) - 1 + Math.round((Math.random() - 0.5) * 4); }
+    else m.gap += randomOf([-2, -1, 1, 2]);
+    m.gap = Math.max(1, Math.min(cols - 3, m.gap));
+    for (let i = 0; i < cols; i++) if (i !== m.gap && i !== m.gap + 1)
+      eBullets.push({ x: (i + 0.5) / cols * W, y: -12, vx: 0, vy: (enr ? 175 : 160) * BOSS_BULLET_SPEED, r: 6, color: Math.random() < 0.5 ? GX_B0 : GX_B1, src: b });
+    m.n++; beep(900 + m.n * 140, 0.05, 'square', 0.03);
+  },
+  fork(b, dt, t, enr, first) { // FORK BOMB: processes that split in two, and split again, into a spray of dead pixels (see gxFork)
+    if (!first) return;
+    const p = nearestPlayer(b.x, b.y), a0 = p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2, n = enr ? 4 : 3, sp = 150 * BOSS_BULLET_SPEED;
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (i - (n - 1) / 2) * 0.6;
+      eBullets.push({ x: b.x + Math.cos(a) * b.r * 0.6, y: b.y + Math.sin(a) * b.r * 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 10, color: GX_FORK, src: b, fork: [0.7, enr ? 3 : 2] });
     }
-  } else if ((b.gT = (b.gT ?? 4 + Math.random() * 3) - dt) <= 0) { b.gT = 5 + Math.random() * 3; b.gwarn = 0.45; }
+    fxText('fork()', b.x, b.y + b.r + 26, GX.green, 18, 0.9); beep(500, 0.3, 'square', 0.04, 300);
+  },
+  popup(b, dt, t, enr, first) { // ERROR: error boxes pop up around the screen, then crash into rings of dead pixels
+    if (!first) return;
+    const g = b.gx, n = (enr ? 5 : 4) + (mode > 2 ? 1 : 0), spots = [];
+    for (let i = 0; i < n; i++) {
+      const s = spreadSpot([...spots, ...living().map(p => [p.x, p.y])], 150, () => [90 + Math.random() * (W - 180), H * 0.24 + Math.random() * H * 0.5]);
+      if (!s) continue;
+      spots.push(s); g.win.push([Math.round(s[0]), Math.round(s[1]), r2(-i * 0.22), Math.floor(Math.random() * GX_ERRORS.length)]);
+    }
+    beep(1000, 0.08, 'square', 0.04); setTimeout(() => beep(700, 0.12, 'square', 0.04), 90);
+  },
+  flip(b, dt, t, enr, first) { // BIT FLIP: spreads of 0s and 1s, but only one kind moves at a time, and they swap twice a second
+    const g = b.gx, m = b._gm;
+    if (first) { g.flip = 1; m.ft = 0.55; m.n = 0; m.vt = 0; }
+    if (m.n < (enr ? 4 : 3) && (m.vt -= dt) <= 0) { // a volley at someone
+      m.vt = 1;
+      const ps = living(), p = ps[m.n % Math.max(1, ps.length)], a0 = p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2, n = enr ? 9 : 7, sp = 205 * BOSS_BULLET_SPEED;
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i - (n - 1) / 2) * 0.13, bit = i % 2;
+        const e = { x: b.x + Math.cos(a) * b.r * 0.6, y: b.y + Math.sin(a) * b.r * 0.6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 6, color: bit ? GX_B1 : GX_B0, src: b, bit };
+        if (bit !== g.flip) { e.hold = [e.vx, e.vy]; e.vx = e.vy = 0; } // (the wrong bit waits its turn)
+        eBullets.push(e);
+      }
+      m.n++; beep(1400, 0.05, 'square', 0.03);
+    }
+    if ((m.ft -= dt) <= 0) { // flip!
+      m.ft = 0.55; g.flip = 1 - g.flip;
+      for (const e of eBullets) if (e.src === b && e.bit !== undefined) {
+        if (e.bit === g.flip) { if (e.hold) { e.vx = e.hold[0]; e.vy = e.hold[1]; e.hold = null; } }
+        else if (!e.hold) { e.hold = [e.vx, e.vy]; e.vx = e.vy = 0; }
+      }
+      beep(g.flip ? 1800 : 1200, 0.03, 'square', 0.025);
+    }
+  },
+  seg(b, dt, t, enr, first) { // SEGMENTATION FAULT: the lower screen splits into memory blocks, and about a third go bad
+    if (!first) return;
+    const cols = W >= 900 ? 7 : 5, rows = 4, n = cols * rows;
+    const cells = shuffle([...Array(n).keys()]).slice(0, Math.round(n * (enr ? 0.42 : 0.34))).sort((a, c) => a - c);
+    b.gx.seg = [0, cols, rows, Math.round(H * 0.32), ...cells];
+    beep(2000, 0.15, 'square', 0.03, -1500);
+  },
+  leak(b, dt, t, enr, first) { // MEMORY LEAK: it sprays blocks that slow down and creep at you... until the GARBAGE COLLECTOR sweeps them up
+    const m = b._gm;
+    if (first) { m.lt = 0; m.swept = false; }
+    if (t < 2.2 && (m.lt -= dt) <= 0) {
+      m.lt = enr ? 0.05 : 0.07;
+      const p = nearestPlayer(b.x, b.y), a = (p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2) + (Math.random() - 0.5) * 1.9, sp = 250 + Math.random() * 220;
+      eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, color: GX_LEAK, src: b, drag: 1.25, sink: 38, leak: 1 });
+    }
+    if (t >= 3.5 && !m.swept) { m.swept = true; b.gx.gc = 0; fxText('GARBAGE COLLECTION', W / 2, 70, GX.green, 20, 1.4); beep(300, 0.6, 'triangle', 0.04, 600); }
+  },
+  ping(b, dt, t, enr, first) { // PING FLOOD: streams of packets shoot across the screen from the sides, along marked lines
+    const m = b._gm;
+    if (first) { m.n = 0; m.pt = 0; }
+    if (m.n >= (enr ? 6 : 5) || (m.pt -= dt) > 0) return;
+    m.pt = 0.5;
+    const ps = living(), p = ps[m.n % Math.max(1, ps.length)];
+    b.gx.ping.push([m.n % 2 ? 1 : -1, Math.round(Math.max(60, Math.min(H - 24, p ? p.y + (Math.random() - 0.5) * 40 : H * 0.7))), 0, 0]);
+    m.n++;
+  },
+};
+const GX_END = { flip(b) { gxUnfreeze(b); b.gx.flip = -1; } };
+// a forking process splits in two (the last generation are plain dead pixels)
+function gxFork(e, out) {
+  const d = e.fork[1] - 1, sp = Math.hypot(e.vx, e.vy) * 1.12, a = Math.atan2(e.vy, e.vx);
+  for (const s of [-1, 1]) {
+    const na = a + s * 0.42;
+    out.push({ x: e.x, y: e.y, vx: Math.cos(na) * sp, vy: Math.sin(na) * sp, r: Math.max(5, e.r - 2), color: d > 0 ? GX_FORK : GX_PIX, src: e.src, ...(d > 0 ? { fork: [0.6, d] } : {}) });
+  }
+  if (bossFx.rings.length < 60) fxRing(e.x, e.y, 3, 20, 0.25, GX.green, 2);
 }
-function drawGlitchGhosts(b, rot, k) { // cyan and magenta copies of its outline, jittering (wildly just before it skips)
-  const j = b.gwarn > 0 ? 6 + Math.random() * 6 : 2 + (Math.random() < 0.05 ? 6 : 0);
-  ctx.save(); ctx.lineWidth = 2; ctx.shadowBlur = 0; ctx.globalAlpha *= 0.6;
-  ctx.strokeStyle = '#7df9ff'; ctx.translate(-j, 0); bossPath(b, b.r, rot, k); ctx.stroke();
-  ctx.strokeStyle = '#ff3df2'; ctx.translate(j * 2, 1); bossPath(b, b.r, rot, k); ctx.stroke();
+// the hazards its glitch attacks leave on screen
+function gxHazards(b, dt) {
+  const g = b.gx;
+  for (const w of g.win) if ((w[2] += dt) >= GXW_POP) { // an ERROR box crashes: a ring of dead pixels
+    w[2] = -99;
+    const off = Math.random() * TAU, sp = 165 * BOSS_BULLET_SPEED;
+    for (let i = 0; i < 10; i++) { const a = off + i / 10 * TAU; eBullets.push({ x: w[0], y: w[1], vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, color: GX_PIX, src: b }); }
+    gxPixels(w[0], w[1], 50, GX.amber, 16); shake = Math.max(shake, 5); beep(140, 0.2, 'square', 0.05, -80);
+  }
+  g.win = g.win.filter(w => w[2] > -50);
+  if (g.seg) {
+    const s = g.seg; s[0] += dt;
+    if (s[0] >= GXS_WARN && s[0] - dt < GXS_WARN) { shake = Math.max(shake, 8); beep(70, 0.5, 'sawtooth', 0.07, -20); }
+    if (s[0] >= GXS_WARN && s[0] < GXS_WARN + GXS_LIVE) for (const p of living()) if (segHit(s, p.x, p.y)) hurt(p);
+    if (s[0] >= GXS_WARN + GXS_LIVE) g.seg = null;
+  }
+  for (const k of g.ping) { // the packets go one after another along the marked line
+    k[2] += dt;
+    if (k[2] >= GXP_WARN + k[3] * 0.07 && k[3] < 6) {
+      eBullets.push({ x: k[0] < 0 ? -6 : W + 6, y: k[1], vx: -k[0] * 400 * BOSS_BULLET_SPEED, vy: 0, r: 5, color: GX_PKT, src: b });
+      if (k[3]++ === 0) beep(1600, 0.06, 'square', 0.03, 400);
+    }
+  }
+  g.ping = g.ping.filter(k => k[2] < GXP_WARN + 0.7);
+  if (g.gc >= 0) { // the GARBAGE COLLECTOR sweeps down the screen, freeing the leaked memory as it goes
+    g.gc += (H + 40) / 1.4 * dt;
+    for (const e of eBullets) if (e.leak && !e.dead && e.y < g.gc) { e.dead = true; if (Math.random() < 0.25) gxPixels(e.x, e.y, 6, GX.green, 2); }
+    if (g.gc > H + 30) g.gc = -1;
+  }
+}
+// which memory block a point is in (-1: none), and whether that block has gone bad
+function segCell(s, x, y) {
+  const cols = s[1], rows = s[2], y0 = s[3], c = Math.floor(x / (W / cols)), r = Math.floor((y - y0) / ((H - y0) / rows));
+  return c >= 0 && c < cols && r >= 0 && r < rows ? r * cols + c : -1;
+}
+const segHit = (s, x, y) => { const i = segCell(s, x, y); return i >= 0 && s.indexOf(i, 4) >= 4; };
+// SYSTEM CRASH (once, at 75% corruption): every bullet is wiped, then a REBOOT SCAN sweeps down the screen twice, each
+// time with one open port to slip through (both ports are shown from the start). It can't attack while it reboots.
+const crashGapW = () => mode === 1 ? 170 : 150;
+function gxCrashStart(b) {
+  b.gx.crash = [0, Math.round(90 + Math.random() * (W - 180)), Math.round(90 + Math.random() * (W - 180))];
+  for (const e of eBullets) e.dead = true;
+  gxPixels(W / 2, H / 2, Math.min(W, H) * 0.6, GX.green, 40);
+  screenFlash = Math.max(screenFlash, 0.6); shake = Math.max(shake, 20);
+  fxText('SYSTEM CRASH', W / 2, H * 0.28, GX.amber, 40, 1.6);
+  beep(60, 1, 'sawtooth', 0.1, -20); [1760, 880, 440, 220].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.05), i * 90));
+}
+function crashBand(c) { // [where the scan band is, where its port is], or null between scans
+  const s1 = (c[0] - CRASH_FREEZE) / CRASH_SCAN, s2 = (c[0] - CRASH_FREEZE - CRASH_SCAN - CRASH_GAP) / CRASH_SCAN;
+  if (s1 >= 0 && s1 <= 1) return [-CRASH_BAND + (H + CRASH_BAND * 2) * s1, c[1]];
+  if (s2 >= 0 && s2 <= 1) return [-CRASH_BAND + (H + CRASH_BAND * 2) * s2, c[2]];
+  return null;
+}
+function gxCrash(b, dt) {
+  const c = b.gx.crash; c[0] += dt;
+  const band = crashBand(c);
+  if (band) for (const p of living()) if (Math.abs(p.y - band[0]) < CRASH_BAND / 2 + p.r * 0.5 && Math.abs(p.x - band[1]) > crashGapW() / 2 - p.r * 0.6) hurt(p);
+  if (c[0] >= CRASH_LEN) { b.gx.crash = null; b.atkT = Math.max(b.atkT, 1); fxText('REBOOTED', b.x, Math.max(40, b.y - b.r - 30), GX.green, 24, 1.2); beep(523, 0.15, 'triangle', 0.05); setTimeout(() => beep(784, 0.2, 'triangle', 0.05), 120); }
+}
+
+// ----- GLITCH enemies: each carries a bug of its own -----
+//   FORK: splits in two when destroyed · BUFFER: fills up as you hit it, then overflows into a ring of dead pixels
+//   OVERCLOCK: heats up (amber), then runs at double speed for a moment · LEAK: drips leaked memory behind it
+//   CRASH: leaves an error box behind when destroyed, which bursts a moment later
+const GX_TRAITS = ['fork', 'buf', 'oc', 'leak', 'err'], GX_LOOK = GX_TRAITS.length + 1; // (e.gt: 1-5 its bug, GX_LOOK: just the look)
+const GX_TAG = { fork: 'fork()', buf: 'BUFFER', oc: 'OVERCLOCK', leak: 'LEAK', err: 'CRASH' };
+const GX_FORKS = new Set(['drifter', 'zigzag', 'shooter', 'swarmer', 'dasher', 'seeker', 'kamikaze', 'spinner', 'bouncer', 'orbiter', 'warper']);
+const GX_PLAIN = new Set(['segment', 'linker', 'mimic', 'serpent', 'mine', 'rocket']); // (just the look: they're part of something else)
+const GX_DL = 0.55, GX_ERR_T = 1.1; // seconds to download in; seconds an error box waits before it bursts
+const gxTrait = e => GX_TRAITS[(e.gt || 0) - 1];
+function glitchEnemyInit(e) {
+  const T = TYPES[e.type];
+  if (T.harmless || e.type === 'gbug') return;
+  e.born = time; e.gv = 0;
+  if (GX_PLAIN.has(e.type)) { e.gt = GX_LOOK; return; }
+  const pool = GX_TRAITS.filter(k => k !== 'fork' || GX_FORKS.has(e.type));
+  e.gt = GX_TRAITS.indexOf(randomOf(pool)) + 1;
+  e.gT = gxTrait(e) === 'oc' ? 1.5 + Math.random() * 2 : 0.5 + Math.random() * 0.8;
+}
+// (host) its bug at work; true while it's OVERCLOCKED (the enemy loop then runs it twice)
+function glitchEnemy(e, dt) {
+  const k = gxTrait(e);
+  if (k === 'oc') {
+    if (e.gv >= 2) { if ((e.gT -= dt) <= 0) { e.gv = 0; e.gT = 2.5 + Math.random() * 2.5; } return true; }
+    if ((e.gT -= dt) <= 0 && (e.gv = Math.min(1, e.gv + dt / 0.7)) >= 1) { e.gv = 2; e.gT = 1.3; beep(1200, 0.12, 'sawtooth', 0.02, 800); }
+  } else if (k === 'leak' && e.y > 0 && (e.gT -= dt) <= 0) {
+    e.gT = 1.1 + Math.random() * 0.4;
+    eBullets.push({ x: e.x, y: e.y + e.r * 0.5, vx: (Math.random() - 0.5) * 30, vy: 40, r: 4, color: GX_LEAK, drag: 0.8, sink: 42, leak: 1 });
+  }
+  return false;
+}
+// (host) a BUFFER fills up with every hit, then overflows
+function gxEnemyHit(e) {
+  if (gxTrait(e) !== 'buf' || e.dead) return;
+  if ((e.gv = (e.gv || 0) + 0.15) < 1) return;
+  e.gv = 0;
+  const off = Math.random() * TAU;
+  for (let i = 0; i < 8; i++) { const a = off + i / 8 * TAU; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, r: 5, color: GX_PIX }); }
+  popups.push({ x: e.x, y: e.y - e.r - 14, text: 'OVERFLOW', life: 0.8, color: GX.amber });
+  gxPixels(e.x, e.y, e.r, e.color, 8); beep(900, 0.1, 'square', 0.03, -600);
+}
+// (host) it falls apart into pixels, and its bug has the last word
+function gxEnemyDeath(e) {
+  gxPixels(e.x, e.y, e.r, e.color, Math.min(18, 6 + Math.round(e.r * 0.5)));
+  const k = gxTrait(e);
+  if (k === 'fork') {
+    for (const side of [-1, 1]) {
+      const m = makeEnemy(e.type, e.x + side * e.r * 0.6, e.y);
+      m.r = Math.max(7, Math.round(e.r * 0.75)); m.hp = m.maxHp = Math.max(1, Math.ceil(e.maxHp / 3)); m.pts = Math.round(e.pts / 3);
+      m.vx = side * 110; m.vy = Math.max(40, Math.abs(m.vy) * 0.6); m.gt = GX_LOOK; m.born = time - GX_DL; m.gv = 0;
+    }
+    popups.push({ x: e.x, y: e.y - e.r - 12, text: 'FORKED', life: 0.8, color: GX.green });
+  }
+  if (k === 'err') { const b = makeEnemy('gerr', e.x, e.y); b.timer = GX_ERR_T; b.vx = b.vy = 0; }
+}
+
+// ----- pixel debris: hard little squares that fall (a dying GLITCH, its corruption, popped errors) -----
+function gxPixels(x, y, r, color, n, rec = true) {
+  if (rec) netRec(['px', Math.round(x), Math.round(y), Math.round(r), color, n]);
+  const pix = bossFx.pix ||= [];
+  if (pix.length > 500 || settings.lowfx && pix.length > 150) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, sp = 40 + Math.random() * 170;
+    pix.push({ x: x + (Math.random() - 0.5) * r, y: y + (Math.random() - 0.5) * r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 70, s: 2 + Math.floor(Math.random() * 3),
+      color: Math.random() < 0.3 ? GX.white : Math.random() < 0.5 ? GX.green : color, life: 0.6 + Math.random() * 0.7, max: 1.3, g: 420 });
+  }
+}
+// one dead pixel dripping off something (drawn on every screen by itself: nothing goes over the network)
+function gxDrip(x, y, color) {
+  const pix = bossFx.pix ||= [];
+  if (pix.length > 500) return;
+  pix.push({ x, y, vx: (Math.random() - 0.5) * 12, vy: 10 + Math.random() * 30, s: 2 + Math.floor(Math.random() * 2), color, life: 0.7 + Math.random() * 0.6, max: 1.3, g: 160 });
+}
+function drawPix() {
+  const pix = bossFx.pix; if (!pix?.length) return;
+  ctx.save(); ctx.shadowBlur = 0;
+  for (const p of pix) { ctx.globalAlpha = Math.min(1, p.life / p.max * 2); ctx.fillStyle = p.color; ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.s); }
   ctx.restore();
 }
-function drawGlitchCorruption() { // (Endless after THE ABYSS: blocks of corrupted color blink over every zone's sky)
-  if (settings.lowfx || Math.random() > 0.12) return;
-  ctx.save(); ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,61,242,0.14)' : 'rgba(125,249,255,0.14)';
-  ctx.fillRect(Math.random() * W, Math.random() * H, 30 + Math.random() * 200, 3 + Math.random() * 24);
-  if (Math.random() < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, Math.random() * H, W, 2); }
+
+// ----- drawing helpers: missing texture, big pixels, melting streaks, glowing 0s and 1s -----
+function checker(x, y, w, h, cell) { // black-and-violet "missing texture"
+  ctx.fillStyle = GX.void; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = GX.violet;
+  for (let i = 0; i * cell < w; i++) for (let j = 0; j * cell < h; j++) if ((i + j) % 2 === 0) ctx.fillRect(x + i * cell, y + j * cell, Math.min(cell, w - i * cell), Math.min(cell, h - j * cell));
+}
+// Reading back what's been drawn is the slow part (the whole canvas gets copied each time), so each effect grabs
+// the box it needs once (gxGrab), and everything after that is drawn from the copy.
+let gxSrc = null, gxCv = null;
+function gxGrab(x, y, w, h) { // (world coordinates in; the grabbed box in canvas pixels out, or null)
+  if (settings.lowfx) return null;
+  const m = ctx.getTransform(); // (world -> canvas pixels: just a scale and a shift out here)
+  const x0 = Math.max(0, Math.floor(m.a * x + m.e)), y0 = Math.max(0, Math.floor(m.d * y + m.f));
+  const x1 = Math.min(cv.width, Math.ceil(m.a * (x + w) + m.e)), y1 = Math.min(cv.height, Math.ceil(m.d * (y + h) + m.f));
+  if (x1 - x0 < 2 || y1 - y0 < 2) return null;
+  gxSrc ||= document.createElement('canvas');
+  if (gxSrc.width < x1 - x0 || gxSrc.height < y1 - y0) { gxSrc.width = Math.max(gxSrc.width, x1 - x0); gxSrc.height = Math.max(gxSrc.height, y1 - y0); }
+  const g = gxSrc.getContext('2d');
+  g.clearRect(0, 0, x1 - x0, y1 - y0); g.drawImage(cv, x0, y0, x1 - x0, y1 - y0, 0, 0, x1 - x0, y1 - y0);
+  return { m, x0, y0, x1, y1 };
+}
+// break a box of the grab (world coordinates) into big pixels, maybe slid sideways
+function mosaicRect(gb, x, y, w, h, cell, slide = 0) {
+  if (!gb) return;
+  const m = gb.m, x0 = Math.max(gb.x0, m.a * x + m.e), y0 = Math.max(gb.y0, m.d * y + m.f), x1 = Math.min(gb.x1, m.a * (x + w) + m.e), y1 = Math.min(gb.y1, m.d * (y + h) + m.f);
+  if (x1 - x0 < 2 || y1 - y0 < 2) return;
+  const wx = (x0 - m.e) / m.a, wy = (y0 - m.f) / m.d, ww = (x1 - x0) / m.a, wh = (y1 - y0) / m.d;
+  const tw = Math.max(1, Math.round(ww / cell)), th = Math.max(1, Math.round(wh / cell));
+  gxCv ||= document.createElement('canvas');
+  if (gxCv.width < tw || gxCv.height < th) { gxCv.width = Math.max(gxCv.width, tw, 64); gxCv.height = Math.max(gxCv.height, th, 64); }
+  const g = gxCv.getContext('2d');
+  g.imageSmoothingEnabled = true; g.clearRect(0, 0, tw, th);
+  g.drawImage(gxSrc, x0 - gb.x0, y0 - gb.y0, x1 - x0, y1 - y0, 0, 0, tw, th);
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  ctx.drawImage(gxCv, 0, 0, tw, th, wx + slide, wy, ww, wh);
   ctx.restore();
 }
+// pixel-sorting streaks: one row of the grab (at srcY) stretched down from dstY into a curtain of uneven streaks
+function pixelDrip(gb, x, srcY, dstY, w, len, cols, seed, t) {
+  if (!gb) return;
+  const m = gb.m, sy = Math.round(m.d * srcY + m.f) - gb.y0;
+  if (sy < 0 || sy >= gb.y1 - gb.y0) return;
+  const cw = w / cols;
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.shadowBlur = 0;
+  for (let i = 0; i < cols; i++) {
+    const cx = x + i * cw, sx = m.a * cx + m.e - gb.x0;
+    if (sx < 0 || sx + m.a * cw > gb.x1 - gb.x0) continue;
+    const L = len * (0.2 + 0.8 * (0.5 + 0.5 * Math.sin(i * 2.17 + seed + t * (0.5 + (i % 3) * 0.3))));
+    ctx.globalAlpha = 0.55; ctx.drawImage(gxSrc, sx, sy, m.a * cw, 1, cx, dstY, cw, L * 0.55);
+    ctx.globalAlpha = 0.22; ctx.drawImage(gxSrc, sx, sy, m.a * cw, 1, cx, dstY + L * 0.55, cw, L * 0.45);
+  }
+  ctx.restore();
+}
+const glyphCache = {};
+function glyphSprite(ch, dim) { // a glowing 0 or 1 (dim: frozen by BIT FLIP)
+  const key = ch + (dim ? 'd' : '');
+  if (glyphCache[key]) return glyphCache[key];
+  const c = document.createElement('canvas'); c.width = c.height = 48;
+  const g = c.getContext('2d');
+  g.font = 'bold 30px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (dim) { g.fillStyle = 'rgba(57,255,136,0.32)'; g.fillText(ch, 24, 25); g.strokeStyle = 'rgba(57,255,136,0.5)'; g.lineWidth = 2; g.strokeRect(6, 6, 36, 36); }
+  else { g.shadowColor = GX.green; g.shadowBlur = 12; g.fillStyle = GX.green; g.fillText(ch, 24, 25); g.shadowBlur = 0; g.fillStyle = '#d6ffe6'; g.fillText(ch, 24, 25); }
+  return glyphCache[key] = c;
+}
+function drawGlitchBullets(list) {
+  ctx.save(); ctx.shadowBlur = 0;
+  for (const b of list) {
+    const c = b.color, r = b.r || 5, x = Math.round(b.x), y = Math.round(b.y);
+    if (c === GX_B0 || c === GX_B1) { const s = r * 4.2; ctx.drawImage(glyphSprite(c === GX_B1 ? '1' : '0', !b.vx && !b.vy), x - s / 2, y - s / 2, s, s); }
+    else if (c === GX_PIX) { ctx.fillStyle = GX.green; ctx.fillRect(x - r - 1, y - r - 1, r * 2 + 2, r * 2 + 2); ctx.fillStyle = GX.white; ctx.fillRect(x - r + 1, y - r + 1, r * 2 - 2, r * 2 - 2); }
+    else if (c === GX_LEAK) { ctx.fillStyle = 'rgba(57,255,136,0.22)'; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.strokeStyle = GX.green; ctx.lineWidth = 2; ctx.strokeRect(x - r, y - r, r * 2, r * 2); }
+    else if (c === GX_PKT) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(b.vy, b.vx));
+      ctx.fillStyle = 'rgba(255,181,46,0.3)'; ctx.fillRect(-r * 4.4, -r * 0.5, r * 3, r);
+      ctx.fillStyle = GX.amber; ctx.fillRect(-r * 1.6, -r * 0.8, r * 3.2, r * 1.6); ctx.fillStyle = '#fff3d6'; ctx.fillRect(r * 0.6, -r * 0.8, r, r * 1.6);
+      ctx.restore();
+    } else if (c === GX_FORK) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(performance.now() / 260 + x * 0.01);
+      ctx.fillStyle = 'rgba(125,255,200,0.22)'; ctx.fillRect(-r * 1.5, -r * 1.5, r * 3, r * 3);
+      ctx.fillStyle = GX_FORK; ctx.beginPath(); ctx.moveTo(0, -r * 1.25); ctx.lineTo(r * 1.25, 0); ctx.lineTo(0, r * 1.25); ctx.lineTo(-r * 1.25, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-r * 0.3, -r * 0.3, r * 0.6, r * 0.6);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+// an error box (prog: how close it is to crashing, 0-1; below 0: the dying boss's "stopped working" box)
+function drawErrWindow(x, y, prog, text, sc = 1) {
+  const w = Math.round(136 * sc), h = Math.round(62 * sc), x0 = Math.round(x - w / 2), y0 = Math.round(y - h / 2), bar = Math.round(13 * sc);
+  ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  if (prog > 0.75) ctx.translate(Math.round((Math.random() - 0.5) * 4), 0); // (about to crash: it rattles)
+  ctx.fillStyle = 'rgba(8,10,14,0.93)'; ctx.fillRect(x0, y0, w, h);
+  ctx.fillStyle = GX.amber; ctx.fillRect(x0, y0, w, bar);
+  ctx.strokeStyle = GX.amber; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+  ctx.font = `bold ${Math.round(9 * sc)}px monospace`; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1a1000';
+  ctx.textAlign = 'left'; ctx.fillText(prog < 0 ? 'FATAL ERROR' : '⚠ ERROR', x0 + 4, y0 + bar / 2 + 1);
+  ctx.textAlign = 'right'; ctx.fillText('✕', x0 + w - 4, y0 + bar / 2 + 1);
+  ctx.fillStyle = GX.white; ctx.textAlign = 'center'; ctx.font = `${Math.round(10 * sc)}px monospace`;
+  ctx.fillText(text, x0 + w / 2, y0 + bar + (h - bar) * 0.36, w - 10);
+  if (prog >= 0) { // its progress bar: when it's full, it crashes
+    const bx = x0 + 8, by = y0 + h - Math.round(14 * sc), bw = w - 16, bh = Math.round(6 * sc);
+    ctx.fillStyle = '#20242c'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = prog > 0.75 ? (Math.floor(performance.now() / 80) % 2 ? GX.amber : '#ff5a3d') : GX.green; ctx.fillRect(bx, by, bw * Math.min(1, prog), bh);
+  } else { ctx.fillStyle = GX.green; ctx.font = `bold ${Math.round(9 * sc)}px monospace`; ctx.fillText('[ Close program ]', x0 + w / 2, y0 + h - Math.round(11 * sc)); }
+  ctx.restore();
+}
+
+// ----- drawing a GLITCH boss -----
+// on its body (its own space, after the body is drawn): holes in its memory, scanlines, and a frosted sheet while it hangs
+function drawGlitchBody(b, rot, k) {
+  const g = b.gx, c = g.c, r = b.r, t = b.t, seed = g.seed;
+  ctx.save(); ctx.shadowBlur = 0;
+  bossPath(b, r, rot, k); ctx.clip();
+  for (let i = 0, n = 2 + Math.round(c * 4); i < n; i++) {
+    const s = Math.round(r * (0.22 + 0.13 * ((i * 7 + 3) % 5) / 4));
+    const x = Math.round(Math.sin(t * 0.37 + seed + i * 2.3) * r * 0.6 - s / 2), y = Math.round(Math.cos(t * 0.29 + seed * 1.3 + i * 1.7) * r * 0.6 - s / 2);
+    checker(x, y, s, s, Math.max(3, Math.round(s / 4)));
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  for (let y = -r * 1.3 + ((t * 18) % 4); y < r * 1.3; y += 4) ctx.fillRect(-r * 1.6, Math.round(y), r * 3.2, 1.5);
+  if (g.hang > 0) { ctx.fillStyle = 'rgba(230,238,255,0.34)'; ctx.fillRect(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2); } // (NOT RESPONDING)
+  ctx.restore();
+}
+// hex codes swarming around it (they freeze with it when it hangs)
+function drawGlitchHalo(b) {
+  const t = b.t, r = b.r, n = 12;
+  ctx.save(); ctx.shadowBlur = 0; ctx.font = `bold ${Math.max(9, Math.round(r * 0.19))}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const a0 = ctx.globalAlpha; // (it fades with the boss: arriving, dying)
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU + t * (i % 2 ? 0.35 : -0.22), rr = r * 1.5 + Math.sin(t * 1.3 + i) * r * 0.08;
+    ctx.globalAlpha = a0 * (0.3 + 0.4 * Math.max(0, Math.sin(t * 2 + i * 1.9)));
+    ctx.fillStyle = i % 4 === 0 ? GX.amber : GX.green;
+    ctx.fillText(HEX_BITS[(Math.floor(t * 2.5 + i * 3.7) + i * 5) % HEX_BITS.length], Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.restore();
+}
+const gxWipe = p => Math.max(0, Math.min(1, (p - 0.15) / 0.8)); // (how much of a dying GLITCH has been deleted, top down)
+// right after the bosses are drawn: a band of each GLITCH breaks into big pixels, and its pixels melt off in streaks
+function drawGlitchPost(b) {
+  const g = b.gx; if (!g || b.downed || b.cine < CINE_LEN) return;
+  const c = g.c, r = b.r, t = b.t, live = b.entered && b.dying <= 0;
+  if (live) {
+    const gb = gxGrab(b.x - r * 1.4, b.y - r, r * 2.8, r * 2); // (one copy of the boss, for all of it)
+    for (let i = 0; i < (c >= 0.5 ? 2 : 1); i++) {
+      const by = b.y + Math.sin(t * (0.6 + i * 0.35) + g.seed + i * 2) * r * 0.65, bh = r * (0.28 + c * 0.3), cell = 5 + c * 7 + Math.sin(t * 1.3 + i) * 1.5;
+      mosaicRect(gb, b.x - r * 1.35, by - bh / 2, r * 2.7, bh, cell, Math.sin(t * 1.7 + g.seed + i) * cell * 1.2);
+    }
+    pixelDrip(gb, b.x - r * 0.9, b.y + r * 0.05, b.y + r * 0.8, r * 1.8, r * (0.5 + c * 0.9), 14, g.seed, t);
+    if (!settings.lowfx && Math.random() < 0.25 + c * 0.6) gxDrip(b.x + (Math.random() - 0.5) * r * 1.4, b.y + r * 0.75, randomOf([GX.green, GX.white, b.color]));
+  }
+}
+// under the bosses: SEGMENTATION FAULT's memory blocks, and the SYSTEM CRASH
+function drawGlitchUnder(b) {
+  const g = b.gx; if (!g || (!g.seg && !g.crash)) return;
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.shadowBlur = 0;
+  if (g.seg) {
+    const s = g.seg, st = s[0], cols = s[1], y0 = s[3], cw = W / cols, rh = (H - y0) / s[2], live = st >= GXS_WARN;
+    ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (let i = 4; i < s.length; i++) {
+      const x = (s[i] % cols) * cw, y = y0 + Math.floor(s[i] / cols) * rh;
+      if (live) { // bad memory: missing texture, and it hurts
+        ctx.globalAlpha = 0.82; checker(x + 2, y + 2, cw - 4, rh - 4, Math.max(10, Math.round(Math.min(cw, rh) / 6)));
+        ctx.globalAlpha = 1; ctx.strokeStyle = GX.violet; ctx.lineWidth = 2; ctx.strokeRect(x + 2, y + 2, cw - 4, rh - 4);
+      } else { // its warning: flashing amber, faster as it comes
+        ctx.globalAlpha = 0.12 + (Math.floor(st * (st > GXS_WARN * 0.6 ? 16 : 8)) % 2) * 0.18; ctx.fillStyle = GX.amber; ctx.fillRect(x + 3, y + 3, cw - 6, rh - 6);
+        ctx.globalAlpha = 0.85; ctx.strokeStyle = GX.amber; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 30;
+        ctx.strokeRect(x + 3, y + 3, cw - 6, rh - 6); ctx.setLineDash([]);
+      }
+      ctx.globalAlpha = 0.9; ctx.fillStyle = live ? GX.white : GX.amber;
+      ctx.fillText(live ? 'SEGFAULT' : `0x${(0x7FF0 + s[i] * 16).toString(16).toUpperCase()}`, x + 8, y + 8);
+    }
+  }
+  if (g.crash) drawCrash(g.crash, t);
+  ctx.restore();
+}
+function drawCrash(c, t) {
+  const tt = c[0], gw = crashGapW();
+  if (tt < CRASH_FREEZE + 0.3) { // the crash screen, briefly
+    const a = Math.min(1, tt / 0.15) * (tt > CRASH_FREEZE ? Math.max(0, 1 - (tt - CRASH_FREEZE) / 0.3) : 1);
+    ctx.globalAlpha = 0.6 * a; ctx.fillStyle = '#000a06'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = a; ctx.font = `bold ${Math.round(Math.min(20, W / 42))}px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = GX.white; ctx.fillText('A FATAL EXCEPTION 0E HAS OCCURRED AT 0028:C0011E36', W / 2, H * 0.42, W - 24);
+    ctx.fillStyle = GX.green; ctx.fillText(`REBOOTING${'.'.repeat(1 + Math.floor(tt * 4) % 3)}  —  GET TO THE OPEN PORTS`, W / 2, H * 0.42 + 30, W - 24);
+  }
+  // the open ports (where you'll be safe), shown from the start: the one coming up bright, the next one dimmer
+  const port = (x, k, label) => {
+    ctx.globalAlpha = k; ctx.strokeStyle = GX.green; ctx.lineWidth = 3;
+    for (const sd of [-1, 1]) { const ex = x + sd * gw / 2; ctx.beginPath(); ctx.moveTo(ex - sd * 12, 6); ctx.lineTo(ex, 6); ctx.lineTo(ex, H - 6); ctx.lineTo(ex - sd * 12, H - 6); ctx.stroke(); }
+    ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillStyle = GX.green; ctx.fillText(label, x, 12);
+  };
+  const second = tt >= CRASH_FREEZE + CRASH_SCAN;
+  if (!second) { port(c[1], 0.75, 'PORT 1'); port(c[2], 0.25, 'PORT 2'); } else port(c[2], 0.75, 'PORT 2');
+  const band = crashBand(c);
+  if (band) { // the REBOOT SCAN: a band of static sweeping down the screen, open only at its port
+    const [y, px] = band, h = CRASH_BAND, x1 = px - gw / 2, x2 = px + gw / 2;
+    for (const [a0, a1] of [[0, x1], [x2, W]]) {
+      if (a1 <= a0) continue;
+      ctx.globalAlpha = 0.92; ctx.fillStyle = '#0b1a12'; ctx.fillRect(a0, y - h / 2, a1 - a0, h);
+      for (let i = 0; i < (a1 - a0) / 18; i++) { ctx.fillStyle = Math.random() < 0.5 ? '#9fffc4' : '#2a7a50'; ctx.fillRect(a0 + Math.random() * (a1 - a0), y - h / 2 + Math.random() * h, 2 + Math.random() * 12, 2); }
+      ctx.globalAlpha = 1; ctx.fillStyle = GX.green; ctx.fillRect(a0, y - h / 2, a1 - a0, 2); ctx.fillRect(a0, y + h / 2 - 2, a1 - a0, 2);
+    }
+    ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillStyle = GX.green; ctx.fillText('REBOOT SCAN', 8, y - h / 2 - 4);
+  }
+}
+// over the bosses (under the bullets): ERROR boxes, PING lines, the GARBAGE COLLECTOR, the NOT RESPONDING spinner,
+// and its download and its death
+function drawGlitchOver(b) {
+  const g = b.gx; if (!g || b.downed) return;
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.shadowBlur = 0;
+  for (const w of g.win) if (w[2] >= 0) drawErrWindow(w[0], w[1], w[2] / GXW_POP, GX_ERRORS[w[3]] || 'Error');
+  for (const [side, y, tt] of g.ping) { // a marked line: dashes across the screen, and where the packets will come from
+    const warn = tt < GXP_WARN;
+    ctx.globalAlpha = warn ? 0.3 + 0.4 * (Math.floor(tt * 12) % 2) : Math.max(0, 1 - (tt - GXP_WARN) / 0.7) * 0.35;
+    ctx.strokeStyle = GX.amber; ctx.lineWidth = 2; ctx.setLineDash([12, 10]); ctx.lineDashOffset = side * t * 140;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = warn ? 1 : 0.5; ctx.fillStyle = GX.amber; ctx.font = 'bold 13px monospace'; ctx.textBaseline = 'bottom';
+    ctx.textAlign = side < 0 ? 'left' : 'right'; ctx.fillText(side < 0 ? '>> PING' : 'PING <<', side < 0 ? 12 : W - 12, y - 6);
+  }
+  if (g.gc >= 0) { // the GARBAGE COLLECTOR, sweeping down
+    const y = g.gc, gr = ctx.createLinearGradient(0, y - 70, 0, y);
+    gr.addColorStop(0, 'rgba(57,255,136,0)'); gr.addColorStop(1, 'rgba(57,255,136,0.22)');
+    ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.fillRect(0, y - 70, W, 70);
+    ctx.fillStyle = GX.green; ctx.fillRect(0, y - 2, W, 3);
+    ctx.font = 'bold 12px monospace'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText('GC: FREEING MEMORY…', W - 10, y - 6);
+  }
+  if (g.hang > 0 && b.dying <= 0) { // NOT RESPONDING: a busy spinner over its head
+    const R = 14, cx = b.x, cy = b.y - b.r - 32;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + t * 9; ctx.globalAlpha = 0.2 + i / 8 * 0.8; ctx.fillStyle = GX.white; ctx.fillRect(Math.round(cx + Math.cos(a) * R) - 2, Math.round(cy + Math.sin(a) * R) - 2, 4, 4); }
+    ctx.globalAlpha = 1; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = GX.white;
+    ctx.fillText('(Not Responding)', cx, cy - R - 6);
+  }
+  if (!b.entered && !b.final) { // downloading: blocks of it fly in from everywhere and lock into place
+    const p = easeOut(b.intro || 0), cy = Math.max(b.y, -20);
+    for (let i = 0; i < 30; i++) {
+      const a = (i * 2.39996 + g.seed) % TAU, d0 = b.r * (3 + i % 5), d1 = b.r * 0.12 * (i % 7), d = d0 + (d1 - d0) * p, s = 4 + (i % 3) * 2;
+      ctx.globalAlpha = 0.25 + p * 0.65; ctx.fillStyle = i % 3 === 0 ? GX.white : i % 3 === 1 ? GX.green : b.color;
+      ctx.fillRect(Math.round(b.x + Math.cos(a) * d - s / 2), Math.round(cy + Math.sin(a) * d * 0.8 - s / 2), s, s);
+    }
+  }
+  if (b.dying > 0) { // it stopped working: its error box, and pixels pouring off the line where it's being deleted
+    const p = 1 - b.dying / DEATH_TIME;
+    if (p < 0.93) drawErrWindow(b.x, Math.max(70, b.y - b.r - 72), -1, `${b.title || b.name} has stopped working`, 1.6);
+    const wy = b.y - b.r + 2 * b.r * gxWipe(p);
+    if (gxWipe(p) > 0 && gxWipe(p) < 1) for (let i = 0; i < 3; i++) gxDrip(b.x + (Math.random() - 0.5) * b.r * 1.8, wy, Math.random() < 0.5 ? b.color : GX.white);
+  }
+  ctx.restore();
+}
+// a corruption step: the whole screen breaks up into big pixels for a moment
+function drawGlitchSpike() {
+  if (settings.calm) return;
+  const k = Math.max(0, ...bosses.map(b => b.gx?.spike || 0)) / 0.5;
+  if (k <= 0) return;
+  mosaicRect(gxGrab(0, 0, W, H), 0, 0, W, H, 8 + k * 14);
+  ctx.save(); ctx.globalAlpha = 0.2 * k; ctx.fillStyle = GX.green;
+  for (let i = 0; i < 5; i++) ctx.fillRect(0, Math.round(Math.random() * H), W, 2 + Math.round(Math.random() * 5));
+  ctx.restore();
+}
+
+// ----- drawing GLITCH enemies, bugs and error boxes -----
+// downloading in: it's revealed top down behind a scan line, with a little progress bar (true: it drew it)
+function drawGlitchDownload(e) {
+  const age = time - (e.born ?? -9);
+  if (age < 0 || age >= GX_DL) return false;
+  const p = age / GX_DL, r = e.r * 1.6, top = e.y - r, h = r * 2 * p;
+  e._dl = true; ctx.save(); ctx.beginPath(); ctx.rect(e.x - r * 2, top, r * 4, h); ctx.clip(); drawEnemy(e); ctx.restore(); e._dl = false;
+  ctx.save(); ctx.shadowBlur = 0; ctx.globalAlpha = 0.9; ctx.fillStyle = GX.green;
+  ctx.fillRect(Math.round(e.x - r), Math.round(top + h - 1), Math.round(r * 2), 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(Math.round(e.x - r), Math.round(e.y + r + 3), Math.round(r * 2), 3);
+  ctx.fillStyle = GX.green; ctx.fillRect(Math.round(e.x - r), Math.round(e.y + r + 3), Math.round(r * 2 * p), 3);
+  ctx.restore();
+  return true;
+}
+// on top of a GLITCH enemy: a hole in its memory, scanlines, its bug's name, and what its bug is up to
+function drawGlitchEnemyFx(e) {
+  if (e.type === 'shell' || e.type === 'puddle' || e.type === 'bolt' || time - (e.born ?? -9) < GX_DL) return;
+  if (e.type === 'mimic' && e.state === 'disguise') return; // (don't give it away)
+  const r = e.r, t = time, k = gxTrait(e);
+  ctx.save(); ctx.shadowBlur = 0;
+  ctx.save(); ctx.beginPath(); ctx.arc(e.x, e.y, r * 0.95, 0, TAU); ctx.clip();
+  const s = Math.max(4, Math.round(r * 0.6));
+  checker(Math.round(e.x + Math.sin(t * 0.8 + e.id) * r * 0.42 - s / 2), Math.round(e.y + Math.cos(t * 0.6 + e.id * 1.7) * r * 0.42 - s / 2), s, s, Math.max(2, Math.round(s / 3)));
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; for (let y = e.y - r + (t * 12) % 3; y < e.y + r; y += 3) ctx.fillRect(Math.round(e.x - r), Math.round(y), Math.round(r * 2), 1);
+  ctx.restore();
+  if (k) {
+    ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.globalAlpha = 0.85;
+    ctx.fillStyle = k === 'oc' && e.gv > 0 ? GX.amber : GX.green; ctx.fillText(GX_TAG[k], e.x, e.y - r - 5);
+  }
+  if (k === 'buf') { // its buffer, filling up
+    const w = Math.round(r * 1.7); ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(Math.round(e.x - w / 2), Math.round(e.y + r + 4), w, 4);
+    ctx.fillStyle = e.gv > 0.7 ? GX.amber : GX.green; ctx.fillRect(Math.round(e.x - w / 2), Math.round(e.y + r + 4), Math.round(w * Math.min(1, e.gv || 0)), 4);
+  }
+  if (k === 'oc' && e.gv > 0) { // heating up, then OVERCLOCKED
+    const on = e.gv >= 2;
+    ctx.globalAlpha = on ? 0.95 : 0.25 + e.gv * 0.55; ctx.strokeStyle = GX.amber; ctx.lineWidth = on ? 3 : 2; glow(GX.amber, 14);
+    ctx.beginPath(); ctx.arc(e.x, e.y, r + 5 + (on ? Math.sin(t * 40) * 1.5 : 0), 0, TAU); ctx.stroke();
+    if (on) { ctx.shadowBlur = 0; ctx.globalAlpha = 0.5; ctx.fillStyle = GX.amber; for (let i = -1; i <= 1; i++) ctx.fillRect(Math.round(e.x + i * r * 0.6), Math.round(e.y - r * 2.2), 2, Math.round(r)); }
+  }
+  ctx.restore();
+  if (!settings.lowfx && Math.random() < 0.03) gxDrip(e.x + (Math.random() - 0.5) * r, e.y + r * 0.6, Math.random() < 0.5 ? e.color : GX.green);
+}
+function drawBug(e) { // a little pixel beetle; its legs scuttle while it runs
+  const u = Math.max(1.6, e.r / 4.5), leg = e.state === 'run' ? Math.floor(time * 20) % 2 : 0, c = e.flash > 0 ? '#ffffff' : GX.green;
+  ctx.save(); ctx.translate(Math.round(e.x), Math.round(e.y)); ctx.rotate((e.aimA ?? Math.PI / 2) + Math.PI / 2); ctx.shadowBlur = 0;
+  const px = (x, y, w = 1, h = 1) => ctx.fillRect(x * u, y * u, w * u, h * u);
+  ctx.fillStyle = 'rgba(57,255,136,0.18)'; px(-5, -6, 10, 12);
+  ctx.fillStyle = c;
+  for (const [y, s] of [[-1, 0], [1, 1], [3, 0]]) { const o = s ^ leg ? 1 : 0; px(-5, y - o, 2, 1); px(3, y + o - 1, 2, 1); } // (legs)
+  px(-3, -6, 1, 2); px(2, -6, 1, 2); // (antennae)
+  px(-2, -4, 4, 2); px(-3, -2, 6, 6); // (head and body)
+  ctx.fillStyle = GX.void; px(-0.5, -1.5, 1, 5.5); // (the split between its wing cases)
+  ctx.fillStyle = GX.white; px(-2, -4); px(1, -4); // (eyes)
+  ctx.restore();
+}
+function drawErrBox(e) { drawErrWindow(e.x, e.y, 1 - Math.max(0, e.timer) / GX_ERR_T, 'Not Responding', 0.75); }
+// the Endless sky, now and then: a patch of it breaks into big pixels for a moment, a scanline rolls by, a dead pixel
+const skyGlitch = [];
+function drawGlitchCorruption() {
+  if (settings.lowfx) return;
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.fillStyle = 'rgba(57,255,136,0.03)'; ctx.fillRect(0, Math.round((t * 45) % (H + 200)) - 100, W, 60); ctx.restore();
+  if (Math.random() < 0.012 && !skyGlitch.length) { const w = 60 + Math.random() * 240, h = 20 + Math.random() * 90; skyGlitch.push({ x: Math.random() * (W - w), y: Math.random() * (H - h), w, h, cell: 7 + Math.random() * 10, life: 0.35 + Math.random() * 0.4 }); }
+  for (const s of skyGlitch) { mosaicRect(gxGrab(s.x, s.y, s.w, s.h), s.x, s.y, s.w, s.h, s.cell); s.life -= 1 / 60; }
+  for (let i = skyGlitch.length - 1; i >= 0; i--) if (skyGlitch[i].life <= 0) skyGlitch.splice(i, 1);
+  if (Math.random() < 0.15) { ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = Math.random() < 0.5 ? GX.white : GX.green; ctx.fillRect(Math.round(Math.random() * W), Math.round(Math.random() * H), 2, 2); ctx.restore(); }
+}
+ENEMY_AI.gbug = (e, dt) => { // a BUG: scuttles at the nearest player in short dashes, then gives up after a while
+  if ((e.life = (e.life ?? 11) - dt) <= 0) { e.dead = true; gxPixels(e.x, e.y, e.r, GX.green, 5); return; }
+  if ((e.timer -= dt) > 0) return;
+  if (e.state === 'run') { e.state = 'wait'; e.timer = 0.25 + Math.random() * 0.25; e.vx = e.vy = 0; return; }
+  const p = nearestPlayer(e.x, e.y), a = (p ? Math.atan2(p.y - e.y, p.x - e.x) : Math.PI / 2) + (Math.random() - 0.5) * 1.1;
+  e.state = 'run'; e.timer = 0.35 + Math.random() * 0.15; e.aimA = a; e.vx = Math.cos(a) * 230; e.vy = Math.sin(a) * 230;
+};
+ENEMY_AI.gerr = (e, dt) => { // a crashed enemy's error box: it waits, then bursts
+  e.vx = e.vy = 0;
+  if ((e.timer -= dt) > 0 || e.dead) return;
+  e.dead = true;
+  const off = Math.random() * TAU;
+  for (let i = 0; i < 7; i++) { const a = off + i / 7 * TAU; eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, r: 5, color: GX_PIX }); }
+  gxPixels(e.x, e.y, 24, GX.amber, 10); beep(160, 0.15, 'square', 0.04, -90);
+};
 // what the glitches look like: the strip's warning and its tear, and the flipped-controls banner
 function drawGlitchFx() {
   if (!inRun() || run.zone !== 'glitch') return;
   const tr = run.tear, t = performance.now() / 1000;
   ctx.save();
   if (tr) {
-    if (tr.t < GLITCH_WARN) { // warning: the strip's edges flicker in magenta and cyan
+    if (tr.t < GLITCH_WARN) { // warning: the strip's edges blink in amber
       ctx.globalAlpha = 0.35 + 0.35 * (Math.floor(t * 14) % 2);
-      ctx.fillStyle = 'rgba(255,61,242,0.12)'; ctx.fillRect(0, tr.y, W, tr.h);
-      ctx.fillStyle = '#ff3df2'; ctx.fillRect(0, tr.y, W, 2); ctx.fillStyle = '#7df9ff'; ctx.fillRect(0, tr.y + tr.h - 2, W, 2);
-      ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ff3df2';
+      ctx.fillStyle = 'rgba(255,181,46,0.1)'; ctx.fillRect(0, tr.y, W, tr.h);
+      ctx.fillStyle = GX.amber; ctx.fillRect(0, tr.y, W, 2); ctx.fillRect(0, tr.y + tr.h - 2, W, 2);
+      ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = GX.amber;
       ctx.fillText('⚠ TEAR', 10, tr.y + 12);
-    } else { // torn: bars of shifted color and noise across the strip
-      ctx.globalCompositeOperation = 'lighter';
-      for (let y = tr.y; y < tr.y + tr.h; y += 6) {
-        const off = (Math.random() - 0.5) * 60;
-        ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,61,242,0.22)' : 'rgba(125,249,255,0.22)';
-        ctx.fillRect(off + (tr.dx > 0 ? 0 : -20), y, W + 20, 3 + Math.random() * 3);
-      }
+    } else { // torn: the strip breaks up into big pixels, with green scanlines through it
+      mosaicRect(gxGrab(0, tr.y, W, tr.h), 0, tr.y, W, tr.h, 10);
+      ctx.globalAlpha = 0.22; ctx.fillStyle = GX.green;
+      for (let y = tr.y + (t * 40) % 6; y < tr.y + tr.h; y += 6) ctx.fillRect(0, Math.round(y), W, 1);
     }
   }
   if ((run.flipT || 0) > 0) { // the banner while controls are flipped
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    glow('#ff3df2', 14); ctx.fillStyle = Math.floor(t * 6) % 2 ? '#ff3df2' : '#ffffff';
-    ctx.fillText(`⇄ CONTROLS FLIPPED  ${run.flipT.toFixed(1)}s`, W / 2 + (Math.random() - 0.5) * 3, H - 70);
+    glow(GX.amber, 14); ctx.fillStyle = Math.floor(t * 6) % 2 ? GX.amber : '#ffffff';
+    ctx.fillText(`⇄ CONTROLS FLIPPED  ${run.flipT.toFixed(1)}s`, W / 2, H - 70);
   }
   ctx.restore();
 }
@@ -11613,6 +12277,7 @@ function draw() {
   ctx.globalAlpha = 1;
   drawWarpFx();
   if (inRun()) drawWorld();
+  if (inRun() && bosses.some(b => b.gx?.spike > 0)) drawGlitchSpike();
   drawGlitchFx();
   // particles shrink as they fade, so they can all be batched without per-particle alpha
   drawGlowDots(particles.map(p => ({ x: p.x, y: p.y, r: p.size * 0.55 * Math.max(0.15, p.life / p.max), color: p.color })), false);
@@ -11666,7 +12331,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.3';
+const BUILD = '2026.10.03.4';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -11933,7 +12598,7 @@ function packSnap() {
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
-      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.glitch ? 1 : 0]),
+      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.gt || 0, r2(e.gv || 0)]),
     ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color, l.flare ? 1 : 0]),
@@ -11967,7 +12632,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -12277,7 +12942,8 @@ function applySnap(s) {
     const type = TYPE_LIST[a[0]], id = a[21], old = byId.get(id);
     const e = Object.assign(old || { x: a[1], y: a[2] }, { type, vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9],
       spin: a[10], aimA: a[11], state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17],
-      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined, glitch: a[23] === 1 });
+      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined,
+      gt: okIdx(a[23], GX_LOOK + 1) ? a[23] : 0, gv: num(a[24], 0, 2, 0), ...(old ? {} : { born: time }) }); // (a GLITCH enemy's bug, and when it started downloading)
     let tr = net.etr.get(id); if (!tr) net.etr.set(id, tr = newTrack());
     trackPush(tr, s.ts, [a[1], a[2]]); seen.add(id);
     return e;
@@ -12361,6 +13027,7 @@ function replayEvent(ev) {
     case 'h': if (isMine(ev[1])) { hurtFlash = Math.max(hurtFlash, ev[2]); if (touchMode) navigator.vibrate?.(40); if (padSeen) rumble(140, 0.7); } break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
     case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
+    case 'px': gxPixels(num(ev[1], -200, 10000, 0), num(ev[2], -200, 10000, 0), num(ev[3], 0, 1000, 10), String(ev[4]).slice(0, 9), Math.round(num(ev[5], 0, 60, 8)), false); break; // (GLITCH pixel debris)
     case 'a': // an ability's beam or dash trail
       if (abFx.length < 30 && AB_FX_LIFE[ev[1]] && typeof ev[1] === 'string') abFx.push({ a: ev.slice(1, 7).map(v => typeof v === 'number' ? num(v, -5000, 5000, 0) : String(v).slice(0, 24)), life: AB_FX_LIFE[ev[1]], max: AB_FX_LIFE[ev[1]] });
       break;
@@ -12404,7 +13071,7 @@ function guestFrame(dt) {
   if (state === 'play' && !paused) {
     time += dt;
     for (const e of enemies) { e.t += dt; e.spin += dt * 2; }
-    for (const b of bosses) b.t += dt;
+    for (const b of bosses) if (!(b.gx?.hang > 0)) b.t += dt; // (a GLITCH that's NOT RESPONDING stays frozen)
     for (const pp of popups) { pp.life -= dt; pp.y -= 45 * dt; }
     for (const p of players) { p.abCd = Math.max(0, (p.abCd || 0) - dt); p.abOn = Math.max(0, (p.abOn || 0) - dt); } // (counting down between updates)
     if (hint) hint.life -= dt;
