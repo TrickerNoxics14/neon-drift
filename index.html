@@ -1820,7 +1820,8 @@ function shuffle(a) {
 const stars = Array.from({ length: 160 }, () => ({ x: Math.random(), y: Math.random(), z: Math.random() * 0.8 + 0.2 }));
 
 // players 1-4 (local and online), 5-8 (online only)
-const P_COLORS = ['#7df9ff', '#9dff5d', '#ff9a3d', '#c08dff', '#ff6fd8', '#ffe93d', '#3d8dff', '#e8e8ff'];
+const P_COLORS = ['#7df9ff', '#9dff5d', '#ff9a3d', '#c08dff', '#ff6fd8', '#ffe93d', '#3d8dff', '#e8e8ff',
+  '#ff5a5a', '#5dffc8', '#b8ff3d', '#ff9dd0', '#3dfff2', '#ffb8a0', '#a0a8ff', '#d8c8a0']; // (players 9-16: online only)
 
 // ---------- ship classes ----------
 // Every ship is free to fly. Each also has a MK II: a stronger version with an upgraded model, bought
@@ -2608,7 +2609,7 @@ const GUARD_RANGE = 140;
 const orbiterBall = (e, k) => { const a = e.t * 3 + k * Math.PI * 2 / 3; return { x: e.x + Math.cos(a) * 36, y: e.y + Math.sin(a) * 36 }; };
 
 // height of each player's line in the HUD's top-right list (compact for 5-8 online players)
-const hudRowH = () => players.length > 4 ? 20 : 48;
+const hudRowH = () => players.length > 8 ? 13 : players.length > 4 ? 20 : 48;
 
 const turnToward = (a, want, max) => {
   const d = ((want - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -5705,7 +5706,7 @@ function update(dt) {
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
     const seq0 = enemyIdSeq; spawnEnemy();
     if (glitchWorld()) for (const e of enemies) if (e.id > seq0) { e.glitch = true; e.born = time; } // (GLITCH variants of every enemy)
-    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'))
+    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
   }
@@ -9476,6 +9477,7 @@ function drawDokiMeter(b) {
 
 // ---------- draw: HUD & screens ----------
 function drawHUD() {
+  if (net.role === 'guest' && net.rtt) { ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = 'bold 11px system-ui'; ctx.fillStyle = net.rtt < 120 ? '#5dff7a' : net.rtt < 250 ? '#ffe93d' : '#ff5a70'; ctx.fillText('PING ' + Math.round(net.rtt) + ' ms', 16, H - 8); }
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
@@ -9491,7 +9493,7 @@ function drawHUD() {
   const compactHud = players.length > 4; // online 5-8 players: one short line each
   players.forEach((p, i) => {
     const y = 14 + i * hudRowH();
-    ctx.font = compactHud ? '15px system-ui' : '20px system-ui'; ctx.fillStyle = p.alive ? p.color : '#556';
+    ctx.font = compactHud ? (players.length > 8 ? '11px system-ui' : '15px system-ui') : '20px system-ui'; ctx.fillStyle = p.alive ? p.color : '#556';
     const label = mode > 1 ? `P${p.id + 1} ` : '';
     ctx.fillText(p.alive ? label + '♥'.repeat(p.lives) + '♡'.repeat(Math.max(0, maxLivesOf(p) - p.lives)) : label + (p.gone ? 'LEFT' : 'DOWN'), W - 16, y);
     if (compactHud) return;
@@ -11711,8 +11713,8 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.2';
-const PEER_PREFIX = 'neondrift-v5-'; // bumped when the online protocol changes, so old and new versions don't mix
+const BUILD = '2026.10.03.3';
+const PEER_PREFIX = 'neondrift-v6-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
 // (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
@@ -11732,7 +11734,10 @@ async function iceConfig() {
   return { iceServers };
 }
 const SNAP_RATE = 0.05, INPUT_RATE = 0.033;
-const MAX_ONLINE = 8; // players in an online room (local co-op stays at 4)
+const MAX_ONLINE = 16; // players in an online room (local co-op stays at 4)
+// snapshots are split into pieces small enough for PeerJS (it refuses messages over about 16KB, and a busy fight's snapshot is bigger);
+// far-away players' ships get a slightly smaller hitbox on the host, to make up for the delay
+const SNAP_PIECE = 8000, REMOTE_HITBOX = 0.8;
 const TYPE_LIST = Object.keys(TYPES);
 
 // ----- checking what comes in from other computers -----
@@ -11784,7 +11789,7 @@ function leaveOnline(msg) {
 
 // ----- host -----
 async function hostGame() {
-  Object.assign(net, { role: 'host', conns: [], slots: hostSlots(), mine: Array.from({ length: net.localN }, (_, k) => k), myId: 0,
+  Object.assign(net, { role: 'host', conns: [], ctlSeq: 0, slots: hostSlots(), mine: Array.from({ length: net.localN }, (_, k) => k), myId: 0,
     status: 'Connecting to the matchmaking server…', code: '',
     public: net.wantPublic ?? true, roomName: randomRoomName() });
   go('lobby');
@@ -11834,10 +11839,12 @@ function onHello(conn, h) {
   lateJoin(conn, ids.map((id, k) => slot(k)));
 }
 function broadcastLobby() {
-  for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType, curses: cleanCurses(meta.curseSel) }, you: c.slots });
+  net.ctlSeq = (net.ctlSeq || 0) + 1;
+  for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType, curses: cleanCurses(meta.curseSel) }, you: c.slots, seq: net.ctlSeq });
 }
 function onHostData(conn, d) {
   if (!d || typeof d !== 'object') return;
+  if (typeof d.ping === 'number') { conn.send({ pong: d.ping }); return; } // (a guest measuring its ping)
   if (d.hello) { onHello(conn, d.hello); return; }
   if (!conn.slots) return;
   const k = d.k ?? 0; // which of their players this is about — only ever one of their own
@@ -11876,13 +11883,14 @@ function lateJoin(conn, slots) {
   conn.slots.forEach((id, k) => {
     net.slots[id] = slots[k];
     const p = makePlayer(id, W * (0.2 + Math.random() * 0.6), slots[k].ship, slots[k].cos);
-    p.remote = true; p.inv = 3;
+    p.remote = true; p.inv = 3; p.r *= REMOTE_HITBOX;
     players[id] = p;
     for (const c of net.conns) if (c !== conn && c.open) c.send({ addPlayer: { id, ship: slots[k].ship, cos: p.cos } });
     fxText(`P${id + 1} JOINED!`, W / 2, H * (0.3 + k * 0.06), P_COLORS[id], 26, 2);
   });
   mode = players.length;
-  conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: conn.slots } });
+  net.ctlSeq = (net.ctlSeq || 0) + 1;
+  conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: conn.slots }, seq: net.ctlSeq });
   [523, 784].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.06), i * 100));
 }
 function onGuestLeft(conn) {
@@ -11906,7 +11914,9 @@ function startOnline() {
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = !isMine(i));
   net.playing = true; net.sendT = 0; net.events = [];
-  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slots } }); // (you: slots may have been renumbered)
+  for (const p of players) if (p.remote) p.r *= REMOTE_HITBOX; // (latency forgiveness)
+  net.ctlSeq = (net.ctlSeq || 0) + 1;
+  for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slots }, seq: net.ctlSeq }); // (you: slots may have been renumbered)
 }
 // drop the slots of anyone who disconnected, and renumber everyone else (the host's own slots stay first)
 function compactSlots() {
@@ -11986,9 +11996,10 @@ function packBullets(s) {
 }
 function hostTick(dt) {
   if ((net.sendT -= dt) > 0) return;
-  net.sendT = SNAP_RATE; net.snapN++;
-  const snap = { snap: packSnap() };
-  for (const c of net.conns) if (c.open) c.send(snap);
+  const g = net.conns.length;
+  net.sendT = g > 8 ? 0.083 : g > 4 ? 0.066 : SNAP_RATE; net.snapN++; // (more guests: a little less often, so the host's upload keeps up)
+  const json = JSON.stringify(packSnap()), parts = Math.ceil(json.length / SNAP_PIECE);
+  for (let i = 0; i < parts; i++) { const msg = { sc: [net.snapN, i, parts, json.slice(i * SNAP_PIECE, (i + 1) * SNAP_PIECE)] }; for (const c of net.conns) if (c.open) c.send(msg); }
 }
 
 // ----- guest -----
@@ -12008,6 +12019,7 @@ function keepAlive(peer, onLost) {
 const JOIN_WAIT = 12, JOIN_TRIES = 3; // seconds per try, and how many tries
 const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi) can block online play: once the game has loaded, try turning the VPN off on both computers, or try another network.';
 async function joinGame(code, attempt = 1) {
+  Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0 });
   Object.assign(net, { role: 'guest', status: attempt > 1 ? `Still connecting… (try ${attempt} of ${JOIN_TRIES})` : 'Connecting…', slots: [], myId: 0, mine: [], joinFail: null, lastCode: code });
   go('lobby');
   const failed = msg => { net.status = msg; net.joinFail = code; net.peer = null; };
@@ -12026,7 +12038,7 @@ async function joinGame(code, attempt = 1) {
   };
   const timer = setTimeout(() => giveUp(), JOIN_WAIT * 1000);
   peer.on('open', () => {
-    const conn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
+    const conn = peer.connect(PEER_PREFIX + code, { reliable: false, serialization: 'json' }) /* (unordered: no stalls behind a late message) */;
     net.host = conn;
     conn.on('open', () => { // say hello: how many of us share this computer, and our ships
       opened = true; clearTimeout(timer);
@@ -12047,6 +12059,19 @@ const okSize = (w, h) => Number.isFinite(w) && Number.isFinite(h) && w >= 200 &&
 const cleanMine = you => [].concat(you).filter(i => okIdx(i, MAX_ONLINE)).slice(0, 4);
 function onGuestData(d) {
   if (!d || typeof d !== 'object') return;
+  if (typeof d.pong === 'number') { const r = performance.now() - d.pong; if (r >= 0 && r < 5000) net.rtt = net.rtt ? net.rtt * 0.7 + r * 0.3 : r; return; }
+  if (Array.isArray(d.sc)) { // a piece of a snapshot: put them back together, newest wins (older ones that arrive late are dropped)
+    const [sn, i, parts, piece] = d.sc;
+    if (!Number.isInteger(sn) || !Number.isInteger(parts) || parts < 1 || parts > 64 || !okIdx(i, parts) || typeof piece !== 'string' || sn <= (net.lastSn || 0)) return;
+    const asm = net.asm ||= {}, e = asm[sn] ||= { parts: [], got: 0 };
+    if (e.parts[i] === undefined) { e.parts[i] = piece; e.got++; }
+    if (e.got < parts) { for (const k in asm) if (+k < sn - 10) delete asm[k]; return; }
+    for (const k in asm) if (+k <= sn) delete asm[k];
+    net.lastSn = sn;
+    if (net.playing && run) applySnap(JSON.parse(e.parts.join('')));
+    return;
+  }
+  if ((d.lobby || d.start) && typeof d.seq === 'number') { if (d.seq < (net.ctlSeq || 0)) return; net.ctlSeq = d.seq; }
   if (d.full) { leaveOnline('That game is full or already running'); return; }
   if (d.lobby) {
     if (!Array.isArray(d.lobby.slots)) return;
@@ -12063,7 +12088,7 @@ function onGuestData(d) {
     if (RUN_TYPES.includes(st.runType)) runType = st.runType;
     net.hostW = st.w; net.hostH = st.h;
     net.playing = true; net.rewarded = false; resize();
-    Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
+    Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map(), lastSn: 0, asm: {}, lastArr: 0, gapAvg: undefined, gapDev: 0 });
     const cos = Array.isArray(st.cos) ? st.cos : [];
     start(n, Array.from({ length: n }, (_, i) => cleanShip(st.ships[i])), Array.from({ length: n }, (_, i) => cleanCos(cos[i])));
     players.forEach((p, i) => p.remote = !isMine(i));
@@ -12217,6 +12242,9 @@ function applySnap(s) {
   if (!okSize(s.w, s.h)) return;
   if (s.w !== net.hostW || s.h !== net.hostH) { net.hostW = s.w; net.hostH = s.h; resize(); }
   net.soff = clockOffset(net.soff, s.ts); net.lastTs = s.ts;
+  const arr = performance.now();
+  if (net.lastArr) { const gp = arr - net.lastArr; net.gapAvg = (net.gapAvg ?? gp) * 0.9 + gp * 0.1; net.gapDev = (net.gapDev || 0) * 0.9 + Math.abs(gp - net.gapAvg) * 0.1; }
+  net.lastArr = arr; net.interp = Math.max(90, Math.min(300, (net.gapAvg || 50) * 1.6 + (net.gapDev || 0) * 3 + 30)); // (bumpier connection: draw a little further back)
   if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over' || s.st === 'route') sel = 0; state = s.st; menuOpen = false; }
   paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t;
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
@@ -12335,13 +12363,14 @@ function guestFrame(dt) {
     if (pad.face >= 0 && dokiAsking()) { answerDoki(pad.face); return; }
     if (pad.ab && i < net.mine.length) localAbility(i);
   });
+  if ((net.pingT = (net.pingT ?? 0) - dt) <= 0 && net.host?.open) { net.pingT = 1; net.host.send({ ping: Math.round(performance.now()) }); }
   updateBackground(dt); updateAchBanner(dt); updateMusicFilter();
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
   if (run?.warp && state === 'play' && !paused) run.warp.t += dt; // (glide along between snapshots)
   if (net.soff !== undefined) {
     // "now" and "a moment ago" on the host's clock
-    const hostNow = performance.now() - net.soff, rt = hostNow - INTERP_DELAY;
+    const hostNow = performance.now() - net.soff, rt = hostNow - (net.interp || INTERP_DELAY);
     // enemies, bosses and other players glide between updates
     for (const e of enemies) { const v = trackAt(net.etr.get(e.id), rt); if (v) { e.x = v[0]; e.y = v[1]; } }
     for (const b of bosses) { const v = trackAt(net.btr.get(b.name), rt); if (v) { b.x = v[0]; b.y = v[1]; } }
@@ -12352,7 +12381,9 @@ function guestFrame(dt) {
     // bullets move in straight lines: draw them where they are right now (fair dodging), capped if updates stall
     const since = t0 => Math.min(0.25, Math.max(0, (hostNow - t0) / 1000));
     for (const b of bullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
-    for (const b of eBullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
+    // enemy bullets are drawn a little ahead, where they'll be when the host checks them against my ship (fair dodging from far away)
+    const lead = Math.min(0.3, ((net.rtt || 0) + HOST_INTERP_DELAY) * 0.75 / 1000);
+    for (const b of eBullets) { const k = since(b.t0) + lead; b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
     for (const k of pickups) if (k.kind !== 'gold') k.y = k.y0 + 90 * since(k.t0);
   }
   if (state === 'play' && !paused) {
@@ -12573,21 +12604,23 @@ function drawLobby() {
     fitText('ROOM CODE', 128, 13, '#9dff5d', 'bold');
     glow('#9dff5d', 20); fitText(net.code.split('').join(' '), 166, 44, '#ffffff', '900'); ctx.shadowBlur = 0;
   }
-  // 8 slots in two columns of 4
-  const gap = 10, full = Math.min(760, W - 32), cw = (full - gap) / 2, x0 = (W - full) / 2, top = host ? 204 : 128, rh = 48;
+  // 16 slots: four columns of 4 on wide screens, two shorter columns of 8 otherwise
+  const cols = W >= 1000 ? 4 : 2, per = MAX_ONLINE / cols, gap = 10, top = host ? 204 : 128;
+  const full = Math.min(cols === 4 ? 1100 : 760, W - 32), cw = (full - gap * (cols - 1)) / cols, x0 = (W - full) / 2;
+  const rh = cols === 4 ? 48 : Math.max(30, Math.min(48, (H - top - 190) / per - 6)), sc = rh / 48;
   for (let i = 0; i < MAX_ONLINE; i++) {
     const s = net.slots[i], c = P_COLORS[i];
-    const rx = x0 + Math.floor(i / 4) * (cw + gap), y = top + (i % 4) * (rh + 8);
+    const rx = x0 + Math.floor(i / per) * (cw + gap), y = top + (i % per) * (rh + 6);
     panel(rx, y, cw, rh, s ? c : '#334', isMine(i));
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = s ? c : '#556'; ctx.font = 'bold 14px system-ui';
-    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`, rx + 50, y + 16);
-    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = '12px system-ui';
-    ctx.fillText(s ? shipById(s.ship).name + (isMine(i) ? '  · click to change' : '') : 'open slot…', rx + 50, y + 33);
-    if (s) { ctx.save(); ctx.translate(rx + 25, y + 24); ctx.scale(0.65, 0.65); drawHull(shipById(s.ship).shape, c, 0, hullTier(shipById(s.ship)), s.cos?.skin); ctx.restore(); }
+    ctx.fillStyle = s ? c : '#556'; ctx.font = `bold ${Math.round(14 * Math.max(0.8, sc))}px system-ui`;
+    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`, rx + 50 * sc + 4, y + rh * 0.33, cw - 56);
+    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = `${Math.round(12 * Math.max(0.8, sc))}px system-ui`;
+    ctx.fillText(s ? shipById(s.ship).name + (isMine(i) ? '  · click to change' : '') : 'open slot…', rx + 50 * sc + 4, y + rh * 0.7, cw - 56);
+    if (s) { ctx.save(); ctx.translate(rx + 25 * sc, y + rh / 2); ctx.scale(0.65 * sc, 0.65 * sc); drawHull(shipById(s.ship).shape, c, 0, hullTier(shipById(s.ship)), s.cos?.skin); ctx.restore(); }
     if (isMine(i) && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true, net.mine.indexOf(i)) }); // click your own slot to pick a ship
   }
-  const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+  const by = top + per * (rh + 6) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
   const lobbyCurses = host ? cleanCurses(meta.curseSel) : net.hostCurses || [];
   fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  🌀 ${lobbyCurses.length} TURBULENCE (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  turbulence [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"${dir.serving || dir.conn?.open ? '' : ' (getting listed…)'}` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   if (!host && net.joinFail) button('TRY AGAIN  [Enter]', bx, by + 20, bw, 40, '#7df9ff', () => joinGame(net.joinFail)); // (joining didn't work)

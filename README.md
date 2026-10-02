@@ -1,6 +1,6 @@
 # Project-ND
 
-A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or online co-op for up to 8 friends.
+A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or online co-op for up to 16 friends.
 
 **▶ Play: https://trickernoxics14.github.io/neon-drift/**
 
@@ -12,6 +12,8 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**. Public games can be joined even after they start.
 
 Online play checks everything other players send. Nobody can control someone else's ship, crash the game with bad data, mess with your shards, or remove other people's games from the public list. The online library is only run if it matches its known fingerprint.
+
+Playing with friends far away (other countries) works better now: busy fights no longer freeze guests' screens, the game smooths things out more on bumpier connections, enemy bullets are shown where the host will check them so dodging feels fair, and guests see their PING in the bottom-left corner (green under 120 ms, yellow under 250, red above). With many players the host's internet upload matters most, so the player with the best connection should host.
 
 If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you have the same version, and know that a VPN or a strict network (like school Wi-Fi) can block the connection between two computers. The ONLINE CO-OP screen checks your connection and warns you if it looks blocked. Joining gives up with a message after a few tries instead of loading forever.
 
