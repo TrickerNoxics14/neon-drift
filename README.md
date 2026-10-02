@@ -23,8 +23,8 @@ Online play checks everything other players send. Nobody can control someone els
 ## Features
 
 9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
-8 upgrade evolutions · ships that evolve as you power up · co-op Link Beams · a mid-run shop · elite enemies · two secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 38 achievements · online quick chat (1–4) · an original soundtrack (below)
+8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · two secret bosses · 8 curses ·
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 39 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### Ship abilities
 
@@ -39,6 +39,12 @@ Every ship has one ability on a cooldown (the MK II's is stronger and comes back
 - **Wraith — Shadow Step:** phase out on demand and move 60% faster while phased.
 - **Carrier — Swarm:** a swarm of homing missiles.
 - **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
+
+Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind and Bloodthirst. A ship's card only shows up when someone is flying that ship.
+
+### Ship mastery
+
+Every ship levels up from 1 to 5 stars as you fly it, earning XP equal to the shards each run pays. Levels 2 to 4 pay bonus shards. Level 5 unlocks that ship's **Signature trail**, a twisting ribbon in its colors with ghost copies of the ship inside it. Equip it under Hangar → Skins & Cosmetics → Trails.
 
 ### Co-op: Link Beam
 
@@ -114,5 +120,15 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 - **Solar Corona:** solar flares blast down glowing columns.
 - **Derelict Fleet:** old turrets shoot at everything, enemies included.
 - **Prism Reach:** prisms split every shot in three, yours and theirs.
+
+**Elite zones:** from cycle 2 of Endless, every zone gets a second hazard on top of its own:
+- **Deep Space:** Starfall, with falling stars down marked columns.
+- **Shattered Belt:** meteors that shed burning rocks.
+- **Crimson Nebula:** lightning in long chains.
+- **Frozen Rings:** an ice storm sweeping across the screen.
+- **Solar Corona:** walls of flares with one gap.
+- **Derelict Fleet:** turrets that launch suicide drones.
+- **Prism Reach:** prisms that pulse out rings of light.
+- **Event Horizon:** a gravity tide that drags everything toward the black hole.
 
 The whole game is a single file: `index.html`.

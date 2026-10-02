@@ -804,7 +804,9 @@ const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet
 let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } }, abyssMark: false, abyssLosses: 0, curseSel: [] };
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: Number.isFinite(m.shards) ? Math.max(0, m.shards) : 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } }, seenAbyss: !!m.seenAbyss,
-  abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [] }; } catch (e) {}
+  abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [],
+  mastery: m.mastery && typeof m.mastery === 'object' ? m.mastery : {} }; } catch (e) {}
+meta.mastery ||= {}; // (mastery XP per ship, by its base id)
 const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
 
@@ -838,6 +840,8 @@ const COSMETICS = [
   { id: 'trail_rainbow',  cat: 'trail',  name: 'Rainbow Road',  cost: 300, sw: RAINBOW },
   { id: 'trail_void',     cat: 'trail',  name: 'Abyssal Wake',  cost: 350, sw: ['#000000', '#ff1f3d', '#000000'] },
   { id: 'trail_gold',     cat: 'trail',  name: 'Gold Dust',     cost: 400, sw: ['#fff3b0', '#ffd23d', '#c9a227'] },
+  // each ship's own trail, earned by mastering it (on a ship you haven't mastered yet it falls back to a plain comet)
+  { id: 'trail_signature', cat: 'trail', name: 'Signature',     cost: 0,   sw: ['#ffd23d', '#ffffff', '#ffd23d'], mastery: true, reqText: 'Master any ship' },
   { id: 'bullet_default', cat: 'bullet', name: 'Ship Color',    cost: 0,   sw: ['#7df9ff'] },
   { id: 'bullet_white',   cat: 'bullet', name: 'White Hot',     cost: 150, sw: ['#ffffff'], color: '#ffffff' },
   { id: 'bullet_toxic',   cat: 'bullet', name: 'Toxic',         cost: 200, sw: ['#9dff3d'], color: '#9dff3d' },
@@ -853,7 +857,7 @@ const COSMETICS = [
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
 const cosOwned = c => c.cost === 0 || !!meta.cos.owned[c.id];
-const cosLocked = c => c.req && !meta.ach[c.req] && !meta.cos.owned[c.id];
+const cosLocked = c => c.mastery ? !SHIPS.some(s => masteryLv(s.id) >= MASTERY_MAX) : c.req && !meta.ach[c.req] && !meta.cos.owned[c.id];
 // buy it if you can afford it, then equip it (equipping something you own is free)
 function useCosmetic(c) {
   if (cosLocked(c)) { beep(110, 0.15, 'square', 0.05); showToast(`Locked — ${c.reqText}`); return; }
@@ -885,11 +889,16 @@ function killBurst(e, big) {
 }
 // engine trails: each screen keeps its own short history of every ship's position (nothing goes over the network)
 function drawTrail(p) {
-  const style = cosOf(p).trail;
+  let style = cosOf(p).trail;
   if (style === 'trail_none' || !p.alive) { p.trailPts = null; return; }
   const pts = p.trailPts ||= [];
   pts.push([p.x, p.y + 12]); if (pts.length > 20) pts.shift();
   const t = performance.now() / 1000;
+  if (style === 'trail_signature') { // a mastered ship's own trail: a ribbon in its colors, with ghost copies of the ship in it
+    const sig = SIGNATURE[shipBase(p)];
+    if (sig && (p.remote || masteryLv(shipBase(p)) >= MASTERY_MAX)) { drawSignatureTrail(p, pts, sig, t); return; }
+    style = 'trail_comet';
+  }
   ctx.save(); ctx.lineCap = 'round';
   for (let i = 1; i < pts.length; i++) {
     const k = i / pts.length, [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
@@ -908,6 +917,48 @@ function drawTrail(p) {
     }
   }
   ctx.restore();
+}
+
+// ---------- ship mastery: every ship levels up (1-5) as you fly it; level 5 earns its Signature trail ----------
+const MASTERY_XP = [0, 150, 400, 800, 1400], MASTERY_MAX = 5, MASTERY_SHARDS = [0, 0, 50, 100, 150, 250]; // (shards for reaching each level)
+const masteryXp = id => meta.mastery?.[id] | 0;
+const masteryLv = id => MASTERY_XP.filter(x => masteryXp(id) >= x).length;
+// colors of each ship's Signature trail
+const SIGNATURE = { striker: ['#7df9ff', '#ffffff'], interceptor: ['#5dffc8', '#3d9dff'], juggernaut: ['#ffb13d', '#ff6a2d'], scatter: ['#ff5dc8', '#ffe93d'],
+  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'] };
+function drawSignatureTrail(p, pts, [c1, c2], t) {
+  ctx.save(); ctx.lineCap = 'round'; glow(c1, 12);
+  for (let i = 1; i < pts.length; i++) { // two twisting ribbons
+    const k = i / pts.length, [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    for (const [c, s] of [[c1, 1], [c2, -1]]) {
+      const w0 = Math.sin(t * 8 + (i - 1) * 0.6) * 6 * s * k, w1 = Math.sin(t * 8 + i * 0.6) * 6 * s * k;
+      ctx.globalAlpha = k * 0.8; ctx.strokeStyle = c; ctx.lineWidth = 1.5 + k * 3.5;
+      ctx.beginPath(); ctx.moveTo(x0 + w0, y0); ctx.lineTo(x1 + w1, y1); ctx.stroke();
+    }
+  }
+  ctx.shadowBlur = 0; ctx.lineWidth = 1.2;
+  const h = HULLS[p.ship.shape] || HULLS.striker;
+  for (let i = 3; i < pts.length; i += 5) { // fading ghosts of the ship itself
+    const k = i / pts.length, [x, y] = pts[i];
+    ctx.save(); ctx.translate(x, y - 12); ctx.scale(0.55, 0.55); ctx.globalAlpha = k * 0.45; ctx.strokeStyle = i % 2 ? c1 : c2;
+    ctx.beginPath(); for (const [hx, hy] of h.pts) ctx.lineTo(hx, hy); ctx.closePath(); ctx.stroke(); ctx.restore();
+  }
+  ctx.restore();
+}
+// after a run: XP for every ship this computer flew (the shards the run paid); returns the level-ups to show
+function gainMastery(ships, xp) {
+  const ups = [];
+  for (const id of new Set(ships)) {
+    if (!SIGNATURE[id] || xp <= 0) continue;
+    const before = masteryLv(id);
+    meta.mastery[id] = masteryXp(id) + Math.round(xp);
+    for (let lv = before + 1; lv <= masteryLv(id); lv++) {
+      meta.shards += MASTERY_SHARDS[lv]; ups.push({ id, lv });
+      if (lv >= MASTERY_MAX) unlockAch('master');
+    }
+  }
+  saveMeta();
+  return ups;
 }
 
 // ---------- achievements ----------
@@ -950,6 +1001,7 @@ const ACHIEVEMENTS = [
   { id: 'epic3',       cat: 'build', name: 'Epic Taste',          reward: 100, desc: 'Hold 3 different Epic upgrades in one run.' },
   { id: 'evolve',      cat: 'build', name: 'Final Form',          reward: 150, desc: 'Evolve your ship into its final form (18 upgrades in one run).' },
   { id: 'fleet',       cat: 'ship', name: 'Fleet Admiral',        reward: 100, desc: 'Own the MK II of every ship.', progress: () => [SHIPS.filter(mk2Owned).length, SHIPS.length] },
+  { id: 'master',      cat: 'ship', name: 'Master Pilot',         reward: 200, desc: 'Reach mastery 5 with any ship.', progress: () => [Math.max(...SHIPS.map(s => masteryLv(s.id))), MASTERY_MAX] },
   { id: 'versatile',   cat: 'ship', name: 'Versatile',            reward: 150, desc: 'Defeat bosses with 4 different ships (all-time).', progress: () => [Object.keys(meta.stats.bossShips).length, 4] },
 ];
 const achCount = () => ACHIEVEMENTS.filter(a => meta.ach[a.id]).length;
@@ -1018,6 +1070,21 @@ const UPGRADES = [
     when: () => run.s.maxLives > 1,
     apply: s => { s.dmg *= 2; s.maxLives = Math.max(1, s.maxLives - 2); for (const p of players) p.lives = Math.min(p.lives, maxLivesOf(p)); } },
   { id: 'phoenix',  name: 'Phoenix Core',     r: 'epic',   max: 1, desc: 'Survive one fatal hit, blasting the screen clear', apply: s => s.phoenix++ },
+  // ship abilities: four cards for every ship, and one per ship that changes how its own ability works (offered only
+  // while someone is flying that ship; never with the POWERLESS curse)
+  { id: 'ab_quick', name: 'Quick Charge',     r: 'common', max: 3, desc: 'Ship abilities recharge 15% faster', ab: true, apply: s => s.abCd *= 0.85 },
+  { id: 'ab_after', name: 'Aftershock',       r: 'rare',   max: 1, desc: 'Using an ability also fires a ring of bullets', ab: true, apply: s => s.abAfter = 1 },
+  { id: 'ab_adren', name: 'Adrenaline',       r: 'rare',   max: 1, desc: 'Using an ability makes you untouchable for 1.5s', ab: true, apply: s => s.abAdren = 1 },
+  { id: 'ab_kill',  name: 'Kill Charger',     r: 'epic',   max: 1, desc: 'Every kill takes 0.3s off your ability\'s cooldown', ab: true, apply: s => s.abKill = 1 },
+  { id: 'abm_striker', name: 'Mending Nova',   r: 'rare', max: 1, ship: 'striker',     desc: 'STRIKER: Nova Bomb also heals everyone 1 life', apply: s => s.abm_striker = 1 },
+  { id: 'abm_interceptor', name: 'Afterburner', r: 'rare', max: 1, ship: 'interceptor', desc: 'INTERCEPTOR: Dash leaves a trail of fire that burns enemies', apply: s => s.abm_interceptor = 1 },
+  { id: 'abm_juggernaut', name: 'Shockwave Fortress', r: 'rare', max: 1, ship: 'juggernaut', desc: 'JUGGERNAUT: when Fortress ends, it bursts in a shockwave that clears bullets', apply: s => s.abm_juggernaut = 1 },
+  { id: 'abm_scatter', name: 'Flak Storm',     r: 'rare', max: 1, ship: 'scatter',     desc: 'SCATTER: Flak Ring fires 2 more rings, each with more bullets', apply: s => s.abm_scatter = 1 },
+  { id: 'abm_piercer', name: 'Overcharged Rail', r: 'rare', max: 1, ship: 'piercer',   desc: 'PIERCER: the Railshot beam stays and keeps burning for a second', apply: s => s.abm_piercer = 1 },
+  { id: 'abm_medic', name: 'Guardian Pulse',   r: 'rare', max: 1, ship: 'medic',       desc: 'MEDIC: Lifeline also makes the whole team untouchable for 2s', apply: s => s.abm_medic = 1 },
+  { id: 'abm_wraith', name: 'Phantom Blades',  r: 'rare', max: 1, ship: 'wraith',      desc: 'WRAITH: while phased, enemies you fly through get shredded', apply: s => s.abm_wraith = 1 },
+  { id: 'abm_carrier', name: 'Hive Mind',      r: 'rare', max: 1, ship: 'carrier',     desc: 'CARRIER: Swarm launches twice as many missiles', apply: s => s.abm_carrier = 1 },
+  { id: 'abm_berserker', name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
   // evolutions: offered (always as the first card) once you own both ingredients at the listed levels
   { id: 'evo_halo', name: 'Storm Halo', r: 'evo', max: 1, needs: [['blades', 2], ['chain', 1]],
     desc: '+1 blade, and your blades crackle with chain lightning', apply: s => { s.blades++; s.stormHalo = 1; } },
@@ -1043,8 +1110,10 @@ function newStats() {
     maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1 + 0.2 * metaLv('luck'), crit: 0, homing: 0, drones: 0,
     aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * metaLv('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
-    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0 };
+    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1 };
 }
+// ability cards only show up when they'd do something
+const abCardOk = u => !(u.ab || u.ship) || (!curse('powerless') && (!u.ship || players.some(p => !p.gone && shipBase(p) === u.ship)));
 
 // how likely a card is to be offered (Loaded Deck makes rare and epic cards more common)
 const cardWeight = u => RARITY[u.r].w * (u.r === 'common' ? 1 : 1 + 0.35 * metaLv('cards'));
@@ -1055,7 +1124,7 @@ const evoReady = () => EVOLUTIONS.filter(u => !run.owned[u.id] && u.needs.every(
 const evoHints = u => EVOLUTIONS.filter(e => !run.owned[e.id] && e.needs.some(([id]) => id === u.id))
   .map(e => [e, UPGRADES.find(x => x.id === e.needs.find(([id]) => id !== u.id)[0])]);
 function rollCards(n, bossReward, noEvo) {
-  const pool = UPGRADES.filter(u => u.r !== 'evo' && (run.owned[u.id] || 0) < u.max && (!u.when || u.when()) && (!bossReward || u.r !== 'common'));
+  const pool = UPGRADES.filter(u => u.r !== 'evo' && (run.owned[u.id] || 0) < u.max && (!u.when || u.when()) && abCardOk(u) && (!bossReward || u.r !== 'common'));
   const out = noEvo ? [] : evoReady().slice(0, 1); // a ready evolution always takes the first slot
   while (out.length < n && pool.length) {
     const total = pool.reduce((t, u) => t + cardWeight(u), 0);
@@ -1575,7 +1644,7 @@ const AB_START = 0.35; // (a run starts with abilities 65% charged)
 const shipBase = p => p.ship.base || p.ship.id;
 const abilityOf = p => ABILITIES[shipBase(p)] || ABILITIES.striker;
 const abTier = p => p.ship.mk2 === true ? 1 : 0;
-const abCdOf = p => abilityOf(p).cd[abTier(p)];
+const abCdOf = p => abilityOf(p).cd[abTier(p)] * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
 const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
 const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1); // (Wraiths are faster while phased)
 // which keys fire each control scheme's ability
@@ -1617,12 +1686,14 @@ function guestAbility(p, k, dx, dy) {
 }
 // short-lived ability visuals (beams, dash trails), replayed on online guests' screens
 let abFx = [];
-function addAbFx(a) { abFx.push({ a, life: AB_FX_LIFE[a[0]], max: AB_FX_LIFE[a[0]] }); netRec(['a', ...a]); }
-const AB_FX_LIFE = { beam: 0.45, dash: 0.35 };
+function addAbFx(a) { abFx.push({ a, life: AB_FX_LIFE[a[0]], max: AB_FX_LIFE[a[0]], tick: 0 }); netRec(['a', ...a]); }
+// how long each kind lasts: RAILSHOT beam (and its Overcharged version), DASH streak (and its Afterburner fire)
+const AB_FX_LIFE = { beam: 0.45, beamx: 1.1, dash: 0.35, burn: 2.2 };
+const abm = id => !!run?.s?.['abm_' + id]; // (does the team hold this ship's ability card?)
 function useAbility(p, dx = 0, dy = 0) {
   if (!abReady(p)) return false;
-  const ab = abilityOf(p), tier = abTier(p), id = shipBase(p);
-  p.abCd = ab.cd[tier]; p.abOn = ab.dur ? ab.dur[tier] : 0;
+  const ab = abilityOf(p), tier = abTier(p), id = shipBase(p), s = run.s;
+  p.abCd = abCdOf(p); p.abOn = ab.dur ? ab.dur[tier] : 0;
   popups.push({ x: p.x, y: p.y - 38, text: ab.name + '!', life: 1.1, color: p.color });
   const dps = Math.max(12, run.dpsEst || 0); // (big hits scale with the team's firepower, so they stay worth it all run)
   const hitEnemy = (e, dmg) => { if (e.dead || TYPES[e.type].ghost) return; e.lastBy = p.id; damageEnemy(e, dmg, 'splash'); };
@@ -1631,6 +1702,7 @@ function useAbility(p, dx = 0, dy = 0) {
     eBullets = [];
     for (const e of enemies) hitEnemy(e, dps * 1.2);
     for (const bo of bosses) hitBoss(bo, dps * 1.6, bo.x, bo.y);
+    if (abm('striker')) { healAll(1); for (const q of living()) burst(q.x, q.y, '#5dff7a', 14, 140); } // (Mending Nova)
     screenFlash = Math.max(screenFlash, 0.5); shake = Math.max(shake, 16);
     for (let i = 0; i < 3; i++) fxRing(p.x, p.y, 10, Math.max(W, H) * (0.5 + i * 0.3), 0.5 + i * 0.15, i === 1 ? '#ffffff' : p.color, 6 - i * 1.5, i * 0.08);
     beep(80, 0.8, 'sawtooth', 0.1, -40); beep(1200, 0.4, 'sine', 0.05, -1000);
@@ -1641,47 +1713,75 @@ function useAbility(p, dx = 0, dy = 0) {
     p.inv = Math.max(p.inv, 0.4);
     for (const e of enemies) if (distToSeg(e.x, e.y, ax, ay, p.x, p.y) < e.r + 20) hitEnemy(e, dps * 0.5);
     for (const bo of bosses) if (distToSeg(bo.x, bo.y, ax, ay, p.x, p.y) < bo.r + 20) hitBoss(bo, dps * 0.4);
-    addAbFx(['dash', Math.round(ax), Math.round(ay), Math.round(p.x), Math.round(p.y), p.color]);
+    const seg = [Math.round(ax), Math.round(ay), Math.round(p.x), Math.round(p.y)];
+    addAbFx(['dash', ...seg, p.color]);
+    if (abm('interceptor')) addAbFx(['burn', ...seg]); // (Afterburner: a trail of fire, see updateAbFx)
     beep(1400, 0.15, 'sine', 0.05, -900);
   } else if (id === 'juggernaut') { // FORTRESS (see hurt and the enemy-bullet loop)
     fxRing(p.x, p.y, 40, 8, 0.3, '#ffe93d', 4); beep(200, 0.5, 'square', 0.06, 200);
   } else if (id === 'scatter') { // FLAK RING (fired a wave at a time, in update)
-    p.flak = tier ? 3 : 2; p.flakT = 0;
-  } else if (id === 'piercer') { // RAILSHOT
+    p.flak = (tier ? 3 : 2) + (abm('scatter') ? 2 : 0); p.flakT = 0;
+  } else if (id === 'piercer') { // RAILSHOT (Overcharged Rail: the beam stays, burning, see updateAbFx)
     const w = tier ? 30 : 24;
     for (const e of enemies) if (e.y < p.y && Math.abs(e.x - p.x) < w / 2 + e.r) hitEnemy(e, dps * (tier ? 1.6 : 1.2));
     for (const bo of bosses) if (bo.y < p.y + bo.r && Math.abs(bo.x - p.x) < w / 2 + bo.r) hitBoss(bo, dps * (tier ? 2.6 : 2), p.x, bo.y);
-    addAbFx(['beam', Math.round(p.x), Math.round(p.y - 20), w, p.color]);
+    addAbFx([abm('piercer') ? 'beamx' : 'beam', Math.round(p.x), Math.round(p.y - 20), w, p.color]);
     shake = Math.max(shake, 10); beep(160, 0.5, 'sawtooth', 0.08, 1200);
   } else if (id === 'medic') { // LIFELINE
     const down = players.filter(q => !q.alive && !q.gone && q.wreck);
     if (down.length) for (const q of down) { revive(q, p, true); fxRing(q.x, q.y, 6, 90, 0.5, '#5dff7a', 4); }
     else for (const q of living()) { q.shield = 1; fxRing(q.x, q.y, 6, 60, 0.4, '#7df9ff', 3); }
+    if (abm('medic')) for (const q of living()) q.inv = Math.max(q.inv, 2); // (Guardian Pulse)
     fxRing(p.x, p.y, 10, 220, 0.6, '#5dff7a', 5);
     [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, 0.2, 'triangle', 0.06), i * 70));
   } else if (id === 'wraith') { // SHADOW STEP
     p.phaseOn = ab.dur[tier]; p.phaseCd = 0;
     fxRing(p.x, p.y, 34, 6, 0.3, p.color, 3); beep(1100, 0.3, 'sine', 0.05, -800);
-  } else if (id === 'carrier') { // SWARM
-    const n = tier ? 12 : 8;
+  } else if (id === 'carrier') { // SWARM (Hive Mind: twice as many)
+    const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
   } else if (id === 'berserker') { // RAMPAGE
+    p.rampKills = 0;
     fxRing(p.x, p.y, 10, 90, 0.4, '#ff3050', 5); burst(p.x, p.y, '#ff3050', 30, 300); shake = Math.max(shake, 8);
     beep(90, 0.6, 'sawtooth', 0.09, -30);
   }
+  if (s.abAfter) { for (let i = 0; i < 16; i++) fire(p.x, p.y, i / 16 * TAU, p.color, undefined, p); fxRing(p.x, p.y, 10, 80, 0.3, p.color, 3); } // (Aftershock)
+  if (s.abAdren) p.inv = Math.max(p.inv, 1.5); // (Adrenaline)
   // NEMESIS watches what you do, and copies it right back at you
   for (const bo of bosses) if (bo.gimmick === 'nemesis' && bossAlive(bo) && bo.entered && !bo.copyT) { bo.copyId = id; bo.copyName = ab.name; bo.copyT = NEMESIS_COPY_T; }
   return true;
 }
 // the per-frame part of abilities (host and solo)
 function updateAbility(p, dt) {
+  const wasOn = p.abOn;
   p.abCd = Math.max(0, p.abCd - dt); p.abOn = Math.max(0, p.abOn - dt);
+  if (wasOn > 0 && p.abOn <= 0 && shipBase(p) === 'juggernaut' && abm('juggernaut')) { // Shockwave Fortress: it ends with a bang
+    for (const b of eBullets) if (Math.hypot(b.x - p.x, b.y - p.y) < 220) { b.dead = true; if (Math.random() < 0.4) burst(b.x, b.y, '#ffe93d', 2, 90); }
+    for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && Math.hypot(e.x - p.x, e.y - p.y) < 220 + e.r) { e.lastBy = p.id; damageEnemy(e, Math.max(12, run.dpsEst || 0) * 0.8, 'splash'); }
+    fxRing(p.x, p.y, 20, 220, 0.45, '#ffe93d', 6); fxRing(p.x, p.y, 10, 160, 0.35, '#ffffff', 3, 0.08);
+    shake = Math.max(shake, 12); beep(70, 0.6, 'sawtooth', 0.09, -20);
+  }
   if (p.flak > 0 && (p.flakT -= dt) <= 0) { // FLAK RING waves
     p.flak--; p.flakT = 0.16;
-    const n = 20, off = p.flak * 0.16;
+    const n = abm('scatter') ? 28 : 20, off = p.flak * 0.16;
     for (let i = 0; i < n; i++) fire(p.x, p.y, off + i / n * TAU, p.color, undefined, p);
     beep(500, 0.12, 'square', 0.04, -200); fxRing(p.x, p.y, 8, 60, 0.25, p.color, 3);
+  }
+}
+// lingering ability effects that keep hurting enemies (host and solo): Afterburner's fire, Overcharged Rail's beam
+function updateAbFx(dt) {
+  const dps = Math.max(12, run.dpsEst || 0);
+  for (const f of abFx) {
+    const [kind, ...a] = f.a;
+    if ((kind !== 'burn' && kind !== 'beamx') || (f.tick -= dt) > 0) continue;
+    f.tick = 0.15;
+    for (const e of enemies) {
+      if (e.dead || TYPES[e.type].ghost) continue;
+      const hit = kind === 'burn' ? distToSeg(e.x, e.y, a[0], a[1], a[2], a[3]) < e.r + 14 : e.y < a[1] && Math.abs(e.x - a[0]) < a[2] / 2 + e.r;
+      if (hit) damageEnemy(e, dps * (kind === 'burn' ? 0.12 : 0.25), 'splash');
+    }
+    if (kind === 'beamx') for (const bo of bosses) if (bo.y < a[1] + bo.r && Math.abs(bo.x - a[0]) < a[2] / 2 + bo.r) hitBoss(bo, dps * 0.25, a[0], bo.y);
   }
 }
 
@@ -1855,6 +1955,7 @@ function endRun(victory = false) {
   // (a won Standard run that went on into Endless was already paid for its first part)
   const earned = Math.max(0, runShards() - (run.paid || 0));
   run.earned = earned; meta.shards += earned; saveMeta();
+  run.masteryUps = gainMastery(myShipIds(), earned); // (every ship flown from this computer earns mastery XP)
   if (meta.shards >= 1000) unlockAch('hoarder');
   const prev = bestOf(mode, runKind());
   run.newBest = score > prev && score > 0;
@@ -1867,6 +1968,7 @@ function endRun(victory = false) {
   go('over');
 }
 const VICTORY_BONUS = 250;
+const myShipIds = () => (net.role ? net.mine.map(i => players[i]).filter(Boolean) : players).map(shipBase);
 // a won Standard run can carry on as Endless: same ships, upgrades and score, with the first mutator added
 function continueEndless() {
   run.paid = (run.paid || 0) + run.earned; // the Standard finish has already been paid out
@@ -2687,6 +2789,14 @@ function killEnemy(e, src) {
   popups.push({ x: e.x, y: e.y, text: '+' + pts.toLocaleString(), life: 0.8, hot: combo >= 4 });
   combo = Math.min(s.comboMax, combo + 1); comboT = s.comboTime;
   meta.stats.kills++; // saved at the end of the run
+  const killer = players[e.lastBy];
+  if (killer?.alive) {
+    if (s.abKill) killer.abCd = Math.max(0, killer.abCd - 0.3); // (Kill Charger)
+    if (s.abm_berserker && abActive(killer, 'berserker')) { // (Bloodthirst: kills feed the Rampage)
+      killer.abOn = Math.min(12, killer.abOn + 0.4);
+      if (++killer.rampKills % 10 === 0 && killer.lives < maxLivesOf(killer)) { killer.lives++; popups.push({ x: killer.x, y: killer.y - 34, text: '+♥', life: 1.2, color: '#ff3050' }); }
+    }
+  }
   unlockAch('first_blood');
   if (meta.stats.kills >= 500) unlockAch('kills500');
   if (meta.stats.kills >= 5000) unlockAch('kills5000');
@@ -4563,9 +4673,11 @@ function update(dt) {
   }
 
   if (players.length > 1) updateLinks(dt); // co-op LINK BEAMs
+  updateAbFx(dt); // (Afterburner fire, Overcharged Rail beams)
 
   // spawn (faster in co-op)
   updateHazards(dt); // (the zone's hazard, if it has one)
+  updateEliteHazards(dt); updateHail(dt); // (and its elite one, from Endless cycle 2)
   spawnT -= dt;
   if (spawnT <= 0 && !bossActive) {
     spawnEnemy();
@@ -4713,7 +4825,7 @@ function update(dt) {
     }
     if (!TYPES[e.type].harmless) for (const p of living()) {
       if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.r + p.r * 0.7) {
-        if (abActive(p, 'berserker')) { // RAMPAGE: smash right through it
+        if (abActive(p, 'berserker') || (p.phaseOn > 0 && run.s.abm_wraith)) { // RAMPAGE (and Phantom Blades): smash right through it
           if ((e.ramT || 0) < time) { e.ramT = time + 0.25; e.lastBy = p.id; damageEnemy(e, Math.max(e.maxHp * 0.6, Math.max(12, run.dpsEst || 0)), 'splash'); shake = Math.max(shake, 5); }
           continue;
         }
@@ -7383,6 +7495,7 @@ function drawPlayerBullets() {
 const PICK = { power: ['#ffe93d', 'P'], shield: ['#7df9ff', 'S'], life: ['#ff6fb5', '+'] };
 
 function drawWorld() {
+  drawTide();
   for (const l of lasers) {
     if (l.flare) { drawFlare(l); continue; }
     ctx.save();
@@ -7478,10 +7591,19 @@ function drawAbFx() {
   for (const f of abFx) {
     const k = f.life / f.max, [kind, ...a] = f.a;
     ctx.save(); ctx.globalAlpha = k; ctx.lineCap = 'round';
-    if (kind === 'beam') {
-      const [x, y, w, c] = a, ww = w * (0.6 + k * 0.6);
+    if (kind === 'beam' || kind === 'beamx') {
+      const [x, y, w, c] = a, ww = w * (kind === 'beamx' ? 0.8 + Math.random() * 0.3 : 0.6 + k * 0.6);
+      if (kind === 'beamx') ctx.globalAlpha = Math.min(1, k * 3); // (Overcharged: it holds, crackling, then fades)
       glow(c, 40); ctx.fillStyle = c; ctx.fillRect(x - ww / 2, 0, ww, y);
       ctx.fillStyle = '#ffffff'; ctx.fillRect(x - ww / 6, 0, ww / 3, y);
+    } else if (kind === 'burn') { // Afterburner: a line of flickering flames along the dash
+      const [x0, y0, x1, y1] = a, L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, Math.floor(L / 14));
+      ctx.globalAlpha = Math.min(1, k * 2.5); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n, h = 10 + Math.random() * 14;
+        ctx.fillStyle = 'rgba(255,90,30,0.7)'; ctx.beginPath(); ctx.moveTo(x - 7, y + 4); ctx.lineTo(x, y - h); ctx.lineTo(x + 7, y + 4); ctx.fill();
+        ctx.fillStyle = 'rgba(255,230,140,0.8)'; ctx.beginPath(); ctx.moveTo(x - 3, y + 3); ctx.lineTo(x, y - h * 0.5); ctx.lineTo(x + 3, y + 3); ctx.fill();
+      }
     } else if (kind === 'dash') {
       const [x0, y0, x1, y1, c] = a;
       glow(c, 20); ctx.strokeStyle = c; ctx.lineWidth = 14 * k; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
@@ -7976,6 +8098,9 @@ function drawShips() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = '#dfe8ff';
     ctx.fillText(s.name, x + iw / 2, y + ih - 11);
+    const mlv = masteryLv(s.id); // (its mastery stars)
+    ctx.font = `${Math.max(7, Math.min(9, iw / 11))}px system-ui`; ctx.fillStyle = mlv >= MASTERY_MAX ? '#ffd23d' : '#a89a6a';
+    ctx.fillText('★'.repeat(mlv) + '☆'.repeat(MASTERY_MAX - mlv), x + iw / 2, y + ih - 24);
     if (has2) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#ffe93d'; ctx.textAlign = 'right'; ctx.fillText('MK II', x + iw - 6, y + 10); ctx.textAlign = 'center'; }
     // which earlier players already took this ship
     const takers = sp.picks.map((id, j) => shipById(id) && (id === s.id || id === s.id + '2') ? `P${j + 1}` : null).filter(Boolean);
@@ -7996,6 +8121,14 @@ function drawShips() {
   ctx.fillStyle = '#fff'; ctx.font = '900 20px system-ui'; ctx.fillText(view.name, tx, py + 12);
   ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui';
   ctx.fillText(view.tag.toUpperCase() + (two ? (owned2 ? '  ·  OWNED' : `  ·  ◆ ${base.mk2.cost}`) : '  ·  FREE'), tx, py + 36);
+  { // mastery: level, XP to the next one, and what it pays
+    const lv = masteryLv(base.id), xp = masteryXp(base.id);
+    ctx.textAlign = 'right'; ctx.font = 'bold 11px system-ui'; ctx.fillStyle = lv >= MASTERY_MAX ? '#ffd23d' : '#c9b46a';
+    ctx.fillText(`MASTERY ${'★'.repeat(lv)}${'☆'.repeat(MASTERY_MAX - lv)}`, px + pw - 12, py + 14);
+    ctx.font = '10px system-ui'; ctx.fillStyle = '#9a8f6a';
+    ctx.fillText(lv >= MASTERY_MAX ? 'SIGNATURE TRAIL UNLOCKED' : `${xp} / ${MASTERY_XP[lv]} XP${lv === MASTERY_MAX - 1 ? ' → Signature trail' : ` → +◆${MASTERY_SHARDS[lv + 1]}`}`, px + pw - 12, py + 30);
+    ctx.textAlign = 'left';
+  }
   [['SPEED', view.stats.speed], ['POWER', view.stats.power], ['ARMOR', view.stats.armor]].forEach(([label, v], j) => {
     const y = py + 56 + j * 15;
     ctx.fillStyle = '#9ab'; ctx.font = 'bold 10px system-ui'; ctx.fillText(label, tx, y);
@@ -8249,8 +8382,15 @@ function drawOver() {
   const build = UPGRADES.filter(u => run.owned[u.id]).map(u => run.owned[u.id] > 1 ? `${u.name} ×${run.owned[u.id]}` : u.name).join(' · ');
   ctx.font = '12px system-ui';
   wrap(build || 'No upgrades taken', Math.min(600, W - 32)).slice(0, 2).forEach((l, i) => fitText(l, cy + 162 + i * 18, 12, '#789'));
+  // ship mastery: where each ship flown from this computer stands now (and any level-ups this run)
+  const ups = run.masteryUps || [], mine = [...new Set(myShipIds())].slice(0, 2);
+  fitText(mine.map(id => {
+    const lv = masteryLv(id), up = ups.filter(u => u.id === id).pop();
+    return `${SHIPS.find(s => s.id === id).name} ${'★'.repeat(lv)}${'☆'.repeat(MASTERY_MAX - lv)}` + (lv < MASTERY_MAX ? ` ${masteryXp(id)}/${MASTERY_XP[lv]} XP` : ' MASTERED')
+      + (up ? (up.lv >= MASTERY_MAX ? '  ·  SIGNATURE TRAIL UNLOCKED!' : `  ·  LEVEL UP! +◆${MASTERY_SHARDS[up.lv]}`) : '');
+  }).join('     '), cy + 204, 13, ups.length ? '#ffd23d' : '#a89a6a', 'bold');
   const bw = Math.min(260, W - 32), bx = (W - bw) / 2;
-  let by = cy + 214;
+  let by = cy + 228;
   const again = run.victory && !run.rush ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
   // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
   if (run.victory && !run.rush && net.role !== 'guest') {
@@ -8388,9 +8528,12 @@ function enterZone(id, quiet) {
   const z = zoneDef(id);
   if (id === ZONE_FIRST) run.route = []; // (a new cycle starts the route over)
   run.zone = id; run.route.push(id); run.hazardT = 4;
+  run.eliteT = 6; run.hail = null; run.tide = run.tideW = 0;
   if (!run.rush) assignZoneBosses(z);
   showZoneCard(id, run.route.length);
   if (z.hint) hint = { text: z.hint, life: 7 };
+  const el = zoneElite(id);
+  if (el) hint = { text: `ELITE ZONE — ${el.name}: ${el.desc}!${z.hazard ? ` (on top of its ${z.hazard.toLowerCase()})` : ''}`, life: 7 };
   if (!quiet) {
     screenFlash = Math.max(screenFlash, 0.55); shake = Math.max(shake, 10);
     [262, 330, 392, 523].forEach((f, i) => setTimeout(() => beep(f, 0.35, 'triangle', 0.05), i * 70));
@@ -8423,15 +8566,17 @@ function drawZoneCard() {
   }
   // the label slides in one way, the name the other
   ctx.font = 'bold 13px system-ui'; ctx.fillStyle = z.color; ctx.letterSpacing = '5px';
-  ctx.fillText(run.rush ? 'BOSS RUSH' : `ZONE ${zoneCard.n}${z.final ? ' · FINAL' : ''}  ·  SECTOR ${level}`, W / 2 - slide, cy - bh * 0.31, W - 40);
+  const el = zoneElite(zoneCard.id);
+  ctx.fillText(run.rush ? 'BOSS RUSH' : `${el ? 'ELITE ' : ''}ZONE ${zoneCard.n}${z.final ? ' · FINAL' : ''}  ·  SECTOR ${level}`, W / 2 - slide, cy - bh * 0.31, W - 40);
   ctx.letterSpacing = '0px';
   let px = Math.min(54, W / 9);
   do { ctx.font = `900 ${px}px system-ui`; px--; } while (px > 16 && ctx.measureText(z.name).width > W - 40);
   glow(z.color, 28); ctx.fillStyle = '#fff'; ctx.fillText(z.name, W / 2 + slide, cy + 2);
   ctx.shadowBlur = 0; ctx.font = 'italic 15px system-ui'; ctx.fillStyle = '#cde'; ctx.fillText(z.sub, W / 2 - slide, cy + bh * 0.31, W - 40);
-  if (z.hazard) { ctx.font = 'bold 12px system-ui'; ctx.fillStyle = z.color; ctx.fillText(`⚠  HAZARD: ${z.hazard}`, W / 2, cy + bh / 2 + 16); }
+  const haz = [z.hazard, el && `ELITE: ${el.name}`].filter(Boolean).join('  +  ');
+  if (haz) { ctx.font = 'bold 12px system-ui'; ctx.fillStyle = el ? '#ff5a70' : z.color; ctx.fillText(`⚠  HAZARD: ${haz}`, W / 2, cy + bh / 2 + 16); }
   ctx.font = 'italic 12px system-ui'; ctx.fillStyle = '#b8a8e0'; // and the zone's song
-  ctx.fillText(`♪  ${SONGS[zoneSong(zoneCard.id)].name}`, W / 2, cy + bh / 2 + (z.hazard ? 34 : 16));
+  ctx.fillText(`♪  ${SONGS[zoneSong(zoneCard.id)].name}`, W / 2, cy + bh / 2 + (haz ? 34 : 16));
   ctx.restore();
 }
 
@@ -8471,6 +8616,110 @@ function updateHazards(dt) {
   }
 }
 const FLARE_W = 64, FLARE_WARN = 1.4, FLARE_FIRE = 0.8, TURRET_RANGE = 430, PRISM_R = 26, PRISM_SPREAD = 0.3;
+
+// ---------- elite zones: from Endless cycle 2 on, every zone adds a second, nastier hazard on top of its own ----------
+const ZONE_ELITE = {
+  deep:     { name: 'STARFALL',        desc: 'Falling stars streak down the marked columns' },
+  belt:     { name: 'BURNING DEBRIS',  desc: 'Meteors shed burning rocks as they tear past' },
+  nebula:   { name: 'CHAIN STORM',     desc: 'Lightning strikes in long chains' },
+  rings:    { name: 'ICE STORM',       desc: 'Hail sweeps across the whole field' },
+  corona:   { name: 'FLARE WALLS',     desc: 'Flares fall in walls, with one gap to slip through' },
+  derelict: { name: 'BOARDING DRONES', desc: 'The old turrets launch suicide drones at you' },
+  prism:    { name: 'SINGING PRISMS',  desc: 'Prisms pulse out rings of light' },
+  horizon:  { name: 'GRAVITY TIDE',    desc: 'Every so often the black hole drags everything toward it' },
+};
+const zoneElite = id => run?.endless && run.cycle >= 2 ? ZONE_ELITE[id || run.zone] : null;
+const TIDE_WARN = 1.3, TIDE_T = 2.6, TIDE_PULL = 150; // EVENT HORIZON's gravity tide: warning, how long it pulls, how hard
+const tideAt = () => ({ x: W / 2, y: H * 0.2 }); // (the black hole in the sky: see drawBlackHole)
+function updateEliteHazards(dt) {
+  const id = run.zone, el = zoneElite(id);
+  if (!el || run.victoryT || run.warp) return;
+  if (run.tide > 0) { // the tide is pulling: drag the ships (an online guest drags its own) and the enemy bullets
+    run.tide = Math.max(0, run.tide - dt);
+    const c = tideAt();
+    for (const p of living()) if (!p.remote) { const d = Math.hypot(c.x - p.x, c.y - p.y) || 1; p.x += (c.x - p.x) / d * TIDE_PULL * dt; p.y += (c.y - p.y) / d * TIDE_PULL * dt; }
+    for (const b of eBullets) { const d = Math.hypot(c.x - b.x, c.y - b.y) || 1; b.vx += (c.x - b.x) / d * 160 * dt; b.vy += (c.y - b.y) / d * 160 * dt; }
+  }
+  if (run.tideW > 0 && (run.tideW -= dt) <= 0) { run.tide = TIDE_T; shake = Math.max(shake, 10); beep(40, TIDE_T, 'sawtooth', 0.07, 30); }
+  if (id === 'belt') for (const e of enemies) // meteors shed burning rocks as they go
+    if (e.type === 'meteor' && e.state === 'go' && (e.dropT = (e.dropT ?? 0) - dt) <= 0) {
+      e.dropT = 0.11;
+      eBullets.push({ x: e.x, y: e.y, vx: -e.side * (30 + Math.random() * 50), vy: 140 + Math.random() * 90, r: 6, color: '#ff9a3d' });
+    }
+  if ((run.eliteT = (run.eliteT ?? 6) - dt) > 0) return;
+  const boss = bosses.length > 0, alive = living(), p = alive[Math.floor(Math.random() * alive.length)];
+  if (id === 'deep') { // STARFALL: three columns, one right on someone
+    run.eliteT = (boss ? 9 : 6) + Math.random() * 3;
+    const xs = p ? [p.x] : [];
+    while (xs.length < 3) { const x = 30 + Math.random() * (W - 60); if (xs.every(o => Math.abs(o - x) > 80)) xs.push(x); }
+    for (const x of xs) lasers.push({ x, warn: 1.2, fire: 0.35, w: 26, color: '#cfe8ff' });
+    beep(1800, 0.4, 'sine', 0.03, -1200);
+  } else if (id === 'nebula') { // CHAIN STORM: five strikes in a line through someone, one after another
+    run.eliteT = (boss ? 10 : 7) + Math.random() * 3;
+    if (p) {
+      const a = Math.random() * Math.PI;
+      for (let i = 0; i < 5; i++) {
+        const x = p.x + Math.cos(a) * (i - 2) * 85, y = p.y + Math.sin(a) * (i - 2) * 85;
+        if (x < 20 || x > W - 20 || y < H * 0.2 || y > H - 20) continue;
+        makeEnemy('bolt', x, y).timer += Math.abs(i - 2) * 0.22; // (from the middle outward)
+      }
+      beep(1500, 0.5, 'sawtooth', 0.03, -1200);
+    }
+  } else if (id === 'rings') { // ICE STORM: hail sweeps across for a few seconds (see the hail below)
+    run.eliteT = (boss ? 13 : 10) + Math.random() * 3;
+    run.hail = { t: 3.2, side: Math.random() < 0.5 ? -1 : 1, acc: 0 };
+    fxText(run.hail.side > 0 ? 'ICE STORM  »' : '«  ICE STORM', W / 2, H * 0.18, '#dff6ff', 24, 1.4);
+    beep(900, 1.2, 'sawtooth', 0.02, -600);
+  } else if (id === 'corona') { // FLARE WALLS: a wall of flares with one gap
+    run.eliteT = (boss ? 15 : 11) + Math.random() * 3;
+    const n = Math.floor(W / FLARE_W), gap = Math.floor(Math.random() * (n - 1));
+    for (let i = 0; i < n; i++) if (i !== gap && i !== gap + 1) lasers.push({ x: FLARE_W / 2 + i * FLARE_W + (W - n * FLARE_W) / 2, warn: FLARE_WARN + 0.5, fire: FLARE_FIRE, w: FLARE_W, color: '#ff8d2d', flare: true });
+    beep(160, 0.8, 'sawtooth', 0.05, 200);
+  } else if (id === 'derelict') { // BOARDING DRONES: every turret launches one
+    run.eliteT = (boss ? 7 : 5) + Math.random() * 2;
+    if (enemies.filter(e => e.type === 'kamikaze').length < 6) for (const t of enemies.filter(e => e.type === 'turret' && !e.dead)) {
+      makeEnemy('kamikaze', t.x, t.y + t.r); burst(t.x, t.y, '#ffb13d', 10, 140);
+    }
+    if (!enemies.some(e => e.type === 'turret')) run.eliteT = 2; // (no turrets yet: check again soon)
+  } else if (id === 'prism') { // SINGING PRISMS: each prism pulses out a ring of light
+    run.eliteT = (boss ? 5 : 3.5) + Math.random() * 1.5;
+    for (const pr of enemies.filter(e => e.type === 'prism' && !e.dead)) {
+      const off = Math.random() * TAU;
+      for (let i = 0; i < 8; i++) { const a = off + i / 8 * TAU; eBullets.push({ x: pr.x, y: pr.y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, r: 5, color: RAINBOW[i % RAINBOW.length], prismed: true }); }
+      if (bossFx.rings.length < 40) fxRing(pr.x, pr.y, 6, 50, 0.3, '#e0d0ff', 3);
+    }
+    if (!enemies.some(e => e.type === 'prism')) run.eliteT = 2;
+  } else if (id === 'horizon') { // GRAVITY TIDE
+    run.eliteT = (boss ? 15 : 12) + Math.random() * 3;
+    run.tideW = TIDE_WARN; fxText('GRAVITY TIDE!', W / 2, H * 0.32, '#ff3d4d', 28, 1.4); beep(60, TIDE_WARN, 'sine', 0.06, 40);
+  } else run.eliteT = 5;
+}
+// ICE STORM hail: falls across the screen at an angle (runs alongside updateEliteHazards)
+function updateHail(dt) {
+  const h = run.hail; if (!h) return;
+  if ((h.t -= dt) <= 0) { run.hail = null; return; }
+  for (h.acc += dt; h.acc > 0.035; h.acc -= 0.035) {
+    const x = h.side > 0 ? Math.random() * W * 1.2 - W * 0.4 : Math.random() * W * 1.2 + W * 0.2;
+    eBullets.push({ x, y: -10, vx: h.side * 150, vy: 240 + Math.random() * 60, r: 4, color: '#dff6ff' });
+  }
+}
+// the tide, as you see it: a warning ring at the black hole, then streaks of light rushing into it
+function drawTide() {
+  if (!(run?.tideW > 0 || run?.tide > 0) || !zoneElite()) return;
+  const c = tideAt(), t = performance.now() / 1000;
+  ctx.save(); ctx.lineCap = 'round';
+  if (run.tide > 0) {
+    ctx.strokeStyle = 'rgba(255,90,90,0.35)'; ctx.lineWidth = 2;
+    for (let i = 0; i < 24; i++) {
+      const a = i / 24 * TAU + t * 0.4, d = ((t * 1.6 + i * 0.37) % 1), R = Math.max(W, H) * (1 - d);
+      ctx.beginPath(); ctx.moveTo(c.x + Math.cos(a) * R, c.y + Math.sin(a) * R); ctx.lineTo(c.x + Math.cos(a + 0.12) * R * 0.86, c.y + Math.sin(a + 0.12) * R * 0.86); ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = '#ff3d4d'; ctx.lineWidth = 3; ctx.globalAlpha = Math.floor(t * 8) % 2 ? 0.8 : 0.3;
+    ctx.beginPath(); ctx.arc(c.x, c.y, 60 + (run.tideW / TIDE_WARN) * 140, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
 // PRISM REACH: a shot passing through a prism splits into three (each shot only once); returns the two new ones
 function prismSplit(b, list) {
   if (b.prismed || b.fuse !== undefined || b.orb || list.length > 1200) return;
@@ -9361,7 +9610,7 @@ function packSnap() {
     ts: Math.round(performance.now()), // host clock, so guests can place every update on a timeline
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
-    rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed },
+    rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
@@ -9380,6 +9629,7 @@ function packSnap() {
     hi: hint ? [hint.text, r1(hint.life)] : null,
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
     lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
+    td: [r2(run.tide || 0), r2(run.tideW || 0)], // (EVENT HORIZON's gravity tide: guests pull their own ships)
     ev: net.events.splice(0),
   };
 }
@@ -9661,6 +9911,7 @@ function applySnap(s) {
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
   run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
   run.curses = Object.fromEntries(cleanCurses(s.cu).map(id => [id, true])); // (the host's curses)
+  if (Array.isArray(s.td)) { run.tide = num(s.td[0], 0, TIDE_T, 0); run.tideW = num(s.td[1], 0, TIDE_WARN, 0); }
   run.linkView = Array.isArray(s.lk) ? s.lk.slice(0, 28).filter(l => Array.isArray(l) && okIdx(l[0], MAX_ONLINE) && okIdx(l[1], MAX_ONLINE))
     .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0)]) : [];
   if (bosses.some(b => b.final && b.dying > 0)) clearAbyssMark(); // (THE ABYSS is falling: its mark on my menu lifts)
@@ -9677,6 +9928,7 @@ function applySnap(s) {
     // (worked out from the host's numbers, so a broken or tampered host can't wipe or flood my shards)
     run.earned = Math.round(num(runShards() - num(run.paid, 0, GUEST_SHARD_CAP, 0), 0, GUEST_SHARD_CAP, 0));
     meta.shards += run.earned; saveMeta();
+    run.masteryUps = gainMastery(myShipIds(), run.earned);
   }
 }
 const GUEST_SHARD_CAP = 20000; // far more than any real run pays
@@ -9698,7 +9950,7 @@ function replayEvent(ev) {
     case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
     case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
     case 'a': // an ability's beam or dash trail
-      if (abFx.length < 30 && (ev[1] === 'beam' || ev[1] === 'dash')) abFx.push({ a: ev.slice(1, 7).map(v => typeof v === 'number' ? num(v, -5000, 5000, 0) : String(v).slice(0, 24)), life: AB_FX_LIFE[ev[1]], max: AB_FX_LIFE[ev[1]] });
+      if (abFx.length < 30 && AB_FX_LIFE[ev[1]] && typeof ev[1] === 'string') abFx.push({ a: ev.slice(1, 7).map(v => typeof v === 'number' ? num(v, -5000, 5000, 0) : String(v).slice(0, 24)), life: AB_FX_LIFE[ev[1]], max: AB_FX_LIFE[ev[1]] });
       break;
   }
 }
@@ -9756,6 +10008,7 @@ function guestMove(dt) {
       const k = 1 - Math.exp(-dt * 22), ty = pointer.y - (pointer.touch ? 50 : 0);
       p.x += (pointer.x - p.x) * k; p.y += (ty - p.y) * k;
     }
+    if (run.tide > 0 && zoneElite()) { const c = tideAt(), d = Math.hypot(c.x - p.x, c.y - p.y) || 1; p.x += (c.x - p.x) / d * TIDE_PULL * dt; p.y += (c.y - p.y) / d * TIDE_PULL * dt; } // (the gravity tide)
     p.x = Math.max(p.r, Math.min(W - p.r, p.x)); p.y = Math.max(p.r, Math.min(H - p.r, p.y));
     const kk = Math.min(1, dt * 12);
     p.tilt = (p.tilt || 0) + (Math.max(-1, Math.min(1, (p.x - ox) / dt / 500)) * 0.45 - (p.tilt || 0)) * kk;
