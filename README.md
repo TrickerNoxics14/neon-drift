@@ -7,15 +7,26 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 ## Playing online with friends
 
 1. Everyone opens the link above.
-2. One player clicks **ONLINE CO-OP → HOST A GAME** and shares the 4-digit room code.
-3. Everyone else clicks **ONLINE CO-OP → BROWSE PUBLIC GAMES** and picks the room, or **JOIN WITH A CODE** and types the code. Sharing a computer? Set **PLAYERS ON THIS PC** first (they split the keyboard like local co-op).
-4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**. Public games can be joined even after they start.
+2. One player clicks **ONLINE CO-OP → HOST A PRIVATE GAME** and shares the 4-digit room code with their friends.
+3. Friends click **JOIN WITH A CODE** and type it. Sharing a computer? Set **PLAYERS ON THIS PC** first (they split the keyboard like local co-op).
+4. Pick your ship right in the lobby. With several players on one computer, each one changes their own ship with their own keys (**A/D**, **←/→** or **J/L**), or clicks their own slot. The host presses **START**.
+5. Once everyone is in, the host can press **LOCK ROOM [K]**: nobody new can get in, not even with the code.
 
-Online play checks everything other players send. Nobody can control someone else's ship, crash the game with bad data, mess with your shards, or remove other people's games from the public list. The online library is only run if it matches its known fingerprint.
+Want to play with anyone? **HOST A PUBLIC GAME** puts your room on **BROWSE PUBLIC GAMES**, where anyone can join, even after the game starts. Every public room now announces itself. The list used to be kept in one random player's browser, so a single player on a VPN or a strict network could make every public game disappear for everyone. Now a room only fails to show up if *your* computer can't reach it (and then you couldn't have joined it anyway).
+
+The host is in charge of who's in the room: **✕** next to a player in the lobby (or **PLAYERS & ROOM** in the in-game menu) removes that player's computer (it asks twice, so a stray click can't do it), and the room can be locked or switched between public and private at any time without kicking anyone already playing.
+
+### Privacy and safety
+
+- **No game server, no accounts, no hidden menus.** Your computer connects straight to the other players' computers. That means the people you play with can see your IP address, as in any peer-to-peer game. A private room only ever connects you with people who have its code.
+- **Nothing else about you is sent.** No names, files or save data: only your ships, cosmetics and what you do in the game. Your shards, unlocks and settings stay in your browser.
+- **Opening the online screen doesn't connect you to anyone.** It only checks your connection with Google's STUN server. Browsing public games connects you to each public host (so they can see your IP address too). Private rooms never appear on the public list.
+- **Everything other players send is checked.** Nobody can control someone else's ship, crash the game with bad data, or mess with your shards or your save.
+- **The only outside code is the online library (PeerJS)**, and it only runs if it matches its known fingerprint. While you're online, the game also talks to the PeerJS matchmaking server (so computers can find each other) and Google's STUN server (to find your connection's address). Nothing else.
 
 Playing with friends far away (other countries) works better now: busy fights no longer freeze guests' screens, the game smooths things out more on bumpier connections, enemy bullets are shown where the host will check them so dodging feels fair, and guests see their PING in the bottom-left corner (green under 120 ms, yellow under 250, red above). With many players the host's internet upload matters most, so the player with the best connection should host.
 
-If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you have the same version, and know that a VPN or a strict network (like school Wi-Fi) can block the connection between two computers. The ONLINE CO-OP screen checks your connection and warns you if it looks blocked. Joining gives up with a message after a few tries instead of loading forever.
+If joining doesn't work: make sure you all refreshed the page (Ctrl+F5) so you have the same version (the ONLINE CO-OP screen shows the online version, now 7), and know that a VPN or a strict network (like school Wi-Fi) can block the connection between two computers. The ONLINE CO-OP screen checks your connection and warns you if it looks blocked. Joining gives up with a message after a few tries instead of loading forever.
 
 ## Controls
 
