@@ -25,9 +25,13 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-10 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+10 ship classes, all free (each with a stronger MK II and MK III to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 41 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 42 achievements · online quick chat (1–4) · an original soundtrack (below)
+
+### MK II and MK III
+
+Every ship is free. Each one also has a **MK II** (a stronger version with gold trim) and, once you own that, a **MK III** (prism-violet trim, a second pair of pods and two orbiting crystals). The MK III has everything the MK II has, plus +20% damage, 10% faster fire, +1 life, and an ability that recharges 20% faster. Pick the version on the ship screen (press **V** to switch between them). Own every MK III for the **Armada** trophy.
 
 ### Ship abilities
 
