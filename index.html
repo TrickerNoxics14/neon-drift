@@ -990,7 +990,7 @@ const masteryXp = id => meta.mastery?.[id] | 0;
 const masteryLv = id => MASTERY_XP.filter(x => masteryXp(id) >= x).length;
 // colors of each ship's Signature trail
 const SIGNATURE = { striker: ['#7df9ff', '#ffffff'], interceptor: ['#5dffc8', '#3d9dff'], juggernaut: ['#ffb13d', '#ff6a2d'], scatter: ['#ff5dc8', '#ffe93d'],
-  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'] };
+  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'] };
 function drawSignatureTrail(p, pts, [c1, c2], t) {
   ctx.save(); ctx.lineCap = 'round'; glow(c1, 12);
   for (let i = 1; i < pts.length; i++) { // two twisting ribbons
@@ -1151,7 +1151,8 @@ const UPGRADES = [
   { id: 'abm_medic', name: 'Guardian Pulse',   r: 'rare', max: 1, ship: 'medic',       desc: 'MEDIC: Lifeline also makes the whole team untouchable for 2s', apply: s => s.abm_medic = 1 },
   { id: 'abm_wraith', name: 'Phantom Blades',  r: 'rare', max: 1, ship: 'wraith',      desc: 'WRAITH: while phased, enemies you fly through get shredded', apply: s => s.abm_wraith = 1 },
   { id: 'abm_carrier', name: 'Hive Mind',      r: 'rare', max: 1, ship: 'carrier',     desc: 'CARRIER: Swarm launches twice as many missiles', apply: s => s.abm_carrier = 1 },
-  { id: 'abm_berserker', name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
+  { id: 'abm_gunslinger', name: 'Speed Loader', r: 'rare', max: 1, ship: 'gunslinger', desc: 'GUNSLINGER: reloads twice as fast, and Fan the Hammer fires 3 more rounds', apply: s => s.abm_gunslinger = 1 },
+  { id: 'abm_berserker',name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
   // evolutions: offered (always as the first card) once you own both ingredients at the listed levels
   { id: 'evo_halo', name: 'Storm Halo', r: 'evo', max: 1, needs: [['blades', 2], ['chain', 1]],
     desc: '+1 blade, and your blades crackle with chain lightning', apply: s => { s.blades++; s.stormHalo = 1; } },
@@ -1387,7 +1388,9 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyC') go('cosmetics');
     if (e.code === 'KeyG') go('gallery');
   } else if (state === 'gallery') {
-    if (e.code === 'Escape' || e.code === 'KeyG') go('menu');
+    if (e.code === 'Escape' && galleryPick >= 0) galleryPick = -1;
+    else if (e.code === 'Escape' || e.code === 'KeyG') go('menu');
+    if (galleryPick >= 0 && (e.code === 'Enter' || e.code === 'KeyD')) startPractice(galleryPick, e.code === 'KeyD');
     if (e.code === 'KeyR') galleryRage = !galleryRage;
   } else if (state === 'cosmetics') {
     if (e.code === 'Escape') go('hangar');
@@ -1405,6 +1408,7 @@ addEventListener('keydown', e => {
     if (e.code === 'Escape' || e.code === 'KeyX') closeCurses();
   } else if (state === 'ships') {
     if (num >= 1 && num <= SHIPS.length) { sel = num - 1; buttons[sel]?.action(); }
+    if (e.code === 'Digit0' && SHIPS.length >= 10) { sel = 9; buttons[9]?.action(); } // (the 10th ship)
     if (e.code === 'Escape') shipSelectBack();
     if (e.code === 'KeyV') toggleVariant(SHIPS[shipPick.view ?? 0]);
   }
@@ -1741,6 +1745,12 @@ const SHIPS = [
     mod: { speed: 1.08, rage: 0.3 },
     mk2: { cost: 400, stats: { speed: 4, power: 5, armor: 2 }, trait: '+50% damage for every life it is missing, and moves faster.',
       mod: { speed: 1.15, rage: 0.5 } } },
+  // six heavy rounds fired fast, then a reload where it can't shoot (see the auto fire in update)
+  { id: 'gunslinger', name: 'GUNSLINGER', tag: 'Six-shooter', shape: 'revolver',
+    stats: { speed: 3, power: 5, armor: 2 }, trait: 'Fires 6 heavy rounds fast, then has to reload for a moment. One barrel.',
+    mod: { shots: -1, dmg: 3.6, fireRate: 0.6, bulletSpeed: 1.3, cylinder: 6, reload: 1.1 },
+    mk2: { cost: 300, stats: { speed: 4, power: 5, armor: 2 }, trait: 'Heavier rounds, a quicker reload, and a bit more speed.',
+      mod: { shots: -1, dmg: 4.1, fireRate: 0.6, bulletSpeed: 1.4, cylinder: 6, reload: 0.85, speed: 1.06 } } },
 ];
 // a ship id is the base id ("medic") or the MK II ("medic2")
 const mk2Cache = {};
@@ -1782,6 +1792,7 @@ const ABILITIES = {
   wraith:      { name: 'SHADOW STEP', cd: [10, 7],  dur: [1.8, 2.4], desc: 'Phase out on demand, and move 60% faster while phased.' },
   carrier:     { name: 'SWARM',       cd: [9, 7],   desc: 'Launches a swarm of homing missiles (8, or 12 for the MK II).' },
   berserker:   { name: 'RAMPAGE',     cd: [22, 16], dur: [5, 5], desc: 'Double damage and faster fire for 5s, and you smash through enemies you ram.' },
+  gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
 };
 const AB_START = 0.35; // (a run starts with abilities 65% charged)
 const shipBase = p => p.ship.base || p.ship.id;
@@ -1884,6 +1895,17 @@ function useAbility(p, dx = 0, dy = 0) {
     const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
+  } else if (id === 'gunslinger') { // FAN THE HAMMER: the whole cylinder in a tight fan at whatever is closest, then a free reload
+    const near = [...enemies.filter(e => !e.dead && !TYPES[e.type].ghost), ...bosses.filter(bossAlive)]
+      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+    const a0 = near ? Math.atan2(near.y - p.y, near.x - p.x) : -Math.PI / 2, n = (tier ? 12 : 6) + (abm('gunslinger') ? 3 : 0);
+    for (let i = 0; i < n; i++) {
+      fire(p.x, p.y - 10, a0 + (i - (n - 1) / 2) * 0.06, '#ffd23d', undefined, p);
+      const b = bullets[bullets.length - 1]; if (b) b.dmg *= 2;
+    }
+    p.ammo = p.ship.mod.cylinder; p.reloadT = 0;
+    fxRing(p.x, p.y - 10, 6, 40, 0.25, '#ffd23d', 3); shake = Math.max(shake, 8);
+    for (let i = 0; i < 3; i++) beep(260 - i * 30, 0.08, 'square', 0.05, -150);
   } else if (id === 'berserker') { // RAMPAGE
     p.rampKills = 0;
     fxRing(p.x, p.y, 10, 90, 0.4, '#ff3050', 5); burst(p.x, p.y, '#ff3050', 30, 300); shake = Math.max(shake, 8);
@@ -2093,6 +2115,12 @@ const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + 
 // victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
   paused = false;
+  if (run.practice) { // practice pays nothing and keeps no score: straight back to that boss's page in the gallery
+    const pr = run.practice;
+    go('gallery'); galleryPick = pr.i;
+    showToast(pr.won ? `${pr.name} cleared${pr.hard ? ' on HARD' : ''}!` : `Defeated by ${pr.name}. Try again?`);
+    return;
+  }
   run.victory = victory;
   if (!victory && bosses.some(b => b.final)) markAbyss(); // (THE ABYSS got you: it leaves its mark on the menu)
   // (a won Standard run that went on into Endless was already paid for its first part)
@@ -3775,7 +3803,7 @@ let dokiChips = [];
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
 // NEMESIS: which of its attacks copies each ship's ability, how long it takes to copy one, and how long it stays phased out
-const NEMESIS_COPY = { striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
+const NEMESIS_COPY = { gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
 const NEMESIS_COPY_T = 1.2, NEMESIS_PHASE = 1;
 const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
 const JUDGE_WARN = 2.4, JUDGE_R = 75;     // THE ORACLE's judgment: warning time, safe circle radius
@@ -4291,7 +4319,7 @@ function abyssCineStep(b, dt) {
   }
   if (hit(CINE.title)) { beep(90, 0.9, 'square', 0.1, -50); shake = Math.max(shake, 16); }
   if (b.cine >= CINE_LEN) { // the fight begins
-    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time;
+    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b);
     if (b.hint) hint = { text: b.hint, life: 6 };
     if (!meta.seenAbyss && net.role !== 'guest') { meta.seenAbyss = true; saveMeta(); }
   }
@@ -4668,6 +4696,10 @@ function updateBoss(b, dt) {
         const title = encounter.kind !== 'single' ? `${encounter.name} DEFEATED — CHOOSE A REWARD`
           : b.final ? 'THE ABYSS IS SILENCED — CHOOSE A REWARD' : 'BOSS DEFEATED — CHOOSE A REWARD';
         onEncounterBeaten(encounter, b);
+        if (run.practice) { // (a practice fight: that's it)
+          encounter = null; run.practice.won = true; run.victoryT = 2.4; players.forEach(p => { if (p.alive) p.inv = 99; });
+          fxText(run.practice.hard ? 'HARD MODE CLEARED!' : 'PRACTICE CLEARED!', W / 2, H * 0.4, '#ffe93d', 40, 2.4); return;
+        }
         encounter = null;
         if (b.final && !run.endless && !run.rush) {
           // Standard run complete: let the explosion play out, then the victory screen
@@ -4732,7 +4764,7 @@ function updateBoss(b, dt) {
     b.introRingT -= dt;
     if (b.introRingT <= 0) { b.introRingT = 0.35; fxRing(b.x, b.y, b.r * 2.5, b.r * 0.3, 0.4, b.color, 2); }
     if (b.y >= hoverY) {
-      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time;
+      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b);
       shake = Math.max(shake, 16); bossRoar(b, true);
       fxRing(b.x, b.y, b.r, b.r * 5, 0.7, b.color, 5); fxRing(b.x, b.y, b.r, b.r * 3.5, 0.5, '#ffffff', 3, 0.1);
       burst(b.x, b.y, b.color, 60, 400);
@@ -4873,6 +4905,7 @@ function hitBoss(b, dmg, fx, fy) {
 function onEncounterBeaten(enc, last) {
   unlockAch('first_boss');
   logBoss(enc.name, enc.t0 !== undefined ? time - enc.t0 : undefined);
+  if (run.practice?.hard && meta.bossLog[enc.name]) { meta.bossLog[enc.name].hard = true; saveMeta(); }
   run.coins = (run.coins || 0) + (run.rush ? 60 : 30); // shop money (Boss Rush has few other kills)
   if (!enc.hitTaken) unlockAch('flawless');
   if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) unlockAch('clutch');
@@ -5066,7 +5099,8 @@ function update(dt) {
 
     // auto fire (held during THE ABYSS's entrance, and around DOKI DOLL: see holstered)
     p.shotT -= dt;
-    if (p.shotT <= 0 && !holstered()) {
+    if (p.reloadT > 0 && (p.reloadT -= dt) <= 0) { p.ammo = m.cylinder; beep(1600, 0.05, 'square', 0.03); } // (GUNSLINGER: reloaded, click)
+    if (p.shotT <= 0 && !holstered() && !(p.reloadT > 0)) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
@@ -5076,6 +5110,11 @@ function update(dt) {
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
       if (s.bulletHell && (p.volley = (p.volley || 0) + 1) % 5 === 0) // Bullet Hell evolution: a full ring every 5th volley
         for (let i = 0; i < 14; i++) fire(p.x, p.y, i / 14 * Math.PI * 2, p.color, undefined, p);
+      if (m.cylinder) { // GUNSLINGER: one round gone; an empty cylinder means a reload (faster while powered up, or with Speed Loader)
+        p.ammo = (p.ammo ?? m.cylinder) - 1;
+        if (p.ammo <= 0) p.reloadT = m.reload * (powered ? 0.6 : 1) * (s.abm_gunslinger ? 0.5 : 1);
+        beep(300 + p.id * 40, 0.06, 'square', 0.02, -160);
+      } else
       beep(880 + p.id * 110, 0.04, 'square', 0.012);
     }
     if (dronesOf(p) && !holstered()) {
@@ -5464,6 +5503,7 @@ const HULLS = {
   medic:   { pts: [[0, -16], [12, -7], [13, 8], [5, 14], [-5, 14], [-13, 8], [-12, -7]], flames: [[-5, 13, 4], [5, 13, 4]], cross: true },
   wraith:  { pts: [[0, -20], [6, -6], [16, 4], [8, 2], [5, 14], [0, 8], [-5, 14], [-8, 2], [-16, 4], [-6, -6]], flames: [[0, 9, 3]], cockpit: [[0, -11], [2.5, -2], [-2.5, -2]] },
   carrier: { pts: [[-7, -16], [7, -16], [11, -8], [19, -6], [19, 10], [11, 14], [-11, 14], [-19, 10], [-19, -6], [-11, -8]], flames: [[-12, 13, 4], [0, 13, 4], [12, 13, 4]], cockpit: [[-4, -10], [4, -10], [4, -3], [-4, -3]] },
+  revolver: { pts: [[-2.5, -24], [2.5, -24], [3, -10], [8, -8], [17, 6], [15, 12], [6, 9], [0, 13], [-6, 9], [-15, 12], [-17, 6], [-8, -8], [-3, -10]], flames: [[0, 12, 5]], cockpit: [[0, -4], [4, 4], [-4, 4]], cylinder: true },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
 };
 // mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
@@ -5530,6 +5570,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
     ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * 0.62, y * 0.62 + 1); ctx.closePath(); ctx.stroke();
   }
   ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.globalAlpha *= 0.7;
+  if (h.cylinder) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; ctx.beginPath(); ctx.arc(Math.cos(a) * 9, 6 + Math.sin(a) * 3.5, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the revolver's cylinder, across its wings)
   if (h.cross) {
     if (mk2) { ctx.globalAlpha /= 0.7; ctx.fillStyle = '#fff'; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); }
     ctx.fillRect(-1.8, -6, 3.6, 12); ctx.fillRect(-6, -1.8, 12, 3.6);
@@ -5711,6 +5752,14 @@ function drawAbilityState(p) {
     glow('#ffe93d', 22); ctx.strokeStyle = '#ffe93d'; ctx.fillStyle = 'rgba(255,233,61,0.12)'; ctx.lineWidth = 3;
     ctx.globalAlpha = p.abOn < 0.6 && Math.floor(t * 12) % 2 ? 0.35 : 1; // (blinks as it runs out)
     ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = t * 1.5 + i / 6 * TAU; ctx.lineTo(p.x + Math.cos(a) * 34, p.y + Math.sin(a) * 34); } ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  if (p.ship.mod.cylinder && p.ammo !== undefined) { // GUNSLINGER: the rounds left in an arc under the ship (empty while it reloads)
+    const n = p.ship.mod.cylinder; ctx.shadowBlur = 0;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI / 2 + (i - (n - 1) / 2) * 0.3, full = i < p.ammo && !(p.reloadT > 0);
+      ctx.fillStyle = full ? '#ffd23d' : 'rgba(255,210,61,0.22)';
+      ctx.beginPath(); ctx.arc(p.x + Math.cos(a) * 27, p.y + Math.sin(a) * 27, 2.3, 0, TAU); ctx.fill();
+    }
   }
   if (abActive(p, 'berserker')) { // RAMPAGE: a ring of red flames
     ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,48,80,0.55)'; ctx.beginPath();
@@ -8689,7 +8738,8 @@ let pauseView = 'main'; // 'main' or 'settings'
 function restartRun() {
   if (net.role === 'guest' || !run) return;
   paused = false; pauseView = 'main';
-  if (net.role === 'host') startOnline(); else start(mode, run.ships);
+  if (run.practice) startPractice(run.practice.i, run.practice.hard);
+  else if (net.role === 'host') startOnline(); else start(mode, run.ships);
 }
 // the pause screen (playing alone or on one computer), and online, your own menu: the game keeps going for everyone
 // while it's open, unless the host pauses everyone
@@ -9253,12 +9303,56 @@ function drawCosmetics() {
 
 // ---------- the boss gallery: every boss fight you've met, drawn live, with how fast you've beaten it ----------
 // (bosses you haven't met are dark silhouettes; the secret ones are just a "?" until you find them)
-let galleryRage = false;
+let galleryRage = false, galleryPick = -1; // (galleryPick: the boss whose page is open)
+// (order: what goes in the run's boss order to fight it; flag: the run flag that brings a secret boss in instead)
 const galleryEntries = () => [
-  ...BOSSES.map(d => ({ name: d.name, defs: [d], secret: !!d.final })),
-  ...TEAMS.map(t => ({ name: t.name, defs: t.members })),
-  ...[SECRET_BOSS, NEMESIS_BOSS, DOKI_BOSS].map(d => ({ name: d.name, defs: [d], secret: true })),
+  ...BOSSES.map((d, i) => ({ name: d.name, defs: [d], secret: !!d.final, order: { single: i } })),
+  ...TEAMS.map((t, i) => ({ name: t.name, defs: t.members, order: { team: i } })),
+  { name: SECRET_BOSS.name, defs: [SECRET_BOSS], secret: true, order: { single: 0 }, flag: 'secretNext' },
+  { name: NEMESIS_BOSS.name, defs: [NEMESIS_BOSS], secret: true, order: { single: 0 }, flag: 'nemesisNext' },
+  { name: DOKI_BOSS.name, defs: [DOKI_BOSS], secret: true, order: { single: 0 }, flag: 'dokiNext', noHard: true }, // (her fight isn't about damage)
 ];
+// the story of THE ABYSS and ZERO, a piece at a time: [how to unlock it, the text]
+const LORE = {
+  'THE ABYSS': [
+    [r => r.met, 'It was here before the stars. When the first one lit up, it felt light for the first time, and it hated it.'],
+    [r => r.beat, 'The neon you fly through is the last light left near the Horizon. It has been eating the rest for a very long time.'],
+    [r => r.beat >= 3, 'Every eye it opens is something it swallowed. Some of them are still looking for a way out.'],
+    [r => r.hard, 'It doesn\'t die when you beat it. It sinks back into the dark and waits. It always remembers your ship.'],
+  ],
+  'ZERO': [
+    [r => r.met, 'LOG 0: Before the first neon ship there was a test flight. Its pilot program was called ZERO.'],
+    [r => r.beat, 'LOG 1: ZERO flew into the Event Horizon to see what was inside. The signal stopped. The flight was marked lost.'],
+    [r => r.beat >= 3, 'LOG 2: Something came back wearing its code. It speaks in errors now, because the thing inside it never learned words.'],
+    [r => r.hard, 'LOG 3: Every time you break it, it rebuilds itself from a backup. It isn\'t trying to win. It\'s trying to remember who it was.'],
+  ],
+};
+const LORE_HOW = ['Meet it', 'Beat it', 'Beat it 3 times', 'Beat it on HARD'];
+
+// ---------- practice: fight one boss you've beaten from the gallery, alone, with a mid-run build ----------
+// (it fights like the 4th boss of a run, THE ABYSS like the 8th; practice pays no shards and keeps no score)
+const PRACTICE_AT = 4;
+function startPractice(i, hard) {
+  const e = galleryEntries()[i];
+  if (!e || !meta.bossLog[e.name]?.beat || net.role) return;
+  const keep = runType; runType = 'standard';
+  start(1, [lastShips[0]]);
+  runType = keep;
+  const n = e.defs[0].final ? 8 : PRACTICE_AT;
+  run.practice = { i, hard: !!hard && !e.noHard, name: e.name };
+  run.nemesisAt = 0; run.dokiMet = true;
+  for (let k = 0; k < n * 2; k++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
+  run.bossOrder = Array(n).fill(e.order); bossCount = n; level = 1 + n * 2;
+  if (e.flag) run[e.flag] = true;
+  bossWarn = 3;
+  hint = { text: `PRACTICE: ${e.name}${run.practice.hard ? ' — HARD' : ''}  ·  P to pause or quit`, life: 6 };
+}
+// HARD: enraged from the start, attacks 25% faster and has 25% more health (SONNET keeps his transformation for halfway)
+function hardenBoss(b) {
+  if (!run?.practice?.hard || b.hardened) return;
+  b.hardened = true; b.hp *= 1.25; b.max *= 1.25; b.atkMult = (b.atkMult || 1) * 0.75;
+  if (b.gimmick !== 'sonnet' && !b.final) b.forceRage = true;
+}
 const galleryDummies = {};
 function galleryBoss(def, i, rage) { // a stand-in boss to draw (kept, so it animates)
   const key = def.name + i + rage;
@@ -9285,7 +9379,8 @@ function drawGallery() {
   const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 112, t = performance.now() / 1000;
   list.forEach((e, i) => {
     const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap), rec = log[e.name] || {};
-    const seen = !!rec.met, color = rec.beat ? '#ff8d5d' : seen ? '#889' : '#334';
+    const seen = !!rec.met, color = rec.hard ? '#ff3d5a' : rec.beat ? '#ff8d5d' : seen ? '#889' : '#334';
+    if (seen && galleryPick < 0) buttons.push({ x, y, w: cw, h: ch, action: () => { galleryPick = i; } });
     panel(x, y, cw, ch, color, false);
     if (!seen && e.secret) { // a secret you haven't found: nothing to see yet
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#445'; ctx.font = `bold ${Math.round(ch * 0.4)}px system-ui`;
@@ -9308,10 +9403,47 @@ function drawGallery() {
     ctx.fillText(seen || !e.secret ? (seen ? e.name : '???') : '???', x + cw / 2, y + ch - 22);
     ctx.font = `${cw < 110 ? 9 : 10}px system-ui`; ctx.fillStyle = rec.beat ? '#ffd23d' : '#778';
     const best = rec.best, mm = best !== undefined ? `${Math.floor(best / 60)}:${String(Math.floor(best % 60)).padStart(2, '0')}` : '';
-    ctx.fillText(rec.beat ? `★ ${rec.beat}×  ·  best ${mm}` : seen ? 'not beaten yet' : 'not met yet', x + cw / 2, y + ch - 9);
+    ctx.fillText(rec.beat ? `${rec.hard ? '☠' : '★'} ${rec.beat}×  ·  best ${mm}` : seen ? 'not beaten yet' : 'not met yet', x + cw / 2, y + ch - 9);
   });
   const bw = Math.min(240, W - 32);
-  button('BACK  [Esc]', (W - bw) / 2, Math.min(H - 52, y0 + rows * (ch + gap) + 6), bw, 44, '#7df9ff', () => go('menu'));
+  if (galleryPick < 0) button('BACK  [Esc]', (W - bw) / 2, Math.min(H - 52, y0 + rows * (ch + gap) + 6), bw, 44, '#7df9ff', () => go('menu'));
+  else drawBossPage(list[galleryPick], log[list[galleryPick].name] || {}, t);
+}
+// a boss's own page: big, with its record, its story (THE ABYSS and ZERO only) and the practice buttons
+function drawBossPage(e, rec, t) {
+  ctx.fillStyle = 'rgba(3,3,12,0.82)'; ctx.fillRect(0, 0, W, H);
+  const lore = LORE[e.name], pw = Math.min(560, W - 24), ph = Math.min(H - 24, lore ? 520 : 360), px = (W - pw) / 2, py = (H - ph) / 2;
+  panel(px, py, pw, ph, rec.hard ? '#ff3d5a' : '#ff8d5d', false);
+  title(e.name, py + 34, '#ff8d5d', 28);
+  // the boss itself (its rage or super form when R is on)
+  const n = e.defs.length, size = Math.min(48, pw / (n * 3.2));
+  ctx.save(); ctx.beginPath(); ctx.rect(px + 4, py + 56, pw - 8, 140); ctx.clip();
+  e.defs.forEach((d, k) => {
+    const b = galleryBoss(d, k, galleryRage && !!rec.beat);
+    b.t = t + k; b.spin = t * 0.9; b.r = size; b.x = px + pw * (k + 1) / (n + 1); b.y = py + 126;
+    try { drawBoss(b); } catch (err) {}
+  });
+  ctx.restore(); ctx.shadowBlur = 0;
+  const best = rec.best, mm = best !== undefined ? `${Math.floor(best / 60)}:${String(Math.floor(best % 60)).padStart(2, '0')}` : '–';
+  fitText(rec.beat ? `Beaten ${rec.beat}×  ·  fastest ${mm}${rec.hard ? '  ·  ☠ beaten on HARD' : ''}` : 'Not beaten yet', py + 214, 14, rec.hard ? '#ff8d9d' : '#ffd23d', 'bold');
+  let y = py + 240;
+  if (lore) { // its story: what you've unlocked, and how to unlock the rest
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '13px system-ui';
+    lore.forEach(([ok, text], k) => {
+      const open = ok(rec);
+      for (const l of wrap(open ? text : `🔒 ${LORE_HOW[k]} to unlock this.`, pw - 48)) {
+        ctx.fillStyle = open ? (e.name === 'ZERO' ? '#e8f4ff' : '#ff8d9d') : '#556'; ctx.fillText(l, px + 24, y); y += 17;
+      }
+      y += 7;
+    });
+  }
+  const by = py + ph - 58, bw2 = (pw - 48) / 3;
+  if (rec.beat) {
+    button('FIGHT  [Enter]', px + 16, by, bw2, 42, '#5dff7a', () => startPractice(galleryPick, false));
+    if (!e.noHard) button('☠ HARD  [D]', px + 24 + bw2, by, bw2, 42, '#ff3d5a', () => startPractice(galleryPick, true));
+    else fitText('No HARD mode', by + 21, 12, '#778');
+  } else { ctx.textAlign = 'center'; fitText('Beat it in a run to practice it here', by + 21, 12, '#9ab'); }
+  button('BACK  [Esc]', px + 32 + bw2 * 2, by, bw2, 42, '#7df9ff', () => { galleryPick = -1; });
 }
 
 function drawHangar() {

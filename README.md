@@ -25,7 +25,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+10 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
 Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 41 achievements · online quick chat (1–4) · an original soundtrack (below)
 
@@ -42,8 +42,9 @@ Every ship has one ability on a cooldown (the MK II's is stronger and comes back
 - **Wraith — Shadow Step:** phase out on demand and move 60% faster while phased.
 - **Carrier — Swarm:** a swarm of homing missiles.
 - **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
+- **Gunslinger — Fan the Hammer:** empties the whole cylinder at the closest enemy at double damage, then reloads instantly. (The Gunslinger fires 6 heavy rounds fast, then has to reload.)
 
-Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind and Bloodthirst. A ship's card only shows up when someone is flying that ship.
+Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst and Speed Loader. A ship's card only shows up when someone is flying that ship.
 
 ### Ship mastery
 
@@ -146,6 +147,10 @@ Some bosses don't stay down. When THE WYRM or NULL SERAPH runs out of health, it
 ### Boss gallery
 
 Press **G** on the menu (or open it from the Hangar) to see every boss fight you've met, drawn live, with how many times you've beaten it and your fastest kill. Bosses you haven't met are dark silhouettes, and the secret ones are just a **?** until you find them. Press **R** to see the rage and super forms of the bosses you've beaten.
+
+Click a boss to open its page. Once you've beaten it in a run, you can **practice** it there: a single fight against just that boss, with a mid-run build (no shards, no score). **HARD** makes it enraged from the start, 25% faster and 25% tougher. Beat it on HARD and its tile turns red with a ☠.
+
+THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a time: by meeting them, beating them, beating them 3 times, and beating them on HARD.
 
 ### Pets
 
