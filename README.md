@@ -16,18 +16,45 @@ Online play checks everything other players send. Nobody can control someone els
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
+- **Ability:** Space, Q, E, Shift or right-click (gamepad: A, X or a right bumper/trigger; touch screens get a button)
 - **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
-- Local co-op: 2P = WASD + arrows/mouse · 3P = mouse, WASD, arrows · 4P adds IJKL
+- Local co-op: 2P = WASD (ability Q) + arrows/mouse (Right Shift / right-click) · 3P = mouse, WASD, arrows · 4P adds IJKL (ability U)
 
 ## Features
 
-9 ship classes, all free (each with a stronger MK II to unlock) · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
-8 upgrade evolutions · a mid-run shop · elite enemies · a secret boss ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 34 achievements · online quick chat (1–4) · an original soundtrack (below)
+9 ship classes, all free (each with a stronger MK II to unlock), each with its own ability · 33 upgrades · 34 enemy types · 18 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+8 upgrade evolutions · ships that evolve as you power up · co-op Link Beams · a mid-run shop · elite enemies · two secret bosses · 8 curses ·
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 19 cosmetics (trails, bullet colors, kill effects) · 38 achievements · online quick chat (1–4) · an original soundtrack (below)
+
+### Ship abilities
+
+Every ship has one ability on a cooldown (the MK II's is stronger and comes back faster):
+
+- **Striker — Nova Bomb:** wipes every enemy bullet off the screen and blasts everything on it.
+- **Interceptor — Dash:** dash the way you're heading, untouchable, cutting through enemies.
+- **Juggernaut — Fortress:** invincible for a few seconds, and bullets that hit you bounce back.
+- **Scatter — Flak Ring:** rings of bullets in every direction.
+- **Piercer — Railshot:** a beam straight up that pierces everything for huge damage.
+- **Medic — Lifeline:** revives every downed teammate at once (or shields the whole team).
+- **Wraith — Shadow Step:** phase out on demand and move 60% faster while phased.
+- **Carrier — Swarm:** a swarm of homing missiles.
+- **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
+
+### Co-op: Link Beam
+
+Fly close to a teammate for 3 seconds and a tether charges between you. When it's full, you fire a **Link Beam** together: a huge column of light that shreds everything above you.
+
+### Ship evolution
+
+The more upgrades a run piles up, the more every ship transforms: **Form II** at 6 upgrades (blades of light on the wings), **Form III** at 12 (a ring of energy circles the ship), and the **Final Form** at 18 (a burning halo and a white-hot core). Each form also hits a little harder.
+
+### Curses
+
+Before a run, press **X** on the menu (or in an online lobby, as the host) to switch on curses: Glass Cannon, Behemoths, Hailstorm, Horde, Closed Shop, Slim Pickings, Powerless and Blackout. Each makes the run harder and pays extra shards, and they stack.
 
 ### Music
 
-25 original songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, the secret boss, victory and game over each have their own song too.
+26 original songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, both secret bosses, victory and game over each have their own song too.
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
@@ -70,6 +97,10 @@ It fights in three phases, learning new moves in each:
 - In its last phase, a frenzy where every tentacle strikes in turn.
 
 When the lights go out, its eyes glow in the dark and it whispers to you. When it fully awakens, the screen breaks up, a crown of horns tears out of it, and its outline looms over the darkness.
+
+Lose to it, and it leaves its mark: the main menu stays haunted until you finally beat it.
+
+And once you've found the first secret boss, keep an eye out. Someone else might join your game.
 
 Regular enemies are animated too. They warp in, squash when hit, and break into pieces when destroyed. Ships fly with engine flames, gunners aim their barrels, and slimes blink.
 

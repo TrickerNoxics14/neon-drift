@@ -204,6 +204,14 @@ const SONGS = {
     B: { chords: '6 7 1 3 6 7 5^ 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
       '6-------q---e---', '7-------w---r---', 'e-------q---5---', '3-------5---7---',
       'e-------q---6---', 'r-------w---7---', 'w-------5---w---', 't---------------'] } } },
+  // the second secret boss: a cold synth arpeggio that a guitar answers, like your own song played back wrong
+  nemesis: { name: 'Mirror Match', bpm: 150, root: 45, scale: 'minor', lead: 69, battle: true, form: ['A', 'B'], parts: {
+    A: { chords: '1 7 6 7 1 7 6 5^', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
+      '1.3.5.3.q.5.3.5.', '7.2.4.2.7.4.2.4.', '6.1.3.1.6.3.1.3.', '7-------5---7---',
+      '1.3.5.3.q.5.3.5.', '7.2.4.2.w.4.2.4.', '6.1.3.1.6.3.q.3.', '5-------5-4-3-2-'] },
+    B: { chords: '6 4 1 5 6 4 7 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
+      '6-------q---e---', '4-------6---q---', 'q-------e---w---', 'w-------7---5---',
+      '6-------q---e---', '4-------6---r---', '7-------w---e---', '5---------------'] } } },
   // team bosses: a fast rival fight where the guitar and the flute trade the tune
   rival: { name: 'Rival Clash', bpm: 160, root: 47, scale: 'minor', lead: 71, battle: true, form: ['A', 'B'], parts: {
     A: { chords: '1 1 6 7 1 1 6 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
@@ -326,8 +334,8 @@ function zoneSong(zone) {
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
   ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'],
-  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['victory', 'Victory'], ['gameover', 'Game over']];
-const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings'];
+  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['victory', 'Victory'], ['gameover', 'Game over']];
+const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
   half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.9 },
   rock:  { k: 'x.....x.x.....x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', v: 1 },
@@ -403,6 +411,7 @@ function wantedSong() {
   if (state === 'route') return 'starmap';
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
+  if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
   if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
   if ((encounter && encounter.kind !== 'single') || warn?.team) return 'rival';
@@ -791,9 +800,11 @@ const META_ITEMS = [
   { id: 'bounty',  name: 'Boss Bounty',     desc: '+20 shards per boss defeated',       costs: [200, 450, 900] },
 ];
 const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default' };
-let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } } };
+// (abyssMark: lost to THE ABYSS and haven't beaten it since — the menu stays corrupted; curseSel: the curses picked for the next run)
+let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } }, abyssMark: false, abyssLosses: 0, curseSel: [] };
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: Number.isFinite(m.shards) ? Math.max(0, m.shards) : 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
-  cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } } }; } catch (e) {}
+  cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } }, seenAbyss: !!m.seenAbyss,
+  abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [] }; } catch (e) {}
 const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
 
@@ -922,11 +933,14 @@ const ACHIEVEMENTS = [
   { id: 'triad',       cat: 'boss', name: 'Divide and Conquer',   reward: 100, desc: 'Defeat The Triad.' },
   { id: 'starved',     cat: 'boss', name: 'Starved',              reward: 150, desc: 'Defeat The Leech without letting a single blood orb heal it.' },
   { id: 'zero',        cat: 'boss', name: 'Divide by Zero',       reward: 400, desc: 'Find and defeat the secret boss.' },
+  { id: 'nemesis',     cat: 'boss', name: 'Know Thyself',         reward: 400, desc: 'Find and defeat the second secret boss.' },
+  { id: 'cursed',      cat: 'progress', name: 'Hexed',            reward: 300, desc: 'Destroy THE ABYSS with 3 or more curses on.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
   { id: 'squad',       cat: 'team', name: 'Full Squad',           reward: 50,  desc: 'Start a 4-player co-op run.' },
   { id: 'teamwork',    cat: 'team', name: 'Dream Team',           reward: 150, desc: 'Beat a team boss in co-op without anyone going down.' },
   { id: 'quartet',     cat: 'team', name: 'Four of a Kind',       reward: 200, desc: 'Defeat The Quartet in a 4-player run.' },
+  { id: 'link',        cat: 'team', name: 'Better Together',      reward: 100, desc: 'Fire a LINK BEAM with a teammate.' },
   { id: 'endless2',    cat: 'progress', name: 'Beyond the End',   reward: 150, desc: 'Reach cycle 2 in Endless mode.' },
   { id: 'endless4',    cat: 'progress', name: 'Infinite Drift',   reward: 300, desc: 'Reach cycle 4 in Endless mode.' },
   { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 8 zones (all-time).', progress: () => [ZONES.filter(z => meta.stats.zones?.[z.id]).length, ZONES.length] },
@@ -934,6 +948,7 @@ const ACHIEVEMENTS = [
   { id: 'phoenix',     cat: 'build', name: 'Rise from the Ashes', reward: 50,  desc: 'Get saved by Phoenix Core.' },
   { id: 'arsenal',     cat: 'build', name: 'Arsenal',             reward: 100, desc: 'Hold 12 different upgrades in one run.' },
   { id: 'epic3',       cat: 'build', name: 'Epic Taste',          reward: 100, desc: 'Hold 3 different Epic upgrades in one run.' },
+  { id: 'evolve',      cat: 'build', name: 'Final Form',          reward: 150, desc: 'Evolve your ship into its final form (18 upgrades in one run).' },
   { id: 'fleet',       cat: 'ship', name: 'Fleet Admiral',        reward: 100, desc: 'Own the MK II of every ship.', progress: () => [SHIPS.filter(mk2Owned).length, SHIPS.length] },
   { id: 'versatile',   cat: 'ship', name: 'Versatile',            reward: 150, desc: 'Defeat bosses with 4 different ships (all-time).', progress: () => [Object.keys(meta.stats.bossShips).length, 4] },
 ];
@@ -1052,8 +1067,10 @@ function rollCards(n, bossReward, noEvo) {
 }
 
 function applyUpgrade(u) {
+  const tier = evoTier();
   run.owned[u.id] = (run.owned[u.id] || 0) + 1;
   u.apply(run.s);
+  if (evoTier() > tier) shipsEvolve(evoTier());
   const held = UPGRADES.filter(x => run.owned[x.id] > 0);
   if (held.length >= 12) unlockAch('arsenal');
   if (held.filter(x => x.r === 'epic').length >= 3) unlockAch('epic3');
@@ -1063,12 +1080,22 @@ function applyUpgrade(u) {
   }
 }
 
+// enough upgrades: every ship transforms into its next form (see drawEvolution), and hits a little harder for it
+function shipsEvolve(tier) {
+  fxText(`SHIPS EVOLVED — ${EVO_NAMES[tier]}`, W / 2, H * 0.3, '#ffffff', 32, 2.4);
+  screenFlash = Math.max(screenFlash, 0.5); shake = Math.max(shake, 10);
+  for (const p of living()) { fxRing(p.x, p.y, 10, 120, 0.6, p.color, 5); fxRing(p.x, p.y, 10, 70, 0.4, '#ffffff', 3, 0.1); burst(p.x, p.y, p.color, 50, 350); }
+  [330, 440, 554, 659, 880].forEach((f, i) => setTimeout(() => beep(f, 0.25, 'triangle', 0.07), i * 80));
+  if (tier >= 3) unlockAch('evolve');
+}
+const EVO_DMG = 0.05; // +5% damage per form
+
 function healAll(n) { for (const p of players) if (p.alive) p.lives = Math.min(maxLivesOf(p), p.lives + n); }
 
 let offer = null, pendingBoss = false;
 function openUpgrade(title, bossReward) {
-  if (bossReward) run.shopNext = true;
-  const cards = rollCards(metaLv('choice') ? 4 : 3, bossReward);
+  if (bossReward && !curse('noshop')) run.shopNext = true; // (CLOSED SHOP curse: the merchant stays away)
+  const cards = rollCards((metaLv('choice') ? 4 : 3) - (curse('slim') ? 1 : 0), bossReward);
   if (!cards.length) { resumeAfterUpgrade(); return; }
   offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1 }; // (Boss Rush: two picks per boss)
   go('upgrade');
@@ -1172,6 +1199,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
     if (paused && e.code === 'KeyR') { restartRun(); return; }
     if (!paused && /^Digit[1-4]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; } // quick chat
+    if (!paused) { const k = abilityKeyOwner(e.code); if (k >= 0) localAbility(k); return; } // ship abilities
     if (!paused) return;
     // fall through: arrows/WASD/Enter drive the pause menu
   }
@@ -1188,6 +1216,7 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyO' && state === 'menu') go('settings');
     if (e.code === 'KeyT' && state === 'menu') go('achievements');
     if (e.code === 'KeyE' && state === 'menu') toggleRunType();
+    if (e.code === 'KeyX' && state === 'menu') openCurses('menu');
     if (e.code === 'KeyE' && state === 'over' && run?.victory && !run.rush && net.role !== 'guest') continueEndless();
     if (e.code === 'KeyR' && state === 'over' && net.role !== 'guest') restartRun(); // quick restart
     if (e.code === 'KeyN' && state === 'menu') go('online');
@@ -1214,6 +1243,9 @@ addEventListener('keydown', e => {
     if (e.code === 'KeyB') music.jbMode = (music.jbMode + 1) % 3;
   } else if (state === 'achievements') {
     if (e.code === 'Escape' || e.code === 'KeyT') go('menu');
+  } else if (state === 'curses') {
+    if (num >= 1 && num <= CURSES.length) toggleCurse(CURSES[num - 1].id);
+    if (e.code === 'Escape' || e.code === 'KeyX') closeCurses();
   } else if (state === 'ships') {
     if (num >= 1 && num <= SHIPS.length) { sel = num - 1; buttons[sel]?.action(); }
     if (e.code === 'Escape') shipSelectBack();
@@ -1230,13 +1262,21 @@ function showToast(text, life = 1.4) { toast = { text, life }; }
 addEventListener('keyup', e => keys[e.code] = false);
 const hitButton = (x, y) => buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
 // (pointer positions are converted to world coordinates, which differ from the screen for scaled online guests)
+cv.addEventListener('contextmenu', e => e.preventDefault()); // (right-click is an ability button)
+let abTouchId = null; // the finger on the on-screen ability button (it mustn't steer the ship)
 cv.addEventListener('pointerdown', e => {
   const w = toWorld(e.clientX, e.clientY);
-  pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   ensureAudio();
+  if (state === 'play' && !paused && run) {
+    const mk = mouseOwner();
+    if (e.pointerType !== 'mouse' && mk >= 0 && touchAbHit(w.x, w.y)) { abTouchId = e.pointerId; localAbility(mk); return; }
+    if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
+  }
+  pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
 });
 cv.addEventListener('pointermove', e => {
+  if (e.pointerId === abTouchId) return;
   const w = toWorld(e.clientX, e.clientY);
   if (pointer || e.pointerType === 'mouse') pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
@@ -1247,10 +1287,13 @@ document.addEventListener('paste', e => {
   const t = (e.clipboardData?.getData('text') || '').replace(/[^0-9]/g, '').slice(0, CODE_LEN);
   if (t) net.typed = t;
 });
-cv.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') pointer = null; });
+cv.addEventListener('pointerup', e => {
+  if (e.pointerId === abTouchId) { abTouchId = null; return; }
+  if (e.pointerType !== 'mouse') pointer = null;
+});
 
 // gamepads: pad 0 -> player 1, pad 1 -> player 2
-const padPrev = [false, false, false, false], padNavPrev = [0, 0, 0, 0], padStartPrev = [false, false, false, false];
+const padPrev = [false, false, false, false], padNavPrev = [0, 0, 0, 0], padStartPrev = [false, false, false, false], padAbPrev = [false, false, false, false];
 function readPad(i) {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const p = Array.from(pads || []).filter(Boolean)[i];
@@ -1267,7 +1310,9 @@ function readPad(i) {
   const dir = (y < -0.5 || x < -0.5) ? -1 : (y > 0.5 || x > 0.5) ? 1 : 0;
   const nav = dir !== padNavPrev[i] ? dir : 0;
   padNavPrev[i] = dir;
-  return { x, y, pressed, start, nav };
+  const abBtn = [0, 2, 5, 7].some(b => p.buttons[b]?.pressed), ab = abBtn && !padAbPrev[i]; // ability: A, X, right bumper or trigger
+  padAbPrev[i] = abBtn;
+  return { x, y, pressed, start, nav, ab };
 }
 
 // ---------- run state ----------
@@ -1343,6 +1388,12 @@ const SECRET_BOSS = { name: 'ZERO', style: 'zero', color: '#e8f4ff', sides: 4, r
   hint: 'ZERO — the glitch at the end of everything. Dodge the grid, and when the world turns inside out, trust the warnings.',
   patterns: ['grid', 'spiral', 'blink', 'grid', 'ring', 'fan', 'grid', 'mines'] };
 const SECRET_MIN_SECS = 55;
+// the second secret boss: a dark copy of one of your own ships. Once you've beaten ZERO, there's a chance it barges in
+// partway through a run, right after one of the early bosses falls ("P0 HAS JOINED THE GAME")
+const NEMESIS_BOSS = { name: 'NEMESIS', style: 'nemesis', color: '#ff2a4a', sides: 6, r: 48, hpMult: 1.35, nemesis: true, gimmick: 'nemesis', rageMove: 'link', rageTitle: 'PLAYER ZERO',
+  hint: 'NEMESIS — a dark copy of your ship. It fights with your own abilities, and whatever ability you use, it copies right back at you.',
+  patterns: ['mimic', 'charge', 'nova', 'mimic', 'rail', 'missiles', 'phase', 'mimic', 'flak', 'fortress'] };
+const NEMESIS_CHANCE = 0.4, NEMESIS_MIN_SECS = 30;
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
 const TEAMS = [
@@ -1409,6 +1460,7 @@ function encounterDef(n) {
   return run.bossOrder[(n - 1) % run.bossOrder.length];
 }
 function encounterInfo(n) {
+  if (run.nemesisNext) return { name: '???', nemesis: true };
   if (run.secretNext) return { name: '???', final: true };
   const e = encounterDef(n);
   return e.team !== undefined ? { name: TEAMS[e.team].name, team: true } : { name: BOSSES[e.single].name, final: BOSSES[e.single].final };
@@ -1492,7 +1544,7 @@ const dronesOf = p => run.s.drones + (p.ship.mod.drones || 0); // Wing Drone upg
 const shipUnlocked = s => s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
 // every ship (and every owned MK II) — what the online lobby's quick-cycle goes through
 const flyableShips = () => SHIPS.flatMap(b => mk2Owned(b) ? [b, shipById(b.id + '2')] : [b]);
-const maxLivesOf = p => Math.max(1, run.s.maxLives + (p.ship.mod.lives || 0));
+const maxLivesOf = p => curse('glass') ? 1 : Math.max(1, run.s.maxLives + (p.ship.mod.lives || 0)); // (GLASS CANNON curse: one life each)
 let lastShips = ['striker', 'striker', 'striker', 'striker'];
 try { const l = JSON.parse(localStorage.getItem('neonDriftShips')); if (Array.isArray(l)) lastShips = l.concat(lastShips).slice(0, 4); } catch (e) {}
 
@@ -1501,8 +1553,206 @@ function makePlayer(id, x, shipId, cos) {
   const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1), inv: 2, power: 0, shield: m.aegis ? 1 : 0, alive: true,
     shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT };
   p.lives = maxLivesOf(p);
+  p.abCd = abCdOf(p) * AB_START; p.abOn = 0;
   return p;
 }
+
+// ---------- ship abilities: every ship has one active move on a cooldown (its MK II's is stronger and quicker) ----------
+// Solo: Space, Q, E, Shift or right-click. Co-op: each player's keys sit next to their movement keys (AB_KEYS), and a
+// gamepad uses A, X or a right bumper/trigger. On a touch screen there's a button in the corner.
+const ABILITIES = {
+  striker:     { name: 'NOVA BOMB',   cd: [24, 18], desc: 'Wipes every enemy bullet off the screen and blasts everything on it.' },
+  interceptor: { name: 'DASH',        cd: [4, 3],   desc: 'Dash the way you\'re heading: untouchable mid-dash, and it cuts through enemies.' },
+  juggernaut:  { name: 'FORTRESS',    cd: [18, 14], dur: [3, 4], desc: 'Invincible for a moment, and enemy bullets that hit you bounce back.' },
+  scatter:     { name: 'FLAK RING',   cd: [8, 6],   desc: 'Rings of bullets in every direction (two, or three for the MK II).' },
+  piercer:     { name: 'RAILSHOT',    cd: [10, 7],  desc: 'A beam straight up that pierces everything in its path for huge damage.' },
+  medic:       { name: 'LIFELINE',    cd: [40, 28], desc: 'Revives every downed teammate at once. With nobody down, shields the whole team.' },
+  wraith:      { name: 'SHADOW STEP', cd: [10, 7],  dur: [1.8, 2.4], desc: 'Phase out on demand, and move 60% faster while phased.' },
+  carrier:     { name: 'SWARM',       cd: [9, 7],   desc: 'Launches a swarm of homing missiles (8, or 12 for the MK II).' },
+  berserker:   { name: 'RAMPAGE',     cd: [22, 16], dur: [5, 5], desc: 'Double damage and faster fire for 5s, and you smash through enemies you ram.' },
+};
+const AB_START = 0.35; // (a run starts with abilities 65% charged)
+const shipBase = p => p.ship.base || p.ship.id;
+const abilityOf = p => ABILITIES[shipBase(p)] || ABILITIES.striker;
+const abTier = p => p.ship.mk2 === true ? 1 : 0;
+const abCdOf = p => abilityOf(p).cd[abTier(p)];
+const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
+const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1); // (Wraiths are faster while phased)
+// which keys fire each control scheme's ability
+const AB_KEYS = { wasd: ['KeyQ', 'KeyE', 'ShiftLeft'], arrows: ['ShiftRight', 'Enter', 'Slash', 'Numpad0', 'ControlRight'], ijkl: ['KeyU', 'KeyO'], mouse: ['Space'] };
+const localSchemes = () => CONTROLS[net.role ? net.localN : mode] || CONTROLS[1];
+const abilityKeyOwner = code => localSchemes().findIndex(sc => sc.some(c => AB_KEYS[c]?.includes(code))); // (-1: nobody's)
+const mouseOwner = () => localSchemes().findIndex(sc => sc.includes('mouse'));
+// the round button for touch screens (bottom-right corner)
+const touchAb = () => ({ x: W - 64, y: H - 96, r: 40 });
+const touchAbHit = (x, y) => { const b = touchAb(); return Math.hypot(x - b.x, y - b.y) < b.r + 12; };
+// which way a player is heading (for DASH): the keys or stick, else toward the mouse, else the way they were flying
+function abilityDir(p) {
+  const { dx, dy, usePointer } = controlsFor(p);
+  if (dx || dy) return { dx, dy };
+  if (usePointer && pointer) { const ddx = pointer.x - p.x, ddy = pointer.y - (pointer.touch ? 50 : 0) - p.y; if (Math.hypot(ddx, ddy) > 24) return { dx: ddx, dy: ddy }; }
+  if (Math.hypot(p.mvx || 0, p.mvy || 0) > 60) return { dx: p.mvx, dy: p.mvy };
+  return { dx: 0, dy: -1 };
+}
+// k: which of the players on this computer pressed their ability key
+function localAbility(k) {
+  const p = players[net.role ? net.mine[k] : k];
+  if (!p) return;
+  const { dx, dy } = abilityDir(p);
+  if (net.role === 'guest') guestAbility(p, k, dx, dy); else useAbility(p, dx, dy);
+}
+const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless');
+// where a dash ends (kept inside the arena)
+function dashEnd(p, dx, dy) {
+  const l = Math.hypot(dx, dy) || 1, D = abTier(p) ? 250 : 210;
+  return [Math.max(p.r, Math.min(W - p.r, p.x + dx / l * D)), Math.max(p.r, Math.min(H - p.r, p.y + dy / l * D))];
+}
+// online guests: dash straight away on this computer (it moves its own ship), and ask the host to do the rest
+function guestAbility(p, k, dx, dy) {
+  if (!abReady(p)) return;
+  if (shipBase(p) === 'interceptor') [p.x, p.y] = dashEnd(p, dx, dy);
+  p.abCd = abCdOf(p); // (until the host's next update says so too)
+  const l = Math.hypot(dx, dy) || 1;
+  net.host?.send({ ab: 1, k, dx: r2(dx / l), dy: r2(dy / l) });
+}
+// short-lived ability visuals (beams, dash trails), replayed on online guests' screens
+let abFx = [];
+function addAbFx(a) { abFx.push({ a, life: AB_FX_LIFE[a[0]], max: AB_FX_LIFE[a[0]] }); netRec(['a', ...a]); }
+const AB_FX_LIFE = { beam: 0.45, dash: 0.35 };
+function useAbility(p, dx = 0, dy = 0) {
+  if (!abReady(p)) return false;
+  const ab = abilityOf(p), tier = abTier(p), id = shipBase(p);
+  p.abCd = ab.cd[tier]; p.abOn = ab.dur ? ab.dur[tier] : 0;
+  popups.push({ x: p.x, y: p.y - 38, text: ab.name + '!', life: 1.1, color: p.color });
+  const dps = Math.max(12, run.dpsEst || 0); // (big hits scale with the team's firepower, so they stay worth it all run)
+  const hitEnemy = (e, dmg) => { if (e.dead || TYPES[e.type].ghost) return; e.lastBy = p.id; damageEnemy(e, dmg, 'splash'); };
+  if (id === 'striker') { // NOVA BOMB
+    for (const b of eBullets) if (Math.random() < 0.3) burst(b.x, b.y, b.color || '#ff8080', 2, 90);
+    eBullets = [];
+    for (const e of enemies) hitEnemy(e, dps * 1.2);
+    for (const bo of bosses) hitBoss(bo, dps * 1.6, bo.x, bo.y);
+    screenFlash = Math.max(screenFlash, 0.5); shake = Math.max(shake, 16);
+    for (let i = 0; i < 3; i++) fxRing(p.x, p.y, 10, Math.max(W, H) * (0.5 + i * 0.3), 0.5 + i * 0.15, i === 1 ? '#ffffff' : p.color, 6 - i * 1.5, i * 0.08);
+    beep(80, 0.8, 'sawtooth', 0.1, -40); beep(1200, 0.4, 'sine', 0.05, -1000);
+  } else if (id === 'interceptor') { // DASH (an online guest has already moved its own ship there)
+    const x0 = p.x, y0 = p.y, [x1, y1] = dashEnd(p, dx, dy);
+    if (!p.remote) { p.x = x1; p.y = y1; }
+    const ax = p.remote ? x0 - (x1 - x0) : x0, ay = p.remote ? y0 - (y1 - y0) : y0; // (the guest is already at the end)
+    p.inv = Math.max(p.inv, 0.4);
+    for (const e of enemies) if (distToSeg(e.x, e.y, ax, ay, p.x, p.y) < e.r + 20) hitEnemy(e, dps * 0.5);
+    for (const bo of bosses) if (distToSeg(bo.x, bo.y, ax, ay, p.x, p.y) < bo.r + 20) hitBoss(bo, dps * 0.4);
+    addAbFx(['dash', Math.round(ax), Math.round(ay), Math.round(p.x), Math.round(p.y), p.color]);
+    beep(1400, 0.15, 'sine', 0.05, -900);
+  } else if (id === 'juggernaut') { // FORTRESS (see hurt and the enemy-bullet loop)
+    fxRing(p.x, p.y, 40, 8, 0.3, '#ffe93d', 4); beep(200, 0.5, 'square', 0.06, 200);
+  } else if (id === 'scatter') { // FLAK RING (fired a wave at a time, in update)
+    p.flak = tier ? 3 : 2; p.flakT = 0;
+  } else if (id === 'piercer') { // RAILSHOT
+    const w = tier ? 30 : 24;
+    for (const e of enemies) if (e.y < p.y && Math.abs(e.x - p.x) < w / 2 + e.r) hitEnemy(e, dps * (tier ? 1.6 : 1.2));
+    for (const bo of bosses) if (bo.y < p.y + bo.r && Math.abs(bo.x - p.x) < w / 2 + bo.r) hitBoss(bo, dps * (tier ? 2.6 : 2), p.x, bo.y);
+    addAbFx(['beam', Math.round(p.x), Math.round(p.y - 20), w, p.color]);
+    shake = Math.max(shake, 10); beep(160, 0.5, 'sawtooth', 0.08, 1200);
+  } else if (id === 'medic') { // LIFELINE
+    const down = players.filter(q => !q.alive && !q.gone && q.wreck);
+    if (down.length) for (const q of down) { revive(q, p, true); fxRing(q.x, q.y, 6, 90, 0.5, '#5dff7a', 4); }
+    else for (const q of living()) { q.shield = 1; fxRing(q.x, q.y, 6, 60, 0.4, '#7df9ff', 3); }
+    fxRing(p.x, p.y, 10, 220, 0.6, '#5dff7a', 5);
+    [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, 0.2, 'triangle', 0.06), i * 70));
+  } else if (id === 'wraith') { // SHADOW STEP
+    p.phaseOn = ab.dur[tier]; p.phaseCd = 0;
+    fxRing(p.x, p.y, 34, 6, 0.3, p.color, 3); beep(1100, 0.3, 'sine', 0.05, -800);
+  } else if (id === 'carrier') { // SWARM
+    const n = tier ? 12 : 8;
+    for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
+    beep(300, 0.3, 'sawtooth', 0.05, 400);
+  } else if (id === 'berserker') { // RAMPAGE
+    fxRing(p.x, p.y, 10, 90, 0.4, '#ff3050', 5); burst(p.x, p.y, '#ff3050', 30, 300); shake = Math.max(shake, 8);
+    beep(90, 0.6, 'sawtooth', 0.09, -30);
+  }
+  // NEMESIS watches what you do, and copies it right back at you
+  for (const bo of bosses) if (bo.gimmick === 'nemesis' && bossAlive(bo) && bo.entered && !bo.copyT) { bo.copyId = id; bo.copyName = ab.name; bo.copyT = NEMESIS_COPY_T; }
+  return true;
+}
+// the per-frame part of abilities (host and solo)
+function updateAbility(p, dt) {
+  p.abCd = Math.max(0, p.abCd - dt); p.abOn = Math.max(0, p.abOn - dt);
+  if (p.flak > 0 && (p.flakT -= dt) <= 0) { // FLAK RING waves
+    p.flak--; p.flakT = 0.16;
+    const n = 20, off = p.flak * 0.16;
+    for (let i = 0; i < n; i++) fire(p.x, p.y, off + i / n * TAU, p.color, undefined, p);
+    beep(500, 0.12, 'square', 0.04, -200); fxRing(p.x, p.y, 8, 60, 0.25, p.color, 3);
+  }
+}
+
+// ---------- curses: handicaps you can choose before a run, each paying extra shards ----------
+const CURSES = [
+  { id: 'glass',     name: 'GLASS CANNON',  desc: 'Everyone has just 1 life, but deals 50% more damage.', bonus: 0.4, color: '#ff5a70' },
+  { id: 'behemoth',  name: 'BEHEMOTHS',     desc: 'Bosses have 50% more health.', bonus: 0.3, color: '#ffb13d' },
+  { id: 'hail',      name: 'HAILSTORM',     desc: 'Enemy bullets fly 25% faster.', bonus: 0.3, color: '#7df9ff' },
+  { id: 'horde',     name: 'HORDE',         desc: 'Enemies spawn 40% more often.', bonus: 0.25, color: '#9dff5d' },
+  { id: 'noshop',    name: 'CLOSED SHOP',   desc: 'The merchant never visits.', bonus: 0.25, color: '#ffe93d' },
+  { id: 'slim',      name: 'SLIM PICKINGS', desc: 'One fewer upgrade card to choose from, and no rerolls.', bonus: 0.2, color: '#c05dff' },
+  { id: 'powerless', name: 'POWERLESS',     desc: 'Ship abilities are switched off.', bonus: 0.2, color: '#9ab' },
+  { id: 'blackout',  name: 'BLACKOUT',      desc: 'Pitch dark, except right around your ships.', bonus: 0.35, color: '#ff3df2' },
+];
+const curse = id => !!run?.curses?.[id];
+const cleanCurses = list => CURSES.filter(c => Array.isArray(list) && list.includes(c.id)).map(c => c.id);
+const curseBonus = (list = Object.keys(run?.curses || {})) => CURSES.reduce((t, c) => t + (list.includes(c.id) ? c.bonus : 0), 0);
+let cursesBack = 'menu';
+function openCurses(back) { cursesBack = back; go('curses'); }
+function closeCurses() { go(cursesBack); if (cursesBack === 'lobby') broadcastLobby(); }
+function toggleCurse(id) {
+  const on = meta.curseSel.includes(id);
+  meta.curseSel = on ? meta.curseSel.filter(x => x !== id) : [...meta.curseSel, id];
+  saveMeta(); beep(on ? 440 : 220, 0.15, on ? 'triangle' : 'sawtooth', 0.05, on ? 200 : -60);
+}
+
+// ---------- ship evolution: as a run piles up upgrades, every ship transforms (6, 12 and 18 upgrades) ----------
+const EVO_AT = [6, 12, 18], EVO_NAMES = ['', 'FORM II', 'FORM III', 'FINAL FORM'];
+const upgradeCount = () => run ? Object.values(run.owned || {}).reduce((t, n) => t + (n | 0), 0) : 0;
+const evoTier = () => EVO_AT.filter(n => upgradeCount() >= n).length;
+
+// ---------- LINK BEAM: two teammates who fly close together charge a link, then fire one huge beam together ----------
+const LINK_R = 140, LINK_TIME = 3, LINK_FIRE = 1.6, LINK_CD = 16, LINK_W = 40;
+function updateLinks(dt) {
+  const L = run.links ||= {}, ps = living().filter(p => !p.gone);
+  for (const k in L) { const [a, b] = k.split('-').map(Number); if (!players[a]?.alive || !players[b]?.alive) { L[k].c = 0; L[k].fire = 0; } }
+  if (ps.length < 2) return;
+  const busy = new Set(); // (a ship can only be in one beam at a time)
+  for (const k in L) if (L[k].fire > 0) k.split('-').forEach(id => busy.add(+id));
+  const dps = Math.max(12, run.dpsEst || 0);
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+    const a = ps[i], b = ps[j], key = a.id + '-' + b.id, l = L[key] ||= { c: 0, cd: 0, fire: 0, tick: 0 };
+    l.cd = Math.max(0, l.cd - dt);
+    if (l.fire > 0) { // firing: a column of light straight up from between them, hitting everything in it ten times a second
+      l.fire -= dt;
+      if ((l.tick -= dt) <= 0) {
+        l.tick = 0.1;
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 30;
+        for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && e.y < my + e.r && Math.abs(e.x - mx) < LINK_W / 2 + e.r) { e.lastBy = a.id; damageEnemy(e, Math.max(10, dps * 0.35), 'splash'); }
+        for (const bo of bosses) if (bo.y < my + bo.r && Math.abs(bo.x - mx) < LINK_W / 2 + bo.r) hitBoss(bo, dps * 0.18, mx, bo.y);
+        shake = Math.max(shake, 4);
+      }
+      continue;
+    }
+    const near = Math.hypot(a.x - b.x, a.y - b.y) < LINK_R && !busy.has(a.id) && !busy.has(b.id) && !abyssCine();
+    const before = l.c;
+    l.c = l.cd > 0 ? 0 : near ? Math.min(1, l.c + dt / LINK_TIME) : Math.max(0, l.c - dt * 0.6);
+    for (const T of [0.33, 0.66]) if (before < T && l.c >= T) beep(400 + T * 600, 0.1, 'triangle', 0.04, 200); // (a rising hum as it charges)
+    if (l.c >= 1 && (enemies.some(e => !e.dead && !TYPES[e.type].harmless) || bosses.some(bossAlive))) {
+      l.c = 0; l.fire = LINK_FIRE; l.cd = LINK_CD; l.tick = 0; busy.add(a.id); busy.add(b.id);
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      fxText('LINK BEAM!', mx, my - 60, mixHex(a.color, b.color, 0.5), 26, 1.2);
+      fxRing(mx, my - 30, 10, 120, 0.5, '#ffffff', 5);
+      shake = Math.max(shake, 12); beep(110, 1.4, 'sawtooth', 0.09, 300); beep(880, 0.8, 'sine', 0.05, 800);
+      unlockAch('link');
+    }
+  }
+}
+// [player a, player b, charge 0-1, firing time left] for every link worth drawing (online guests get it from the host)
+const linkList = () => net.role === 'guest' ? (run.linkView || [])
+  : Object.entries(run?.links || {}).filter(([, l]) => l.c > 0.02 || l.fire > 0).map(([k, l]) => [...k.split('-').map(Number), r2(l.c), r2(l.fire)]);
 
 // ship select: each player picks in turn, then the run starts
 let shipPick = null;
@@ -1558,15 +1808,19 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(MIDDLE_ZONES.slice()), musicSeed: Math.floor(Math.random() * 1000) };
-  lasers = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }; screenFlash = 0;
+    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(MIDDLE_ZONES.slice()), musicSeed: Math.floor(Math.random() * 1000),
+    // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
+    curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
+    nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
+  if (curse('slim')) run.rerolls = 0;
+  lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
   bullets = []; enemies = []; particles = []; pickups = []; eBullets = [];
   score = 0; time = 0; levelT = 0; spawnT = 0; shake = 0; combo = 1; comboT = 0; level = 1;
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
   popups = []; hurtFlash = 0;
-  hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · 1–4: quick chat' : CONTROL_HINTS[m], life: 5 };
+  hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   if (metaLv('deflect')) for (const p of players) p.shield = 1;
@@ -1583,20 +1837,21 @@ function start(m, ships, cosList) {
 }
 
 const CONTROL_HINTS = {
-  1: 'Move with mouse, WASD or arrows — you fire automatically  ·  P pause  ·  M music',
-  2: 'P1: WASD  ·  P2: arrows or mouse  —  ships fire automatically  ·  P pause',
-  3: 'P1: mouse  ·  P2: WASD  ·  P3: arrows  —  ships fire automatically  ·  P pause',
-  4: 'P1: mouse  ·  P2: WASD  ·  P3: arrows  ·  P4: IJKL  —  auto-fire  ·  P pause',
+  1: 'Move with mouse, WASD or arrows — you fire automatically  ·  SPACE / Q / right-click: your ship\'s ability  ·  P pause',
+  2: 'P1: WASD (ability Q)  ·  P2: arrows or mouse (ability Right Shift / right-click)  —  fly close together to charge a LINK BEAM',
+  3: 'P1: mouse (ability right-click / Space)  ·  P2: WASD (Q)  ·  P3: arrows (Right Shift)  —  fly close to LINK up',
+  4: 'P1: mouse (right-click)  ·  P2: WASD (Q)  ·  P3: arrows (Right Shift)  ·  P4: IJKL (U)  —  fly close to LINK up',
 };
 let popups = [], hurtFlash = 0, hint = null;
 
 // shards for the run so far: mostly from progress (sectors, bosses), a little from score so combos still matter
 const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * (50 + 20 * metaLv('bounty'))
-  + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')));
+  + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')) * (1 + curseBonus()));
 // victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
   paused = false;
   run.victory = victory;
+  if (!victory && bosses.some(b => b.final)) markAbyss(); // (THE ABYSS got you: it leaves its mark on the menu)
   // (a won Standard run that went on into Endless was already paid for its first part)
   const earned = Math.max(0, runShards() - (run.paid || 0));
   run.earned = earned; meta.shards += earned; saveMeta();
@@ -2374,7 +2629,8 @@ function fire(x, y, a, color, kind, p) {
   const s = run.s, m = p ? p.ship.mod : {}, crit = Math.random() < s.crit;
   const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
-  const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? (s.vampire ? 5 : 3) : 1) * (m.dmg || 1) * rage; // (Vampire Rounds: 5x crits)
+  const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? (s.vampire ? 5 : 3) : 1) * (m.dmg || 1) * rage // (Vampire Rounds: 5x crits)
+    * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()); // (RAMPAGE, the GLASS CANNON curse, evolved ships)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
     pierce: kind === 'rail' ? 999 : kind === 'missile' ? 0 : s.pierce + (m.pierce || 0),
@@ -2552,7 +2808,7 @@ function nearestTarget(x, y, range) {
 
 // ---------- bosses ----------
 function makeBoss(def, x, hp, loop, side) {
-  hp = Math.round(hp);
+  hp = Math.round(hp * (curse('behemoth') ? 1.5 : 1)); // (BEHEMOTHS curse)
   return { r: 58, ...def, x, y: -120, hp, max: hp, side, t: 0, spin: 0, flash: 0,
     pattern: 0, patternT: 0, atkT: 1.5, aim: 0, loop, dying: 0, entered: false, charge: null,
     // team-boss state
@@ -2578,6 +2834,16 @@ function spawnEncounter() {
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
   const baseHp = bossBaseHp();
+  if (run.nemesisNext) { // NEMESIS, the second secret boss: it takes the shape of one of your ships
+    run.nemesisNext = false;
+    encounter = { kind: 'single', name: NEMESIS_BOSS.name, nemesis: true };
+    const b = makeBoss(NEMESIS_BOSS, W / 2, Math.max(baseHp * NEMESIS_BOSS.hpMult, firepowerHp(NEMESIS_MIN_SECS)), loop, 0);
+    const victim = living()[Math.floor(Math.random() * living().length)] || players[0];
+    b.hull = victim?.ship.shape || 'striker'; b.mk2 = victim?.ship.mk2 === true;
+    bosses = [b];
+    hint = { text: NEMESIS_BOSS.hint, life: 7 }; screenFlash = 1; shake = 30;
+    return;
+  }
   if (run.secretNext) { // ZERO, the secret boss (see the boss-defeat code)
     run.secretNext = false;
     encounter = { kind: 'single', name: SECRET_BOSS.name, secret: true };
@@ -2985,6 +3251,57 @@ const BOSS_ATTACKS = {
     for (let i = 0; i < n; i++) bossShot(b, off + i / n * Math.PI * 2, 150, 7);
     b.atkT = 1.5 * rate;
   },
+  // ----- NEMESIS: your own ship's tricks, turned against you -----
+  mimic(b, enraged, rate, target) { // it fires like a player ship: a quick stream of shots, aimed at you
+    const a = target ? Math.atan2(target.y - b.y, target.x - b.x) : Math.PI / 2, n = enraged ? 3 : 2;
+    for (let i = 0; i < n; i++) bossShot(b, a + (i - (n - 1) / 2) * 0.1, 320, 4);
+    b.atkT = 0.12 * rate; if (Math.random() < 0.5) beep(700, 0.04, 'square', 0.012);
+  },
+  nova(b, enraged, rate) { // NOVA BOMB: a flash, and a dense ring with one gap to slip through
+    const n = enraged ? 44 : 36, gap = Math.random() * TAU;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; if (Math.abs(angleDiff(a, gap)) > 0.34) bossShot(b, a, 220, 6); }
+    screenFlash = Math.max(screenFlash, 0.3); shake = Math.max(shake, 12);
+    fxRing(b.x, b.y, 10, Math.max(W, H) * 0.6, 0.5, '#ffffff', 5);
+    b.atkT = 1.4 * rate; beep(80, 0.8, 'sawtooth', 0.09, -40);
+  },
+  flak(b, enraged) { // FLAK RING: rings in every direction, two or three in a row (fired from its gimmick)
+    b.flakN = enraged ? 3 : 2; b.flakT = 0; b.atkT = 1.3;
+  },
+  rail(b, enraged, rate, target) { // RAILSHOT: a beam straight down at you after a short warning (two, enraged)
+    const xs = [target ? target.x : W / 2];
+    if (enraged) xs.push(Math.max(30, Math.min(W - 30, xs[0] + (Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 80))));
+    for (const x of xs) lasers.push({ x, warn: 0.9, fire: 0.35, w: 26, color: '#ff2a4a' });
+    b.atkT = 1.6 * rate; beep(160, 0.5, 'sawtooth', 0.06, 900);
+  },
+  missiles(b, enraged, rate) { // SWARM: homing missiles peel off its wings
+    const n = enraged ? 10 : 8;
+    for (let i = 0; i < n; i++) {
+      const side = i % 2 ? 1 : -1, a = Math.PI / 2 + side * (0.5 + Math.floor(i / 2) * 0.32), sp = 210 * BOSS_BULLET_SPEED;
+      eBullets.push({ x: b.x + side * b.r * 0.5, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, color: '#ff9a3d', src: b, home: STING_HOME });
+    }
+    b.atkT = 1.5 * rate; beep(300, 0.3, 'sawtooth', 0.05, 300);
+  },
+  phase(b, enraged, rate, target) { // SHADOW STEP: it fades out (untouchable), then reappears right beside you
+    if (!target) return;
+    const s = {}; hauntSpot(b, s, target);
+    b.phased = NEMESIS_PHASE; b.phaseTo = [s.x, s.y];
+    fxGhost(b, 0.5); beep(1100, 0.3, 'sine', 0.05, -800);
+    b.atkT = (NEMESIS_PHASE + 0.5) * rate;
+  },
+  fortress(b, enraged, rate) { // FORTRESS: for a few seconds your shots bounce off it (it keeps firing meanwhile)
+    b.fort = enraged ? 3 : 2.4;
+    fxRing(b.x, b.y, b.r * 2, b.r, 0.3, '#ffe93d', 4); beep(200, 0.5, 'square', 0.06, 200);
+    b.atkT = 0.4 * rate;
+  },
+  lifeline(b) { // LIFELINE (only when it copies a Medic): it patches itself up a little
+    b.hp = Math.min(b.max, b.hp + b.max * 0.04);
+    fxRing(b.x, b.y, 10, b.r * 3, 0.5, '#5dff7a', 5); burst(b.x, b.y, '#5dff7a', 30, 250);
+    b.atkT = 0.8; beep(523, 0.3, 'triangle', 0.06, 300);
+  },
+  rampage(b) { // RAMPAGE (only when it copies a Berserker): it attacks much faster for a while
+    b.ramp = 4; burst(b.x, b.y, '#ff3050', 40, 300); shake = Math.max(shake, 10);
+    b.atkT = 0.5; beep(90, 0.6, 'sawtooth', 0.09, -30);
+  },
 };
 
 // ---------- boss gimmicks ----------
@@ -2992,6 +3309,9 @@ const BOSS_ATTACKS = {
 // dmg() scales damage taken (fx, fy = where the hit landed, when known)
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
+// NEMESIS: which of its attacks copies each ship's ability, how long it takes to copy one, and how long it stays phased out
+const NEMESIS_COPY = { striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
+const NEMESIS_COPY_T = 1.2, NEMESIS_PHASE = 1;
 const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
 const JUDGE_WARN = 2.4, JUDGE_R = 75;     // THE ORACLE's judgment: warning time, safe circle radius
 const SINGULARITY_PULL = 240;             // how far THE SINGULARITY bends your shots from
@@ -3001,6 +3321,8 @@ const wyrmSegR = (b, i) => b.r * (0.72 - i * 0.03);
 const hitsWyrmBody = (bo, b) => bo.body && bo.body.some(([x, y], i) => distToSeg(x, y, b.px, b.py, b.x, b.y) < wyrmSegR(bo, i) + b.size);
 // CHRONOS's time stop: enemy bullets don't move
 const timeFlow = () => bosses.some(b => b.gimmick === 'timestop' && b.stop > 0) ? 0 : 1;
+// how fast enemy bullets fly right now (Chrono Field upgrade, CHRONOS's time stop, the HAILSTORM curse)
+const bulletFlow = () => run.s.chrono * timeFlow() * (curse('hail') ? 1.25 : 1);
 const STRIKE_WARN = 1.1, STRIKE_BOLT = 0.25, STRIKE_END = 3.2, STRIKE_R = 52, STATIC_R = 38;
 
 const ownerOf = (e, gimmick) => e.owner || bosses.find(b => b.gimmick === gimmick);
@@ -3214,6 +3536,43 @@ const GIMMICKS = {
       else if (b.invW > 0) { b.invW -= dt; if (b.invW <= 0) { b.invW = 0; b.inv = 2.4; shake = Math.max(shake, 12); beep(60, 0.6, 'square', 0.08, 600); } }
       else if ((b.invT = (b.invT ?? 9) - dt) <= 0) { b.invW = 0.9; fxText('ERROR', b.x, b.y - b.r - 30, '#ffffff', 26, 0.9); }
     },
+  },
+  nemesis: { // it copies the last ability you used and throws it straight back at you (see useAbility)
+    update(b, dt, enraged) {
+      if (b.fort > 0) b.fort = Math.max(0, b.fort - dt);
+      b.haloUp = b.fort > 0 ? 1 : 0; // (FORTRESS: shots bounce off, like NULL SERAPH's halo)
+      if (b.ramp > 0) b.ramp = Math.max(0, b.ramp - dt);
+      if (b.phased > 0) { // SHADOW STEP: reappear beside you and burst
+        b.phased -= dt;
+        if (b.phased <= 0) {
+          b.phased = 0; [b.x, b.y] = b.phaseTo || [b.x, b.y]; b.appear = 1;
+          burst(b.x, b.y, b.color, 40, 300); shake = Math.max(shake, 8); beep(900, 0.25, 'sine', 0.06, -700);
+          const off = Math.random() * Math.PI, n = enraged ? 16 : 12;
+          for (let i = 0; i < n; i++) bossShot(b, off + i / n * TAU, 160, 6);
+        }
+        return 'hold';
+      }
+      if (b.flakN > 0 && (b.flakT -= dt) <= 0) { // FLAK RING waves
+        b.flakN--; b.flakT = 0.24;
+        const n = 20, off = b.flakN * 0.16 + Math.random() * 0.1;
+        for (let i = 0; i < n; i++) bossShot(b, off + i / n * TAU, 180, 5);
+        beep(500, 0.12, 'square', 0.04, -200); fxRing(b.x, b.y, b.r, b.r * 2.2, 0.25, b.color, 3);
+      }
+      if (b.copyT > 0) { // copying you: a moment to see it coming, then it fires your own ability back
+        b.copyT -= dt;
+        if (b.copyT <= 0) {
+          b.copyT = 0;
+          const atk = NEMESIS_COPY[b.copyId];
+          if (atk && !b.charge && !b.special) {
+            fxText(`COPIED: ${b.copyName}`, b.x, Math.max(40, b.y - b.r - 34), '#ff2a4a', 22, 1.2);
+            BOSS_ATTACKS[atk](b, enraged, 1, nearestPlayer(b.x, b.y));
+            b.atkT = Math.max(b.atkT, 0.9); b.kick = 1;
+          }
+        }
+      }
+    },
+    dmg: b => b.phased > 0 ? 0 : 1, // (untouchable while phased out)
+    rate: b => b.ramp > 0 ? 0.55 : 1, // (RAMPAGE: attacks come much faster)
   },
   abyss: {
     update(b, dt) {
@@ -3487,6 +3846,8 @@ const at = (s, dt, T) => s.t >= T && s.t - dt < T; // did this frame just reach 
 const gazeAngle = s => s.a + s.dir * GAZE_ARC * (Math.min(1, Math.max(0, s.t - GAZE_WARN) / GAZE_T) - 0.5);
 const wipeCell = (s, x, y) => (Math.floor(x / (W / s.cols)) + Math.floor(y / (H / s.rows))) % 2;
 const MIRRORED = ['ring', 'fan', 'wave', 'spiral']; // (the attacks ECHO's mirror image copies)
+const LINKB_WARN = 1.1, LINKB_T = 3, LINKB_W = 30, LINKB_SPIN = 0.75;    // NEMESIS's LINK BEAM
+const linkbAngle = s => s.a + s.dir * LINKB_SPIN * Math.max(0, s.t - LINKB_WARN);
 const RAGE_MOVES = {
   chains: { name: 'CHAINS!', len: CHAIN_WARN + CHAIN_LIFE + 0.2, cd: 7, // three chains of bullets swing around it, then snap off
     start(b, s) { s.a = r2(Math.random() * Math.PI * 2); s.dir = Math.random() < 0.5 ? -1 : 1; },
@@ -3644,6 +4005,23 @@ const RAGE_MOVES = {
       }
       return 'quiet';
     } },
+  link: { name: 'LINK BEAM!', len: LINKB_WARN + LINKB_T + 0.3, cd: 8, // it splits in two, and the halves fire a beam through each other that turns
+    // around the middle of the screen like a clock hand: keep circling ahead of it, or get out past its ends
+    start(b, s) {
+      s.a = r2(Math.random() * TAU); s.dir = Math.random() < 0.5 ? -1 : 1;
+      s.cx = Math.round(W / 2); s.cy = Math.round(H * 0.52); s.R = Math.round(Math.min(W, H) * 0.42);
+      burst(b.x, b.y, b.color, 40, 300); beep(500, 0.8, 'sine', 0.05, 500);
+    },
+    update(b, s, dt) {
+      const a = linkbAngle(s), k = Math.min(1, dt * 8);
+      b.x += (s.cx + Math.cos(a) * s.R - b.x) * k; b.y += (s.cy + Math.sin(a) * s.R - b.y) * k; // (the copy sits opposite: see drawRageMove)
+      if (at(s, dt, LINKB_WARN)) { shake = Math.max(shake, 12); beep(110, 1.4, 'sawtooth', 0.09, 300); }
+      if (s.t >= LINKB_WARN && s.t < LINKB_WARN + LINKB_T) {
+        const ex = s.cx - Math.cos(a) * s.R, ey = s.cy - Math.sin(a) * s.R;
+        for (const p of living()) if (distToSeg(p.x, p.y, b.x, b.y, ex, ey) < LINKB_W / 2 + p.r * 0.4) hurt(p);
+      }
+      return 'hold';
+    } },
 };
 // PHANTOM's next landing spot: right beside the target, on screen
 function hauntSpot(b, s, tgt) {
@@ -3746,10 +4124,16 @@ function updateBoss(b, dt) {
           const m = startNextCycle();
           run.zoneEnd = ZONE_FIRST; // the next cycle starts the route over
           openUpgrade(`CYCLE ${run.cycle} — NEW MUTATOR: ${m.name}`, true);
+        } else if (!b.nemesis && run.nemesisAt && bossCount >= run.nemesisAt && !run.nemesisDone) {
+          // NEMESIS barges in before you can catch your breath (the reward comes after it)
+          run.nemesisDone = true; run.nemesisNext = true; bossWarn = 3.6;
+          fxText('P0 HAS JOINED THE GAME', W / 2, H * 0.45, '#ff2a4a', 28, 3);
+          [1760, 880, 1320, 440, 220].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'square', 0.05, -f / 2), 500 + i * 80));
         } else {
           if (run.rush) { pendingBoss = true; run.zoneEnd = rushNextZone(); } // the next boss comes right after the shop
           else if (bossCount % BOSSES_PER_ZONE === 0) run.zoneEnd = 'route'; // the zone's last boss is down: on to the next zone
-          openUpgrade(title, true);
+          openUpgrade(b.nemesis ? 'NEMESIS DELETED — CHOOSE TWO REWARDS' : title, true);
+          if (b.nemesis && offer) offer.picks++; // (the fight it interrupted never paid out)
         }
       }
     }
@@ -3925,8 +4309,9 @@ function onEncounterBeaten(enc, last) {
   run.coins = (run.coins || 0) + (run.rush ? 60 : 30); // shop money (Boss Rush has few other kills)
   if (!enc.hitTaken) unlockAch('flawless');
   if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) unlockAch('clutch');
-  if (last.final) unlockAch('omega');
+  if (last.final) { unlockAch('omega'); clearAbyssMark(); if (Object.keys(run.curses || {}).length >= 3) unlockAch('cursed'); }
   if (last.secret) unlockAch('zero');
+  if (last.nemesis) unlockAch('nemesis');
   if (enc.kind === 'twins' && !enc.revived) unlockAch('twins');
   if (enc.kind === 'binary' && !enc.tetherHit) unlockAch('tether');
   if (enc.kind === 'aegis') unlockAch('aegis');
@@ -3973,7 +4358,7 @@ function flashHurt(p, amount) {
 
 // returns true if the hit landed (broke a shield or cost a life)
 function hurt(p) {
-  if (p.inv > 0 || !p.alive || p.phaseOn > 0) return false; // (Wraiths are untouchable while phased)
+  if (p.inv > 0 || !p.alive || p.phaseOn > 0 || abActive(p, 'juggernaut')) return false; // (Wraiths are untouchable while phased; so is a FORTRESS)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
   if (run.s.nova) nova(p);
   if (p.shield > 0) {
@@ -4027,12 +4412,14 @@ let padState = [null, null, null, null];
 // ---------- update ----------
 function update(dt) {
   padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
-  for (const pad of padState) {
-    if (!pad) continue;
-    if (state === 'play' && !paused && pad.pressed && skipAbyssIntro()) continue;
-    if (state === 'play' && pad.start) { paused = !paused; sel = 0; continue; }
+  padState.forEach((pad, i) => {
+    if (!pad) return;
+    if (state === 'play' && !paused && pad.pressed && skipAbyssIntro()) return;
+    if (state === 'play' && pad.start) { paused = !paused; sel = 0; return; }
+    if (state === 'play' && !paused && pad.ab) localAbility(i); // (gamepad N is player N on this computer)
     if (state !== 'play' || paused) { if (pad.nav) moveSel(pad.nav); if (pad.pressed || pad.start) activate(); }
-  }
+  });
+  if (state === 'menu') updateMenuMarks(dt);
 
   updateBackground(dt);
   updateAchBanner(dt);
@@ -4077,8 +4464,9 @@ function update(dt) {
 
   for (const p of players) {
     if (!p.alive) continue;
-    const m = p.ship.mod, speed = s.speed * (m.speed || 1);
+    const m = p.ship.mod, speed = shipSpeed(p);
     const ox = p.x, oy = p.y;
+    updateAbility(p, dt);
     const { dx, dy, usePointer } = controlsFor(p);
     if (dx || dy) {
       const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt;
@@ -4093,6 +4481,7 @@ function update(dt) {
     p.y = Math.max(p.r, Math.min(H - p.r, p.y));
     // bank into turns and burn brighter when climbing (purely visual)
     const kk = Math.min(1, dt * 12), vx = (p.x - ox) / dt, vy = (p.y - oy) / dt;  // (remote ships report their own bank)
+    p.mvx = (p.mvx || 0) + (vx - (p.mvx || 0)) * kk; p.mvy = (p.mvy || 0) + (vy - (p.mvy || 0)) * kk; // (which way it's flying, for DASH)
     if (!p.remote) p.tilt = (p.tilt || 0) + (Math.max(-1, Math.min(1, vx / 500)) * 0.45 - (p.tilt || 0)) * kk;
     if (!p.remote) p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -vy / 400)) - (p.thrust || 0)) * kk;
     p.inv = Math.max(0, p.inv - dt);
@@ -4104,7 +4493,8 @@ function update(dt) {
     if (p.shotT <= 0 && !abyssCine()) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
-      p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1); // (a Sapper slows your guns)
+      p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
+        * (abActive(p, 'berserker') ? 0.7 : 1); // (RAMPAGE: faster fire)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
       for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, undefined, p);
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
@@ -4172,12 +4562,15 @@ function update(dt) {
     }
   }
 
+  if (players.length > 1) updateLinks(dt); // co-op LINK BEAMs
+
   // spawn (faster in co-op)
   updateHazards(dt); // (the zone's hazard, if it has one)
   spawnT -= dt;
   if (spawnT <= 0 && !bossActive) {
     spawnEnemy();
-    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'));
+    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'))
+      / (curse('horde') ? 1.4 : 1); // (HORDE curse)
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
@@ -4242,7 +4635,7 @@ function update(dt) {
   }
   if (state !== 'play') return;
 
-  const shrapnel = [], flow = s.chrono * timeFlow(); // (Chrono Field slows enemy fire; CHRONOS can stop it)
+  const shrapnel = [], flow = bulletFlow(); // (Chrono Field slows enemy fire; CHRONOS can stop it; HAILSTORM speeds it up)
   const ice = enemies.filter(e => e.type === 'ice' && !e.dead); // (FROZEN RINGS: ice chunks are cover)
   for (const b of eBullets) {
     for (const c of ice) if (!b.dead && Math.hypot(b.x - c.x, b.y - c.y) < c.r + (b.r || 5)) { b.dead = true; chipIce(c); }
@@ -4271,7 +4664,11 @@ function update(dt) {
         for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; shrapnel.push({ x: b.x, y: b.y, vx: Math.cos(a) * 180, vy: Math.sin(a) * 180, r: 5, color: b.color }); }
       }
     }
-    for (const p of living()) if (!b.dead && Math.hypot(b.x - p.x, b.y - p.y) < p.r * 0.7 + (b.r || 5)) { b.dead = true; if (hurt(p) && b.src) leech(b.src, p); }
+    for (const p of living()) if (!b.dead && Math.hypot(b.x - p.x, b.y - p.y) < p.r * 0.7 + (b.r || 5)) {
+      b.dead = true;
+      if (abActive(p, 'juggernaut')) { fire(b.x, b.y, -Math.PI / 2 + (Math.random() - 0.5) * 0.9, p.color, undefined, p); if (Math.random() < 0.4) burst(b.x, b.y, '#ffe93d', 3, 120); } // FORTRESS: it bounces back
+      else if (hurt(p) && b.src) leech(b.src, p);
+    }
   }
   eBullets.push(...shrapnel);
   if (state !== 'play') return;
@@ -4316,6 +4713,10 @@ function update(dt) {
     }
     if (!TYPES[e.type].harmless) for (const p of living()) {
       if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) < e.r + p.r * 0.7) {
+        if (abActive(p, 'berserker')) { // RAMPAGE: smash right through it
+          if ((e.ramT || 0) < time) { e.ramT = time + 0.25; e.lastBy = p.id; damageEnemy(e, Math.max(e.maxHp * 0.6, Math.max(12, run.dpsEst || 0)), 'splash'); shake = Math.max(shake, 5); }
+          continue;
+        }
         if (p.inv <= 0 && !(p.phaseOn > 0)) { e.dead = true; burst(e.x, e.y, e.color, 25); }
         hurt(p);
       }
@@ -4372,6 +4773,8 @@ function update(dt) {
 function updateParticles(dt) {
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; p.life -= dt; }
   particles = particles.filter(p => p.life > 0);
+  for (const f of abFx) f.life -= dt;
+  abFx = abFx.filter(f => f.life > 0);
   shake = Math.max(0, shake - dt * 40);
   updateBossFx(dt);
 }
@@ -4566,8 +4969,13 @@ function drawShip(p) {
     ctx.save(); glow('#ff3050', 20 + rageLv * 30); ctx.strokeStyle = hexA('#ff3050', 0.3 + rageLv * 0.5); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, 20 + Math.sin(time * 12) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   }
-  drawHull(p.ship.shape, p.color, p.thrust || 0, p.ship.mk2 === true, cosOf(p).skin);
+  const evo = evoTier();
+  if (evo) drawEvolution(p, evo, 'back');
+  if (evo >= 2) ctx.scale(1 + (evo - 1) * 0.08, 1 + (evo - 1) * 0.08); // (later forms are bigger)
+  drawHull(p.ship.shape, p.color, (p.thrust || 0) + evo * 0.25, p.ship.mk2 === true, cosOf(p).skin);
+  if (evo) drawEvolution(p, evo, 'front');
   ctx.restore();
+  drawAbilityState(p);
   if (p.phaseOn > 0) { ctx.save(); ctx.strokeStyle = hexA(p.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.lineDashOffset = time * 40; ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   if (p.shield) { glow(p.color, 20); ctx.strokeStyle = 'rgba(125,249,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, Math.PI * 2); ctx.stroke(); }
   for (let k = 0; k < dronesOf(p); k++) {
@@ -4594,6 +5002,76 @@ function drawShip(p) {
       ctx.restore();
     }
   }
+}
+
+// what a ship grows as it evolves (drawn in the ship's own frame: 'back' behind the hull, 'front' over it).
+// FORM II: blades of light along its wings. FORM III: a ring of energy circling it. FINAL FORM: a burning halo and a white-hot core.
+function drawEvolution(p, tier, layer) {
+  const t = performance.now() / 1000 + p.id, c = p.color;
+  ctx.save();
+  if (layer === 'back') {
+    if (tier >= 3) { // a soft aura
+      const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 44);
+      g.addColorStop(0, hexA(c, 0.28 + Math.sin(t * 3) * 0.06)); g.addColorStop(1, hexA(c, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 44, 0, TAU); ctx.fill();
+    }
+    // wing blades (longer each form)
+    const L = 1 + (tier - 1) * 0.3, flick = 0.85 + Math.sin(t * 9) * 0.08;
+    glow(c, 16); ctx.strokeStyle = c; ctx.fillStyle = hexA(c, 0.2); ctx.lineWidth = 1.6; ctx.globalAlpha *= flick;
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(s * 9, 3); ctx.lineTo(s * (24 * L + 4), 12 + tier * 2); ctx.lineTo(s * (20 * L + 4), -2 - tier * 2); ctx.lineTo(s * 11, -6); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.globalAlpha /= flick;
+    if (tier >= 2) { // the energy ring (its far half, behind the hull)
+      ctx.strokeStyle = hexA(c, 0.45); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(0, 4, 30, 9, 0, Math.PI, TAU); ctx.stroke();
+    }
+    if (tier >= 3) { // a halo of light spikes above it
+      ctx.translate(0, -30); glow('#ffffff', 14); ctx.strokeStyle = '#fff4c0'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 0, 13, 4, 0, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.beginPath();
+      for (let i = 0; i < 7; i++) { const a = Math.PI + i / 6 * Math.PI, L2 = 6 + Math.sin(t * 6 + i) * 2; ctx.moveTo(Math.cos(a) * 13, Math.sin(a) * 4); ctx.lineTo(Math.cos(a) * (13 + L2 * 0.4), Math.sin(a) * 4 - L2); }
+      ctx.stroke();
+    }
+  } else {
+    if (tier >= 2) { // the ring's near half, with three bright nodes running around it
+      ctx.strokeStyle = hexA(c, 0.7); ctx.lineWidth = 1.5; glow(c, 12);
+      ctx.beginPath(); ctx.ellipse(0, 4, 30, 9, 0, 0, Math.PI); ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < 3; i++) { const a = t * 2.4 + i / 3 * TAU; if (Math.sin(a) < 0) continue; ctx.beginPath(); ctx.arc(Math.cos(a) * 30, 4 + Math.sin(a) * 9, 2.4, 0, TAU); ctx.fill(); }
+    }
+    if (tier >= 3) { glow('#ffffff', 18); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, -1, 2.6 + Math.sin(t * 8) * 0.8, 0, TAU); ctx.fill(); } // white-hot core
+  }
+  ctx.restore();
+}
+// the ability's charge (a thin ring that fills up, bright when it's ready) and what an active one looks like
+function drawAbilityState(p) {
+  ctx.save(); ctx.shadowBlur = 0;
+  const t = performance.now() / 1000;
+  if (!curse('powerless') && state === 'play') {
+    const f = 1 - p.abCd / abCdOf(p);
+    if (f < 1) { ctx.strokeStyle = hexA(p.color, 0.35); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 31, -Math.PI / 2, -Math.PI / 2 + f * TAU); ctx.stroke(); }
+    else { // ready: four little sparks circling
+      glow(p.color, 10); ctx.fillStyle = p.color; ctx.globalAlpha = 0.55 + Math.sin(t * 6) * 0.3;
+      for (let i = 0; i < 4; i++) { const a = t * 2 + i / 4 * TAU; ctx.beginPath(); ctx.arc(p.x + Math.cos(a) * 31, p.y + Math.sin(a) * 31, 2, 0, TAU); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (abActive(p, 'juggernaut')) { // FORTRESS: a turning hexagon of gold
+    glow('#ffe93d', 22); ctx.strokeStyle = '#ffe93d'; ctx.fillStyle = 'rgba(255,233,61,0.12)'; ctx.lineWidth = 3;
+    ctx.globalAlpha = p.abOn < 0.6 && Math.floor(t * 12) % 2 ? 0.35 : 1; // (blinks as it runs out)
+    ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = t * 1.5 + i / 6 * TAU; ctx.lineTo(p.x + Math.cos(a) * 34, p.y + Math.sin(a) * 34); } ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  if (abActive(p, 'berserker')) { // RAMPAGE: a ring of red flames
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,48,80,0.55)'; ctx.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * TAU + t, L = 12 + Math.sin(t * 14 + i * 2.1) * 5;
+      ctx.moveTo(p.x + Math.cos(a - 0.2) * 20, p.y + Math.sin(a - 0.2) * 20); ctx.lineTo(p.x + Math.cos(a) * (20 + L), p.y + Math.sin(a) * (20 + L) - 6); ctx.lineTo(p.x + Math.cos(a + 0.2) * 20, p.y + Math.sin(a + 0.2) * 20);
+    }
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawWreck(p) {
@@ -5702,6 +6180,21 @@ const BOSS_SHAPES = {
     ctx.stroke(); ctx.restore();
   } },
   zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
+  // NEMESIS: a giant copy of one of your ships (b.hull), turned to face you, with its engines burning behind it
+  nemesis: { mode: 'point', eye: [0.2, 0, 0.55], path(r, b) {
+    const h = HULLS[b?.hull] || HULLS.striker, k = r / 17 * (b?.mk2 ? 1.12 : 1);
+    ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(-y * k, x * k); ctx.closePath(); // (hulls point up; bosses point along +x)
+  }, detail(r, b) {
+    const h = HULLS[b?.hull] || HULLS.striker, k = r / 17 * (b?.mk2 ? 1.12 : 1);
+    ctx.save(); ctx.scale(0.62, 0.62); BOSS_SHAPES.nemesis.path(r, b); ctx.restore(); ctx.stroke(); // (the double neon line)
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0; // its engines
+    for (const [fx, fy, w] of h.flames) {
+      const L = (10 + Math.random() * 8 + (b?.ramp > 0 ? 10 : 0)) * k;
+      ctx.fillStyle = 'rgba(255,60,80,0.7)'; ctx.beginPath(); ctx.moveTo(-fy * k, (fx - w) * k); ctx.lineTo(-(fy * k + L), fx * k); ctx.lineTo(-fy * k, (fx + w) * k); ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,220,0.8)'; ctx.beginPath(); ctx.moveTo(-fy * k, (fx - w * 0.4) * k); ctx.lineTo(-(fy * k + L * 0.5), fx * k); ctx.lineTo(-fy * k, (fx + w * 0.4) * k); ctx.fill();
+    }
+    ctx.restore();
+  } },
   // team bosses
   star: { mode: 'spin', eye: [0, 0, 0.9], path(r) { ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i / 10 * TAU, rr = r * (i % 2 ? 0.52 : 1.18); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); } }, // GEMINI: stars
   sun: { mode: 'spin', eye: [0, 0, 1], path(r) { ctx.beginPath(); for (let i = 0; i < 24; i++) { const a = i / 24 * TAU, rr = r * (i % 2 ? 0.78 : 1.18); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); },
@@ -5791,6 +6284,7 @@ function drawBoss(b) {
   if (b.style === 'phantom') ctx.globalAlpha = Math.max(0.2, 0.7 + Math.sin(t * 7) * 0.2 - (Math.random() < 0.04 ? 0.4 : 0));
   if (!b.entered) ctx.globalAlpha = 0.3 + 0.7 * b.intro;
   if (b.dying > 0 && Math.random() < deathP * 0.3) ctx.globalAlpha = 0.35;
+  if (b.phased > 0) ctx.globalAlpha *= 0.08 + Math.random() * 0.12; // (NEMESIS phased out: a flicker of static)
   const sp = b.special;
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
   if (fury && b.rage > 0 && key === 'phantom' && Math.random() < 0.4) ctx.globalAlpha *= 0.15; // (PHANTOM strobes as it's possessed)
@@ -6203,6 +6697,17 @@ const RAGE_FORMS = {
       ctx.beginPath(); for (let i = 0; i < 7; i++) { const x = -w + i * w * 2 / 6; ctx.moveTo(x, y - w * 0.1); ctx.lineTo(x * 0.92, y - w * (i % 2 ? 0.45 : 0.8)); } ctx.stroke();
     } },
 
+  nemesis: { // PLAYER ZERO: it glitches into copies of itself in every player's color, and its hull burns a deep red
+    back(b, k, tr, r) {
+      ctx.rotate(bossRot(b)); ctx.lineWidth = 2; ctx.shadowBlur = 0;
+      P_COLORS.slice(0, Math.max(2, players.length)).forEach((c, i) => {
+        const j = (5 + Math.random() * 7) * k * (2 - tr), a = i * 2.4 + b.t * 3;
+        ctx.save(); ctx.translate(Math.cos(a) * j, Math.sin(a) * j); ctx.strokeStyle = hexA(c, 0.55 * k);
+        BOSS_SHAPES.nemesis.path(r, b); ctx.stroke(); ctx.restore();
+      });
+    },
+    fill: () => 'rgba(48,0,10,0.88)',
+  },
   lancer: { // BERSERK: it spins itself into a frenzy (see drawBoss), grows saw teeth, and a jet of fire roars out its back
     shell(b, k, tr, r) {
       ctx.fillStyle = '#ff3a2a'; glow('#ff2a1a', 12);
@@ -6612,6 +7117,30 @@ function drawRageMove(b) {
       }
       break;
     }
+    case 'link': { // NEMESIS's copy on the far side of the circle, the circle itself, then the beam between them
+      if (s.cx === undefined) break;
+      const a = linkbAngle(s), ex = s.cx - Math.cos(a) * s.R, ey = s.cy - Math.sin(a) * s.R, live = s.t >= LINKB_WARN && s.t < LINKB_WARN + LINKB_T;
+      ctx.globalAlpha = 0.25; ctx.strokeStyle = b.color; ctx.lineWidth = 1.5; ctx.setLineDash([6, 10]); // (the beam only reaches this far: outside it is safe)
+      ctx.beginPath(); ctx.arc(s.cx, s.cy, s.R, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      if (live) {
+        const w = LINKB_W * (0.85 + Math.random() * 0.3);
+        ctx.globalAlpha = 0.9; glow(b.color, 40); ctx.strokeStyle = b.color; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = w / 3; ctx.stroke();
+      } else if (s.t < LINKB_WARN) { // the warning: where the beam starts, and which way it will turn
+        ctx.globalAlpha = 0.3 + blink * 0.4; ctx.strokeStyle = b.color; ctx.lineWidth = 2; ctx.setLineDash([12, 8]);
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+        const sweep = a0 => { // (the slice of the circle the beam will sweep over)
+          const a1 = a0 + s.dir * LINKB_SPIN * LINKB_T;
+          ctx.globalAlpha = 0.07; ctx.fillStyle = b.color; ctx.beginPath(); ctx.moveTo(s.cx, s.cy); ctx.arc(s.cx, s.cy, s.R, Math.min(a0, a1), Math.max(a0, a1)); ctx.closePath(); ctx.fill();
+        };
+        sweep(a); sweep(a + Math.PI);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore(); ctx.save();
+      ctx.globalAlpha = 0.8; drawBoss({ ...b, x: ex, y: ey, faceA: Math.atan2(b.y - ey, b.x - ex), flash: 0, hitKick: 0, special: null });
+      break;
+    }
   }
   ctx.restore();
 }
@@ -6691,6 +7220,26 @@ function drawGimmick(b) {
       }
       break;
     case 'abyss': drawAbyssWarnings(b); break;
+    case 'nemesis':
+      if (b.copyT > 0) { // copying you: your ability's name glitches in above it, and a ring closes in
+        const k = 1 - b.copyT / NEMESIS_COPY_T;
+        ctx.strokeStyle = '#ff2a4a'; ctx.lineWidth = 2; ctx.globalAlpha = 0.4 + k * 0.5; glow('#ff2a4a', 15);
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (2.6 - k * 1.3), 0, TAU); ctx.stroke();
+        const txt = 'COPYING ' + [...b.copyName || ''].map(ch => Math.random() < 0.2 * (1 - k) ? '#%&$@'[Math.floor(Math.random() * 5)] : ch).join('');
+        label(txt, '#ff2a4a', Math.max(30, b.y - b.r - 24));
+      }
+      if (b.fort > 0) { // FORTRESS: a gold hexagon your shots bounce off
+        glow('#ffe93d', 22); ctx.strokeStyle = '#ffe93d'; ctx.fillStyle = 'rgba(255,233,61,0.1)'; ctx.lineWidth = 3;
+        ctx.globalAlpha = b.fort < 0.6 && Math.floor(t * 12) % 2 ? 0.35 : 1;
+        ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = t * 1.5 + i / 6 * TAU; ctx.lineTo(b.x + Math.cos(a) * b.r * 1.55, b.y + Math.sin(a) * b.r * 1.55); } ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      if (b.phased > 0 && b.phaseTo) { // SHADOW STEP: a red mark where it's about to reappear
+        const [x, y] = b.phaseTo, k = 1 - b.phased / NEMESIS_PHASE;
+        ctx.globalAlpha = 0.3 + k * 0.6; ctx.strokeStyle = '#ff2a4a'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.arc(x, y, b.r * (1.6 - k * 0.6), 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (b.ramp > 0) label('RAMPAGE', '#ff3050', b.y + b.r * 1.7);
+      break;
     case 'judgment':
       if (b.judge) { // everything outside the safe circles is about to be hit
         const j = b.judge, k = Math.min(1, j.t / JUDGE_WARN), hit = j.t >= JUDGE_WARN;
@@ -6873,6 +7422,7 @@ function drawWorld() {
     ctx.fill(); ctx.stroke(); ctx.restore();
   }
   drawPlayerBullets();
+  drawAbFx();
   for (const e of enemies) drawEnemyTelegraph(e);
   for (const e of enemies) drawEnemy(e);
   for (const k of pickups) {
@@ -6882,6 +7432,7 @@ function drawWorld() {
     ctx.fillStyle = c; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(l, k.x, k.y + 1);
   }
   for (const p of players) if (!p.alive && p.wreck) drawWreck(p);
+  drawLinks();
   for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
   drawTeamUi();
@@ -6898,6 +7449,77 @@ function drawWorld() {
   ctx.globalAlpha = 1;
 }
 
+// the BLACKOUT curse: pitch dark, except a pool of light around each ship (and a glimpse of bosses and beams).
+// Drawn on a half-size canvas (soft edges, and cheap), then laid over the world; enemy bullets still glow through.
+let blackCv = null;
+function drawBlackout() {
+  const s = 0.5, w = Math.ceil(W * s), h = Math.ceil(H * s);
+  if (!blackCv) blackCv = document.createElement('canvas');
+  if (blackCv.width !== w || blackCv.height !== h) { blackCv.width = w; blackCv.height = h; }
+  const d = blackCv.getContext('2d');
+  d.globalCompositeOperation = 'source-over'; d.clearRect(0, 0, w, h); d.fillStyle = 'rgba(0,0,0,0.95)'; d.fillRect(0, 0, w, h);
+  d.globalCompositeOperation = 'destination-out';
+  const light = (x, y, r, a = 1) => {
+    const g = d.createRadialGradient(x * s, y * s, r * s * 0.35, x * s, y * s, r * s);
+    g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = g;
+    d.beginPath(); d.arc(x * s, y * s, r * s, 0, TAU); d.fill();
+  };
+  for (const p of players) { if (p.alive) light(p.x, p.y, 170); else if (p.wreck) light(p.wreck.x, p.wreck.y, 80, 0.7); }
+  for (const b of bosses) light(b.x, b.y, b.r * 1.8, 0.6);
+  d.fillStyle = 'rgba(0,0,0,0.6)'; for (const l of lasers) d.fillRect((l.x - l.w) * s, 0, l.w * 2 * s, h); // (beam warnings show)
+  ctx.save(); ctx.shadowBlur = 0; ctx.drawImage(blackCv, 0, 0, W, H);
+  // enemy bullets still glow in the dark (smaller than in the light)
+  drawGlowDots(eBullets.map(b => ({ x: b.x, y: b.y, r: (b.r || 5) * 0.7, color: b.color === ABYSS_INK ? '#ff1f3d' : b.color || '#ff4d4d' })), false);
+  ctx.restore();
+}
+
+// RAILSHOT beams and DASH trails
+function drawAbFx() {
+  for (const f of abFx) {
+    const k = f.life / f.max, [kind, ...a] = f.a;
+    ctx.save(); ctx.globalAlpha = k; ctx.lineCap = 'round';
+    if (kind === 'beam') {
+      const [x, y, w, c] = a, ww = w * (0.6 + k * 0.6);
+      glow(c, 40); ctx.fillStyle = c; ctx.fillRect(x - ww / 2, 0, ww, y);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(x - ww / 6, 0, ww / 3, y);
+    } else if (kind === 'dash') {
+      const [x0, y0, x1, y1, c] = a;
+      glow(c, 20); ctx.strokeStyle = c; ctx.lineWidth = 14 * k; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4 * k; ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+// co-op links: a tether that brightens as it charges, then two streams that meet above the pair and one great beam
+function drawLinks() {
+  const t = performance.now() / 1000;
+  for (const [ia, ib, c, fire] of linkList()) {
+    const a = players[ia], b = players[ib];
+    if (!a?.alive || !b?.alive) continue;
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, col = mixHex(a.color, b.color, 0.5);
+    ctx.save(); ctx.lineCap = 'round';
+    if (fire > 0) {
+      const k = Math.min(1, fire / 0.3), fy = my - 30, w = LINK_W * (0.85 + Math.random() * 0.25) * k;
+      glow(col, 40);
+      for (const p of [a, b]) { ctx.strokeStyle = p.color; ctx.lineWidth = 6 * k; ctx.beginPath(); ctx.moveTo(p.x, p.y - 10); ctx.lineTo(mx, fy); ctx.stroke(); }
+      const g = ctx.createLinearGradient(mx - w / 2, 0, mx + w / 2, 0);
+      g.addColorStop(0, a.color); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, b.color);
+      ctx.globalAlpha = 0.9; ctx.fillStyle = g; ctx.fillRect(mx - w / 2, 0, w, fy);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(mx - w / 8, 0, w / 4, fy);
+      ctx.beginPath(); ctx.arc(mx, fy, w * 0.55, 0, TAU); ctx.fill(); // (the focus where the streams meet)
+    } else {
+      const full = c >= 0.99;
+      ctx.globalAlpha = 0.2 + c * 0.6; ctx.strokeStyle = full ? '#ffffff' : col; ctx.lineWidth = 1 + c * 3;
+      glow(col, 8 + c * 20); ctx.setLineDash(full ? [] : [6, 6]); ctx.lineDashOffset = -t * 40;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 0.5 + c * 0.5; ctx.fillStyle = full ? '#ffffff' : col;
+      ctx.beginPath(); ctx.arc(mx, my, 3 + c * 7 + (full ? Math.sin(t * 12) * 2 : 0), 0, TAU); ctx.fill();
+      if (c > 0.15) { ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(full ? 'LINK READY' : `LINK ${Math.round(c * 100)}%`, mx, my - 16); }
+    }
+    ctx.restore();
+  }
+}
+
 // ---------- draw: HUD & screens ----------
 function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
@@ -6908,6 +7530,8 @@ function drawHUD() {
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
   if (muts.length) { ctx.fillStyle = '#ff9a3d'; ctx.font = 'bold 11px system-ui'; ctx.fillText(muts.join(' · '), 16, combo > 1 ? 84 : 64); }
+  const curses = CURSES.filter(c => curse(c.id)).map(c => c.name); // (and the run's curses)
+  if (curses.length) { ctx.fillStyle = '#ff5a70'; ctx.font = 'bold 11px system-ui'; ctx.fillText('☠ ' + curses.join(' · '), 16, (combo > 1 ? 84 : 64) + (muts.length ? 16 : 0)); }
 
   ctx.textAlign = 'right';
   const compactHud = players.length > 4; // online 5-8 players: one short line each
@@ -6920,8 +7544,27 @@ function drawHUD() {
     ctx.font = 'bold 12px system-ui';
     if (p.alive && p.power > 0) { ctx.fillStyle = '#ffe93d'; ctx.fillText(`SPREAD ${p.power.toFixed(1)}s`, W - 16, y + 26); }
     else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText(p.gone ? 'left the game' : 'fly to the wreck to revive', W - 16, y + 26); }
-    else { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
+    else if (curse('powerless')) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
+    else { // the ship's ability, and when it's ready
+      const ab = abilityOf(p), ready = p.abCd <= 0;
+      ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name + '  ·  ', W - 16 - ctx.measureText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`).width, y + 26);
+      ctx.fillStyle = ready ? p.color : '#778'; ctx.fillText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`, W - 16, y + 26);
+    }
   });
+  // touch screens: the ability button for the player steering with their finger
+  if (pointer?.touch && state === 'play' && !paused && !curse('powerless')) {
+    const mk = mouseOwner(), p = players[net.role ? net.mine[mk] : mk];
+    if (p?.alive) {
+      const { x, y, r } = touchAb(), ready = p.abCd <= 0;
+      ctx.save(); ctx.globalAlpha = ready ? 0.85 : 0.4; glow(p.color, ready ? 20 : 0);
+      ctx.fillStyle = 'rgba(10,12,28,0.7)'; ctx.strokeStyle = p.color; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      if (!ready) { ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, r - 6, -Math.PI / 2, -Math.PI / 2 + (1 - p.abCd / abCdOf(p)) * TAU); ctx.stroke(); }
+      ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ready ? abilityOf(p).name.split(' ')[0] : Math.ceil(p.abCd) + 's', x, y);
+      ctx.restore();
+    }
+  }
 
   // sector progress bar along the bottom edge
   if (!bosses.length && bossWarn <= 0) {
@@ -7086,7 +7729,7 @@ function drawJukebox() {
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 102;
   SONG_LIST.forEach(([id, where], i) => {
     const x = x0 + (i % cols) * (bw + gap), y = y0 + Math.floor(i / cols) * (bh + gap), on = music.song === id;
-    const locked = id === 'zero' && !meta.ach.omega; // (the secret boss's song stays a secret until you've beaten THE ABYSS)
+    const locked = (id === 'zero' && !meta.ach.omega) || (id === 'nemesis' && !meta.ach.zero); // (the secret bosses' songs stay secret until you could meet them)
     buttons.push({ x, y, w: bw, h: bh, action: () => { if (locked) beep(110, 0.15, 'square', 0.05); else music.pick = id; } });
     panel(x, y, bw, bh, on ? '#c08dff' : '#3a3f5a', sel === i);
     // where it plays on the right, the name on the left (squeezed if they'd overlap)
@@ -7111,14 +7754,94 @@ function title(text, y, color = '#ff3df2', size = 72) {
   ctx.shadowBlur = 0;
 }
 
-function drawMenu() {
-  const top = Math.max(160, H / 2 - 170);
-  title('NEON DRIFT', top - 90);
-  fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
-  const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
-  // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators)
+// ---------- THE ABYSS leaves its mark: lose to it, and the main menu stays haunted until you finally beat it ----------
+// Eyes open in the dark around the menu and follow your mouse, ink drips down from the top, a heartbeat thumps, the title
+// glitches (sometimes into something else), and the subtitle whispers. It gets worse the more times you lose to it.
+const markLv = () => meta.abyssMark ? Math.min(1, 0.45 + 0.15 * Math.max(0, (meta.abyssLosses | 0) - 1)) : 0;
+const MENU_WHISPERS = ['it\'s still waiting', 'come back', 'you left me in the dark', 'we remember you', 'it sees you', 'why did you run'];
+const marks = { eyes: [], eyeT: 2.5, word: null, wordT: 5, glitch: 0, glitchT: 3, glitchWord: false, beat: 0, beatT: 4, drips: [] };
+function markAbyss() {
+  meta.abyssMark = true; meta.abyssLosses = (meta.abyssLosses | 0) + 1; saveMeta();
+  if (run) run.abyssLoss = true;
+  Object.assign(marks, { eyeT: 2, wordT: 4, drips: [] });
+}
+function clearAbyssMark() { if (meta.abyssMark) { meta.abyssMark = false; saveMeta(); } }
+function updateMenuMarks(dt) {
+  const lv = markLv(); if (!lv) return;
+  for (const e of marks.eyes) e.t += dt;
+  marks.eyes = marks.eyes.filter(e => e.t < e.life);
+  if ((marks.eyeT -= dt) <= 0) { // one eye opens somewhere off to the side (later on, a few at once)
+    marks.eyeT = (7 + Math.random() * 8) * (1.5 - lv);
+    const n = lv > 0.7 && Math.random() < 0.5 ? 3 : 1;
+    for (let i = 0; i < n; i++) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      marks.eyes.push({ x: W / 2 + side * W * (0.3 + Math.random() * 0.16), y: H * (0.12 + Math.random() * 0.76), r: (i ? 12 + Math.random() * 12 : 28 + Math.random() * 26) * (0.8 + lv * 0.4),
+        t: -i * 0.5, life: 3.4 + Math.random() * 2, blink: 1.3 + Math.random() * 1.5 });
+    }
+    beep(300, 0.6, 'sine', 0.015, -220);
+  }
+  if (marks.word) { if ((marks.word.t += dt) > 2.4) marks.word = null; }
+  else if ((marks.wordT -= dt) <= 0) { marks.wordT = 8 + Math.random() * 9; marks.word = { text: MENU_WHISPERS[Math.floor(Math.random() * MENU_WHISPERS.length)], t: 0 }; }
+  if (marks.glitch > 0) marks.glitch -= dt;
+  else if ((marks.glitchT -= dt) <= 0) { marks.glitchT = 2.5 + Math.random() * 5 * (1.4 - lv); marks.glitch = 0.1 + Math.random() * 0.15; marks.glitchWord = Math.random() < 0.25; }
+  marks.beat = Math.max(0, marks.beat - dt * 2.5);
+  if ((marks.beatT -= dt) <= 0) { marks.beatT = 5 + Math.random() * 4; marks.beat = 1; beep(52, 0.18, 'sine', 0.06, -10); setTimeout(() => beep(46, 0.2, 'sine', 0.045, -10), 160); }
+  const want = Math.round(3 + lv * 7);
+  while (marks.drips.length < want) marks.drips.push({ x: Math.random() * W, len: 0, sp: 5 + Math.random() * 12, max: 24 + Math.random() * H * 0.22, w: 2 + Math.random() * 4, drop: null });
+  for (const d of marks.drips) {
+    if (d.len < d.max) d.len += d.sp * dt;
+    else { d.drop = (d.drop ?? d.len) + 170 * dt; if (d.drop > H + 20) Object.assign(d, { x: Math.random() * W, len: 0, drop: null }); } // (a drop falls, and it starts again)
+  }
+}
+function drawMenuMarks() {
+  const lv = markLv(); if (!lv) return;
+  ctx.save();
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75); // a dark red edge, pulsing with the heartbeat
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(70,0,10,${0.35 * lv + marks.beat * 0.18})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#050003'; ctx.strokeStyle = 'rgba(255,31,61,0.55)'; ctx.lineWidth = 1; glow('#ff1f3d', 6);
+  for (const d of marks.drips) { // ink running down from the top
+    ctx.beginPath(); ctx.moveTo(d.x - d.w, -2); ctx.lineTo(d.x - d.w * 0.45, d.len); ctx.quadraticCurveTo(d.x, d.len + d.w * 2, d.x + d.w * 0.45, d.len); ctx.lineTo(d.x + d.w, -2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (d.drop !== null) { ctx.beginPath(); ctx.ellipse(d.x, d.drop, d.w * 0.6, d.w * 1.1, 0, 0, TAU); ctx.fill(); ctx.stroke(); }
+  }
+  ctx.shadowBlur = 0;
+  const look = pointer || { x: W / 2, y: H / 2 };
+  for (const e of marks.eyes) { // eyes in the dark, opening slowly and following your mouse
+    if (e.t < 0) continue;
+    const open = Math.min(1, e.t / 0.8) * Math.min(1, (e.life - e.t) / 0.5) * (Math.abs(e.t - e.blink) < 0.09 ? 0.05 : 1);
+    const dx = look.x - e.x, dy = look.y - e.y, d = Math.hypot(dx, dy) || 1;
+    ctx.globalAlpha = Math.min(1, e.t / 0.4) * 0.9;
+    abyssEye(e.x, e.y, e.r, open, dx / d, dy / d, { dilate: 0.35 });
+  }
+  ctx.globalAlpha = 1;
+  if (!settings.calm && Math.random() < 0.015 * lv) staticNoise(0.05);
+  ctx.restore();
+}
+// the title, mid-glitch: torn into cyan and magenta, letters corrupted — and now and then, it says something else
+function drawGlitchTitle(y) {
+  const word = marks.glitchWord ? 'IT SEES YOU' : [...'NEON DRIFT'].map(c => c !== ' ' && Math.random() < 0.3 ? '█▓#%&'[Math.floor(Math.random() * 5)] : c).join('');
+  let px = Math.min(72, W / 8);
+  do { ctx.font = `900 ${px}px system-ui`; px--; } while (px > 12 && ctx.measureText(word).width > W - 32);
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalCompositeOperation = 'lighter';
+  const j = 3 + Math.random() * 6;
+  for (const [c, dx] of [['#00ffff', -j], ['#ff00ff', j]]) { ctx.fillStyle = c; ctx.globalAlpha = 0.8; ctx.fillText(word, W / 2 + dx, y + (Math.random() - 0.5) * 4); }
+  ctx.restore();
+  title(word, y, marks.glitchWord ? '#ff1f3d' : '#ff3df2');
+}
 
-  button(`RUN: ${RUN_LABEL[runType]}  [E]`, bx, top, bw, 36, RUN_COLOR[runType], toggleRunType);
+function drawMenu() {
+  const top = Math.max(160, H / 2 - 170), haunted = markLv() > 0;
+  drawMenuMarks();
+  if (haunted && marks.glitch > 0) drawGlitchTitle(top - 90); else title('NEON DRIFT', top - 90);
+  if (haunted && marks.word) { // the subtitle whispers instead
+    ctx.save(); ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2); ctx.globalAlpha = Math.min(1, marks.word.t * 2, (2.4 - marks.word.t) * 2);
+    fitText(marks.word.text, top - 40, 16, '#ff1f3d', 'italic'); ctx.restore();
+  } else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
+  const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
+  // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
+  const nCurse = cleanCurses(meta.curseSel).length, rw = Math.round(bw * 0.6);
+  button(`RUN: ${RUN_LABEL[runType]}  [E]`, bx, top, rw - 4, 36, RUN_COLOR[runType], toggleRunType);
+  button(nCurse ? `☠ ${nCurse} CURSE${nCurse > 1 ? 'S' : ''} [X]` : '☠ CURSES [X]', bx + rw + 4, top, bw - rw - 4, 36, nCurse ? '#ff5a70' : '#8a5560', () => openCurses('menu'));
   const cy = top + 46;
   button('SOLO  [1]', bx, cy, bw, bh, '#7df9ff', () => openShipSelect(1));
   button('2-PLAYER CO-OP  [2]', bx, cy + gap, bw, bh, '#9dff5d', () => openShipSelect(2));
@@ -7135,6 +7858,27 @@ function drawMenu() {
   fitText('3P: P1 = Mouse · P2 = WASD · P3 = Arrows', ty + 20, 13, '#789');
   fitText('4P: P1 = Mouse · P2 = WASD · P3 = Arrows · P4 = IJKL  ·  Gamepads work too', ty + 40, 13, '#789');
   fitText('Pick upgrades each sector. Die, earn shards, buy permanent unlocks. Go again.', ty + 64, 13, '#567');
+}
+
+// curses: switch handicaps on for the next run; each one adds to the shards it pays
+function drawCurses() {
+  title('CURSES', 52, '#ff5a70', 44);
+  const on = cleanCurses(meta.curseSel), bonus = Math.round(curseBonus(on) * 100);
+  fitText(on.length ? `${on.length} curse${on.length > 1 ? 's' : ''} on  ·  the next run pays +${bonus}% shards` : 'Make your next run harder, for more shards. Curses stack.', 90, 14, on.length ? '#ffb0bb' : '#9ab', 'bold');
+  const cols = W >= 700 ? 2 : 1, gap = 8, bw = Math.min(cols > 1 ? 340 : 420, (W - 32 - gap * (cols - 1)) / cols), bh = H < 700 ? 50 : 58;
+  const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 112;
+  CURSES.forEach((c, i) => {
+    const x = x0 + (i % cols) * (bw + gap), y = y0 + Math.floor(i / cols) * (bh + gap), lit = on.includes(c.id);
+    buttons.push({ x, y, w: bw, h: bh, action: () => toggleCurse(c.id) });
+    panel(x, y, bw, bh, lit ? c.color : '#3a3f5a', sel === i);
+    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    ctx.fillStyle = lit ? c.color : '#aab'; ctx.font = '900 14px system-ui'; ctx.fillText(`${lit ? '☠ ' : ''}${c.name}  [${i + 1}]`, x + 12, y + 9);
+    ctx.fillStyle = lit ? '#e8d8e0' : '#889'; ctx.font = '12px system-ui'; ctx.fillText(c.desc, x + 12, y + bh - 22, bw - 24);
+    ctx.textAlign = 'right'; ctx.fillStyle = lit ? '#ffe93d' : '#776'; ctx.font = 'bold 13px system-ui'; ctx.fillText(`+${Math.round(c.bonus * 100)}%`, x + bw - 12, y + 9);
+  });
+  const by = y0 + Math.ceil(CURSES.length / cols) * (bh + gap) + 8, bw2 = Math.min(260, W - 32);
+  fitText('Online, the host\'s curses count for everyone.', by + 4, 12, '#789');
+  button(cursesBack === 'lobby' ? 'BACK TO LOBBY  [Esc]' : 'BACK  [Esc]', (W - bw2) / 2, by + 22, bw2, 42, '#9ab', closeCurses);
 }
 
 // trophy room: a grid of stars, with details for the highlighted one
@@ -7240,7 +7984,7 @@ function drawShips() {
 
   // details for the highlighted ship (in the version currently chosen)
   const rows = Math.ceil(SHIPS.length / cols), py = gy + rows * (ih + gap) + 6;
-  const pw = Math.min(560, W - 32), px = (W - pw) / 2, ph = 160, locked = two && !owned2, accent = two ? '#ffe93d' : pc;
+  const pw = Math.min(560, W - 32), px = (W - pw) / 2, ph = 196, locked = two && !owned2, accent = two ? '#ffe93d' : pc;
   panel(px, py, pw, ph, accent, false);
   const art = Math.min(110, pw * 0.3);
   ctx.save(); ctx.translate(px + art / 2 + 10, py + ph / 2); ctx.scale(art / 45, art / 45);
@@ -7258,7 +8002,13 @@ function drawShips() {
     for (let k = 0; k < 5; k++) { ctx.fillStyle = k < v ? accent : 'rgba(255,255,255,0.12)'; ctx.fillRect(tx + 50 + k * 14, y + 1, 11, 8); }
   });
   ctx.fillStyle = '#cde'; ctx.font = '12px system-ui';
-  wrap(view.trait, tw).slice(0, 3).forEach((l, j) => ctx.fillText(l, tx, py + 104 + j * 15));
+  const traitLines = wrap(view.trait, tw).slice(0, 3);
+  traitLines.forEach((l, j) => ctx.fillText(l, tx, py + 104 + j * 15));
+  // its ability (with the MK II's cooldown when that's the one being looked at)
+  const ab = ABILITIES[base.id], ay = py + 108 + traitLines.length * 15;
+  ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui'; ctx.fillText(`ABILITY: ${ab.name}  ·  every ${ab.cd[two ? 1 : 0]}s`, tx, ay);
+  ctx.fillStyle = '#9ab'; ctx.font = '11px system-ui';
+  wrap(ab.desc, tw).slice(0, 2).forEach((l, j) => ctx.fillText(l, tx, ay + 16 + j * 13));
 
   // MK I / MK II switch
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, hw = (bw - 8) / 2, ty = py + ph + 10;
@@ -7483,13 +8233,14 @@ function drawOver() {
   }
   if (run.victory) title(run.rush ? 'RUSH CLEARED!' : 'VICTORY!', cy, '#ffe93d', run.rush ? 56 : 72);
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
+  if (run.abyssLoss) { ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); fitText('it\'s still waiting.', cy + 34, 13, '#ff1f3d', 'italic'); ctx.restore(); }
   const lines = [
     [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, runKind()).toLocaleString()}${run.endless ? ' (Endless)' : run.rush ? ' (Boss Rush)' : ''}`, '#cde', 18],
     [run.victory ? `${run.rush ? `All ${run.bossKills} bosses defeated` : 'THE ABYSS destroyed'}  ·  +◆ ${VICTORY_BONUS} victory bonus`
       : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
-    [`+◆ ${run.earned} shards   (total ◆ ${meta.shards})`, '#ffe93d', 18],
+    [`+◆ ${run.earned} shards${curseBonus() ? `  (☠ +${Math.round(curseBonus() * 100)}% from curses)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
   ];
   lines.forEach(([t, c, s], i) => fitText(t, cy + 56 + i * 30, s, c, i === 2 ? 'bold' : ''));
   // run stats: time, kills and damage, then the ships
@@ -8350,6 +9101,7 @@ function draw() {
   // particles shrink as they fade, so they can all be batched without per-particle alpha
   drawGlowDots(particles.map(p => ({ x: p.x, y: p.y, r: p.size * 0.55 * Math.max(0.15, p.life / p.max), color: p.color })), false);
   if (inRun()) drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
+  if (inRun() && curse('blackout')) drawBlackout();
   ctx.restore();
   ctx.shadowBlur = 0;
   if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(settings.calm ? 0.15 : 0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); } // (gentle with REDUCED FLASHING)
@@ -8367,6 +9119,7 @@ function draw() {
   else if (state === 'jukebox') drawJukebox();
   else if (state === 'ships') drawShips();
   else if (state === 'achievements') drawAchievements();
+  else if (state === 'curses') drawCurses();
   else if (state === 'online') drawOnline();
   else if (state === 'browse') drawBrowse();
   else if (state === 'joinCode') drawJoin();
@@ -8396,7 +9149,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const PEER_PREFIX = 'neondrift-v2-'; // bumped when the online protocol changes, so old and new versions don't mix
+const PEER_PREFIX = 'neondrift-v3-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
 // (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
@@ -8517,7 +9270,7 @@ function onHello(conn, h) {
   lateJoin(conn, ids.map((id, k) => slot(k)));
 }
 function broadcastLobby() {
-  for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType }, you: c.slots });
+  for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType, curses: cleanCurses(meta.curseSel) }, you: c.slots });
 }
 function onHostData(conn, d) {
   if (!d || typeof d !== 'object') return;
@@ -8539,6 +9292,7 @@ function onHostData(conn, d) {
   if (state === 'route' && okIdx(d.route, run.routeOpts?.length || 0)) pickRoute(d.route);
   if (d.reroll === 1 && state === 'upgrade' && offer) reroll();
   if (state === 'shop' && shop && okIdx(d.buy, shop.items.length)) buyShop(d.buy);
+  if (d.ab === 1 && p) useAbility(p, num(d.dx, -1, 1, 0), num(d.dy, -1, 1, 0)); // (the cooldown keeps it honest)
   if (p && okIdx(d.emote, EMOTES.length) && !((p.emoteCd || 0) > performance.now())) { // (no spamming)
     p.emoteCd = performance.now() + 500; // (a little under the sender's own 700ms, for network jitter)
     showEmote(id, d.emote); netRec(['e', id, d.emote]);
@@ -8610,7 +9364,7 @@ function packSnap() {
     rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
-      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0]),
+      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
       e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0]),
@@ -8625,6 +9379,7 @@ function packSnap() {
     wi: bossWarn > 0 ? encounterInfo(bossCount) : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
+    lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
     ev: net.events.splice(0),
   };
 }
@@ -8639,7 +9394,8 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
   'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special',
-  'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
+  'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp']; // (NEMESIS) // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -8653,7 +9409,7 @@ function packBullets(s) {
   const colors = [], ci = c => { let i = colors.indexOf(c); if (i < 0) { i = colors.length; colors.push(c); } return i; };
   const bu = [], eb = [];
   for (const b of bullets) bu.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), ci(b.color), (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0));
-  const flow = s.chrono * timeFlow();
+  const flow = bulletFlow();
   for (const b of eBullets) eb.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx * flow), Math.round(b.vy * flow), b.r || 5, ci(b.color || '#ff4d4d'), b.fuse !== undefined ? r2(b.fuse) : -1);
   return { bu, eb, cl: colors };
 }
@@ -8693,6 +9449,7 @@ function onGuestData(d) {
   if (d.lobby) {
     if (!Array.isArray(d.lobby.slots)) return;
     net.slots = d.lobby.slots.slice(0, MAX_ONLINE).map(s => ({ ship: cleanShip(s?.ship), cos: cleanCos(s?.cos) }));
+    net.hostCurses = cleanCurses(d.lobby.curses);
     net.mine = cleanMine(d.you); net.myId = net.mine[0] ?? 0; if (RUN_TYPES.includes(d.lobby.runType)) runType = d.lobby.runType;
     if (net.playing) { net.playing = false; resize(); go('lobby'); }
     else if (state !== 'lobby' && !(state === 'ships' && shipPick?.online)) go('lobby'); // don't yank me out of the ship picker
@@ -8861,6 +9618,7 @@ function applySnap(s) {
     if (mine && !wasAlive && a[3]) { p.x = a[0]; p.y = a[1]; } // just revived: take the host's spot
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
     p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11]; p.gone = !!a[12];
+    p.abCd = num(a[13], 0, 99, 0); p.abOn = num(a[14], 0, 30, 0);
   });
   // enemies keep their identity between snapshots (by id) so they can glide along a timeline
   const byId = new Map(enemies.map(e => [e.id, e])), seen = new Set();
@@ -8902,6 +9660,10 @@ function applySnap(s) {
   run.coins = s.cn;
   offer = s.of ? { title: s.of.ti, bossReward: !!s.of.br, cards: s.of.c.map(id => UPGRADES.find(u => u.id === id)) } : null;
   run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
+  run.curses = Object.fromEntries(cleanCurses(s.cu).map(id => [id, true])); // (the host's curses)
+  run.linkView = Array.isArray(s.lk) ? s.lk.slice(0, 28).filter(l => Array.isArray(l) && okIdx(l[0], MAX_ONLINE) && okIdx(l[1], MAX_ONLINE))
+    .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0)]) : [];
+  if (bosses.some(b => b.final && b.dying > 0)) clearAbyssMark(); // (THE ABYSS is falling: its mark on my menu lifts)
   run.warp = s.wp ? { t: s.wp[0], to: s.wp[1] } : null;
   if (s.zn && s.zn !== run.zone) { run.zone = s.zn; showZoneCard(s.zn, run.route.length); noteZone(s.zn); } // arrived in a new zone
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
@@ -8909,7 +9671,8 @@ function applySnap(s) {
   [run.kills, run.dmgDone] = s.ks || [0, 0];
   if (Array.isArray(s.ev)) for (const ev of s.ev.slice(0, 400)) replayEvent(ev); // (a flood of effects is cut short)
   if (net.rewarded && state !== 'over') { net.rewarded = false; run.paid = (run.paid || 0) + run.earned; } // the host carried on into Endless
-  if (state === 'over' && !net.rewarded) { // guests earn shards too
+  if (state === 'over' && !net.rewarded) { // guests earn shards too (and carry THE ABYSS's mark if it got us)
+    if (!s.vi && bosses.some(b => b.final)) markAbyss();
     net.rewarded = true;
     // (worked out from the host's numbers, so a broken or tampered host can't wipe or flood my shards)
     run.earned = Math.round(num(runShards() - num(run.paid, 0, GUEST_SHARD_CAP, 0), 0, GUEST_SHARD_CAP, 0));
@@ -8934,6 +9697,9 @@ function replayEvent(ev) {
     case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
     case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
+    case 'a': // an ability's beam or dash trail
+      if (abFx.length < 30 && (ev[1] === 'beam' || ev[1] === 'dash')) abFx.push({ a: ev.slice(1, 7).map(v => typeof v === 'number' ? num(v, -5000, 5000, 0) : String(v).slice(0, 24)), life: AB_FX_LIFE[ev[1]], max: AB_FX_LIFE[ev[1]] });
+      break;
   }
 }
 // a guest's frame: move my own ship, glide everything else along until the next snapshot, run local effects
@@ -8963,6 +9729,7 @@ function guestFrame(dt) {
     for (const e of enemies) { e.t += dt; e.spin += dt * 2; }
     for (const b of bosses) b.t += dt;
     for (const pp of popups) { pp.life -= dt; pp.y -= 45 * dt; }
+    for (const p of players) { p.abCd = Math.max(0, (p.abCd || 0) - dt); p.abOn = Math.max(0, (p.abOn || 0) - dt); } // (counting down between updates)
     if (hint) hint.life -= dt;
     hurtFlash = Math.max(0, hurtFlash - dt * 1.8);
     guestMove(dt);
@@ -8982,7 +9749,7 @@ function guestMove(dt) {
   for (const id of net.mine) {
     const p = players[id];
     if (!p || !p.alive) continue;
-    const m = p.ship.mod, speed = run.s.speed * (m.speed || 1), ox = p.x, oy = p.y;
+    const speed = shipSpeed(p), ox = p.x, oy = p.y;
     const { dx, dy, usePointer } = controlsFor(p);
     if (dx || dy) { const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt; }
     else if (usePointer && pointer) {
@@ -8993,7 +9760,9 @@ function guestMove(dt) {
     const kk = Math.min(1, dt * 12);
     p.tilt = (p.tilt || 0) + (Math.max(-1, Math.min(1, (p.x - ox) / dt / 500)) * 0.45 - (p.tilt || 0)) * kk;
     p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -(p.y - oy) / dt / 400)) - (p.thrust || 0)) * kk;
+    p.mvx = (p.mvx || 0) + ((p.x - ox) / dt - (p.mvx || 0)) * kk; p.mvy = (p.mvy || 0) + ((p.y - oy) / dt - (p.mvy || 0)) * kk; // (for DASH)
   }
+  if (state === 'play' && !paused) padState.forEach((pad, i) => { if (pad?.ab && i < net.mine.length) localAbility(i); }); // (gamepad ability buttons)
 }
 
 // ----- lobby: pick ships -----
@@ -9041,6 +9810,7 @@ function onlineKey(e) {
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { cycleShip(1); return true; }
     if (e.code === 'KeyC') { openShipSelect(1, true); return true; }
     if (net.role === 'host' && e.code === 'KeyE') { toggleRunType(); broadcastLobby(); return true; }
+    if (net.role === 'host' && e.code === 'KeyX') { openCurses('lobby'); return true; }
     if (net.role === 'host' && e.code === 'KeyP') { togglePublic(); return true; }
     if (net.role === 'host' && e.code === 'Enter') { startOnline(); return true; }
     return true;
@@ -9164,7 +9934,8 @@ function drawLobby() {
     if (isMine(i) && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true, net.mine.indexOf(i)) }); // click your own slot to pick a ship
   }
   const by = top + 4 * (rh + 8) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
-  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
+  const lobbyCurses = host ? cleanCurses(meta.curseSel) : net.hostCurses || [];
+  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  ☠ ${lobbyCurses.length} curse${lobbyCurses.length > 1 ? 's' : ''} (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  curses [X]' : ''}${host ? `   ·   ${net.public ? `PUBLIC as "${net.roomName}"` : 'PRIVATE (code only)'}  [P]` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
   button('CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
