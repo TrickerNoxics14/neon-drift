@@ -18,6 +18,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
+- **Controllers:** left stick or D-pad to fly, A, X, RB or RT for your ability, START to pause, A to pick and B to go back in menus, and Y / B / X / A to answer DOKI DOLL. It rumbles when you get hit. Up to 4 controllers work for local co-op. On an Xbox, open the game in Microsoft Edge and the controller should work the same way.
 - **Phones and tablets:** drag anywhere to fly (your ship sits just above your finger). The round button in the bottom right uses your ability, **II** in the top left pauses, and **⛶** on the menu goes fullscreen. Your phone buzzes when you get hit.
 - **Ability:** Space, Q, E, Shift or right-click (gamepad: A, X or a right bumper/trigger; touch screens get a button)
 - **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
@@ -28,7 +29,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 46 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### MK II to MK V
 
@@ -77,7 +78,7 @@ Before a run, press **X** on the menu (or in an online lobby, as the host) to sw
 
 ### Music
 
-29 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
+30 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
@@ -105,6 +106,7 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Oracle:** sweeps a giant beam across a marked arc. Bring it down and it opens **A HUNDRED EYES** all around it, and they shoot at you.
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
+- **DAWNNY:** inspired by a friend of the game's creator who loves manga, anime and books, and the Roblox games Murder Mystery and Flee the Facility. An open manga book in a pink heart frame, with a heart bookmark and a detective's magnifying glass. She throws PAGE STORMS, screams in manga speech bubbles (KYAA!, OMG!!), ships two hearts together (SHIP IT!: the pink line between them hurts), and throws knives. Every so often she starts a round from her favorite games: **WHO DUNNIT?** (she hides among identical suspects, and only the murderer throws knives: shoot the right one to make her dizzy, shoot an innocent and you get a burst of hearts) or **THE BEAST** (she can't be hurt and chases you: hack all three computers to escape and leave her dizzy). Enraged, she goes into MANGA WITHDRAWAL and uses **TO BE CONTINUED...**: manga panel borders slam down across the screen. Her song is **Next Chapter!!**.
 - **Zero:** loads in with a LOADING ZERO.EXE bar, and fights in three forms, rebooting between each (it can't be hurt while it reboots): **ZERO**, a cube of flickering pixels; **NULL**, a bare core with its pixels orbiting it; and **FATAL ERROR**, corrupted memory flickering between the faces of other bosses it stole, skipping around the screen and deleting half of it in a checkerboard. It **steals every other boss's abilities**, announcing each one (STOLEN: STORMCALLER'S LIGHTNING) and wearing that boss's face while it uses it: their signature attacks (the Hive's eggs, Sonnet's spin dash, DOKI DOLL's hearts, Nemesis's missiles and more), their whole mechanics for 10 seconds at a time (the Warden's pylons, Hexcore's overheat, Null Seraph's mirror halo, Stormcaller's lightning, the Architect's walls, the Oracle's judgment, the Singularity's supernova, Echo's echoes, Chronos's time stop and Phantom's decoys), and their rage moves (all 16), in every form. Its new moves: **LAG SPIKE** (its bullets freeze, then jump ahead), **COPY-PASTE** (every bullet it has out gets a mirror copy), and **DEAD PIXELS** (falling pixels with one gap).
 - **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog.) His fight plays **Golden Hour**, made by the game's creator: the instrumental, switching to the version with vocals at the very same moment in the song when he turns golden.
 
