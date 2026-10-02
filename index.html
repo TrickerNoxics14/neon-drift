@@ -303,6 +303,21 @@ const SONGS = {
     B: { chords: '6 7 1 1 6 7 5^ 5^', ins: 'guitar', dr: 'rock', gt: 'strum', mel: [
       'e-------q---6---', 'w-------7---4---', 'q-------5---3---', '5---------------',
       'e-------6---q---', 'r-------w---7---', 't-------w---5---', '5---------------'] } } },
+  // GLITCH SECTOR: stuttering, repeating synth lines (like a scratched record) in a dark key
+  glitch: { name: 'Corrupted Data', bpm: 132, root: 41, scale: 'phrygian', lead: 65, form: ['A', 'B'], parts: {
+    A: { chords: '1 2 1 7 1 2 6 5^', ins: 'synth', dr: 'groove', gt: 'chug', arp: 1, mel: [
+      '1.1.1.q.1.1.2.1.', '2.2.2.w.2.2.3.2.', '1.1.1.q.1.1.2.1.', '7.7.7.e.5...3...',
+      '1.1.1.q.1.1.2.1.', '2.2.2.w.2.2.3.2.', '6.6.6.q.6...4...', '5-------5.5.5.5.'] },
+    B: { chords: '6 7 1 2 6 7 5^ 5^', ins: 'bell', dr: 'drive', gt: 'strum', mel: [
+      'q-------2---q---', '7-------w---7---', 'q---e---w---q---', '2-------3---4---',
+      'q-------2---q---', '7-------w---e---', 'w-------7---5---', '5---------------'] } } },
+  glitch2: { name: 'Stack Overflow', bpm: 144, root: 40, scale: 'minor', lead: 64, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 1 7 1 6 4 5^', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
+      '1.3.1.3.5.3.1.3.', '1.3.1.3.6.3.1.3.', '1.3.1.3.7.3.1.3.', 'q.7.6.5.4.3.2.1.',
+      '1.3.1.3.5.3.1.3.', '1.3.1.3.6.3.q.3.', '4.6.4.6.q.6.4.6.', '5-------7---5---'] },
+    B: { chords: '4 5 6 1 4 5 7 5^', ins: 'flute', dr: 'march', gt: 'strum', mel: [
+      '4-------6---q---', '5-------7---w---', '6-------q---e---', 'q-----------3---',
+      '4-------6---q---', '5-------7---w---', '7-------w---r---', 'w---------------'] } } },
   prism2: { name: 'Spectrum', bpm: 136, root: 46, scale: 'major', lead: 70, form: ['A', 'B'], parts: {
     A: { chords: '1 3 4 5 1 3 4 4', ins: 'synth', dr: 'groove', gt: 'clean', mel: [
       '1.3.5.3.q.5.3.5.', '3.5.7.5.e.7.5.7.', '4.6.q.6.r.q.6.q.', '5.7.w.7.5.7.w...',
@@ -345,7 +360,7 @@ for (const song of Object.values(SONGS)) for (const sec of Object.values(song.pa
     return out;
   });
 }
-const ZONE_SONGS = { deep: ['deep', 'deep2'], belt: ['belt', 'belt2'], nebula: ['nebula', 'nebula2'], rings: ['rings', 'rings2'],
+const ZONE_SONGS = { glitch: ['glitch', 'glitch2'], deep: ['deep', 'deep2'], belt: ['belt', 'belt2'], nebula: ['nebula', 'nebula2'], rings: ['rings', 'rings2'],
   corona: ['corona', 'corona2'], derelict: ['derelict', 'derelict2'], prism: ['prism', 'prism2'], horizon: ['horizon', 'horizon2'] };
 // which of a zone's two songs plays there (picked per run, and again each Endless cycle; online, the host's pick)
 function zoneSong(zone) {
@@ -355,7 +370,7 @@ function zoneSong(zone) {
 // the Music Room's list, in order, with where each song plays
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
-  ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'],
+  ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'], ['glitch', 'Glitch Sector'], ['glitch2', 'Glitch Sector'],
   ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['sonnet', 'SONNET'], ['supersonnet', 'SUPER SONNET'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses', 'gallery'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
@@ -452,7 +467,7 @@ function wantedSong() {
   // version carries on, turning into its heavy remake)
   if (bosses.some(b => b.gimmick === 'sonnet')) return bosses.some(b => b.super) && recordedOk('supersonnet') ? 'supersonnet' : 'sonnet';
   if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
-  if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
+  if (bosses.some(b => b.secret) || warn?.name === '???' || warn?.zero) return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
   if ((encounter && encounter.kind !== 'single') || warn?.team) return 'rival';
   return zoneSong(run.zone);
@@ -845,9 +860,11 @@ let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: Number.isFinite(m.shards) ? Math.max(0, m.shards) : 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } }, seenAbyss: !!m.seenAbyss,
   abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [],
-  mastery: m.mastery && typeof m.mastery === 'object' ? m.mastery : {}, bossLog: m.bossLog && typeof m.bossLog === 'object' ? m.bossLog : {}, ships3: m.ships3 && typeof m.ships3 === 'object' ? m.ships3 : {} }; } catch (e) {}
+  mastery: m.mastery && typeof m.mastery === 'object' ? m.mastery : {}, bossLog: m.bossLog && typeof m.bossLog === 'object' ? m.bossLog : {}, ships3: m.ships3 && typeof m.ships3 === 'object' ? m.ships3 : {},
+  goldShards: m.goldShards && typeof m.goldShards === 'object' ? m.goldShards : {}, rush: m.rush && typeof m.rush === 'object' ? m.rush : {} }; } catch (e) {}
 meta.mastery ||= {}; // (mastery XP per ship, by its base id)
 meta.ships3 ||= {}; // (the MK IIIs you own)
+meta.goldShards ||= {}; meta.rush ||= {}; // (golden shards found, by zone; Boss Rush: best medal (1-3) and best time)
 meta.bossLog ||= {}; // (the boss gallery: every boss fight you've met, by name: { met, beat: times beaten, best: fastest kill in seconds })
 const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
@@ -884,6 +901,8 @@ const COSMETICS = [
   { id: 'skin_gold',     cat: 'skin', name: 'Solid Gold',    cost: 750 },
   { id: 'skin_abyss',    cat: 'skin', name: 'Abyssal',       cost: 500, req: 'omega', reqText: 'Beat THE ABYSS' },
   { id: 'skin_glitch',   cat: 'skin', name: 'Glitched',      cost: 600, req: 'zero',  reqText: 'Beat the secret boss' },
+  { id: 'skin_champion', cat: 'skin', name: 'Champion',      cost: 0,   req: 'rushgold', reqText: 'Gold medal in Boss Rush' },
+  { id: 'skin_shards',   cat: 'skin', name: 'Shardglass',    cost: 0,   req: 'goldshards', get reqText() { return `Find the 8 golden shards (${goldCount()}/8)`; } },
   { id: 'trail_none',     cat: 'trail',  name: 'None',          cost: 0,   sw: ['#334'] },
   { id: 'trail_comet',    cat: 'trail',  name: 'Comet',         cost: 120, sw: ['#7df9ff', '#3d9dff'] },
   { id: 'trail_fire',     cat: 'trail',  name: 'Afterburn',     cost: 200, sw: ['#ffe93d', '#ff9a3d', '#ff3d3d'] },
@@ -918,7 +937,7 @@ const COSMETICS = [
   { id: 'pet_eye',    cat: 'pet', name: 'Little Eye',   cost: 500, req: 'omega',   reqText: 'Beat THE ABYSS' },
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
-const cosOwned = c => c.cost === 0 || !!meta.cos.owned[c.id];
+const cosOwned = c => !!meta.cos.owned[c.id] || (c.cost === 0 && !cosLocked(c)); // (free ones are yours once unlocked)
 const cosLocked = c => c.mastery ? !SHIPS.some(s => masteryLv(s.id) >= MASTERY_MAX) : c.req && !meta.ach[c.req] && !meta.cos.owned[c.id];
 // buy it if you can afford it, then equip it (equipping something you own is free)
 function useCosmetic(c) {
@@ -991,7 +1010,7 @@ const masteryXp = id => meta.mastery?.[id] | 0;
 const masteryLv = id => MASTERY_XP.filter(x => masteryXp(id) >= x).length;
 // colors of each ship's Signature trail
 const SIGNATURE = { striker: ['#7df9ff', '#ffffff'], interceptor: ['#5dffc8', '#3d9dff'], juggernaut: ['#ffb13d', '#ff6a2d'], scatter: ['#ff5dc8', '#ffe93d'],
-  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'] };
+  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'], bomber: ['#ff6a2d', '#ffe93d'] };
 function drawSignatureTrail(p, pts, [c1, c2], t) {
   ctx.save(); ctx.lineCap = 'round'; glow(c1, 12);
   for (let i = 1; i < pts.length; i++) { // two twisting ribbons
@@ -1062,7 +1081,10 @@ const ACHIEVEMENTS = [
   { id: 'link',        cat: 'team', name: 'Better Together',      reward: 100, desc: 'Fire a LINK BEAM with a teammate.' },
   { id: 'endless2',    cat: 'progress', name: 'Beyond the End',   reward: 150, desc: 'Reach cycle 2 in Endless mode.' },
   { id: 'endless4',    cat: 'progress', name: 'Infinite Drift',   reward: 300, desc: 'Reach cycle 4 in Endless mode.' },
-  { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 8 zones (all-time).', progress: () => [ZONES.filter(z => meta.stats.zones?.[z.id]).length, ZONES.length] },
+  { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 8 zones (all-time).', progress: () => [ZONES.filter(z => !z.secret && meta.stats.zones?.[z.id]).length, ZONES.filter(z => !z.secret).length] },
+  { id: 'glitch',      cat: 'progress', name: 'Out of Bounds',    reward: 150, desc: 'Find your way into the Glitch Sector (beat ZERO first).' },
+  { id: 'rushgold',    cat: 'progress', name: 'Gold Rush',        reward: 300, desc: 'Win a gold medal in Boss Rush.' },
+  { id: 'goldshards',  cat: 'progress', name: 'Treasure Hunter',  reward: 300, desc: 'Find all 8 golden shards hidden in the zones.', progress: () => [goldCount(), GOLD_ZONES().length] },
   { id: 'glass',       cat: 'build', name: 'Glass Act',           reward: 100, desc: 'Defeat a boss while holding Glass Cannon.' },
   { id: 'phoenix',     cat: 'build', name: 'Rise from the Ashes', reward: 50,  desc: 'Get saved by Phoenix Core.' },
   { id: 'arsenal',     cat: 'build', name: 'Arsenal',             reward: 100, desc: 'Hold 12 different upgrades in one run.' },
@@ -1154,6 +1176,7 @@ const UPGRADES = [
   { id: 'abm_medic', name: 'Guardian Pulse',   r: 'rare', max: 1, ship: 'medic',       desc: 'MEDIC: Lifeline also makes the whole team untouchable for 2s', apply: s => s.abm_medic = 1 },
   { id: 'abm_wraith', name: 'Phantom Blades',  r: 'rare', max: 1, ship: 'wraith',      desc: 'WRAITH: while phased, enemies you fly through get shredded', apply: s => s.abm_wraith = 1 },
   { id: 'abm_carrier', name: 'Hive Mind',      r: 'rare', max: 1, ship: 'carrier',     desc: 'CARRIER: Swarm launches twice as many missiles', apply: s => s.abm_carrier = 1 },
+  { id: 'abm_bomber', name: 'Payload', r: 'rare', max: 1, ship: 'bomber', desc: 'BOMBER: every explosion is 35% bigger, and Megaton wipes every enemy bullet off the screen', apply: s => s.abm_bomber = 1 },
   { id: 'abm_gunslinger', name: 'Speed Loader', r: 'rare', max: 1, ship: 'gunslinger', desc: 'GUNSLINGER: reloads twice as fast, and Fan the Hammer fires 3 more rounds', apply: s => s.abm_gunslinger = 1 },
   { id: 'abm_berserker',name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
   // evolutions: offered (always as the first card) once you own both ingredients at the listed levels
@@ -1412,6 +1435,7 @@ addEventListener('keydown', e => {
   } else if (state === 'ships') {
     if (num >= 1 && num <= SHIPS.length) { sel = num - 1; buttons[sel]?.action(); }
     if (e.code === 'Digit0' && SHIPS.length >= 10) { sel = 9; buttons[9]?.action(); } // (the 10th ship)
+    if (e.code === 'Minus' && SHIPS.length >= 11) { sel = 10; buttons[10]?.action(); } // (and the 11th)
     if (e.code === 'Escape') shipSelectBack();
     if (e.code === 'KeyV') toggleVariant(SHIPS[shipPick.view ?? 0]);
   }
@@ -1677,10 +1701,14 @@ function encounterDef(n) {
   while (run.endless && run.bossOrder.length < n) run.bossOrder.push(...buildBossOrder());
   return run.bossOrder[(n - 1) % run.bossOrder.length];
 }
+// the GLITCH SECTOR's last fight is always ZERO, at home (once you've beaten it, it's waiting for you there)
+const glitchZeroDue = () => run.zone === 'glitch' && !run.rush && !run.practice && !run.dokiNext && !run.nemesisNext && !run.secretNext
+  && bossCount % BOSSES_PER_ZONE === 0 && encounterDef(bossCount).single !== undefined && !BOSSES[encounterDef(bossCount).single].final;
 function encounterInfo(n) {
   if (run.nemesisNext) return { name: '???', nemesis: true };
   if (run.dokiNext) return { name: '???', doki: true };
   if (run.secretNext) return { name: '???', final: true };
+  if (glitchZeroDue()) return { name: 'ZERO', zero: true };
   const e = encounterDef(n);
   return e.team !== undefined ? { name: TEAMS[e.team].name, team: true } : { name: BOSSES[e.single].name, final: BOSSES[e.single].final };
 }
@@ -1754,6 +1782,12 @@ const SHIPS = [
     mod: { shots: -1, dmg: 3.6, fireRate: 0.6, bulletSpeed: 1.3, cylinder: 6, reload: 1.1 },
     mk2: { cost: 300, stats: { speed: 4, power: 5, armor: 2 }, trait: 'Heavier rounds, a quicker reload, and a bit more speed.',
       mod: { shots: -1, dmg: 4.1, fireRate: 0.6, bulletSpeed: 1.4, cylinder: 6, reload: 0.85, speed: 1.06 } } },
+  // slow bombs that blow up on contact (or when their fuse runs out), hitting everything nearby (see bombBlast)
+  { id: 'bomber', name: 'BOMBER', tag: 'Heavy ordnance', shape: 'payload',
+    stats: { speed: 2, power: 4, armor: 3 }, trait: 'Drops slow bombs that explode, hitting everything nearby. Great against crowds, slower against bosses.',
+    mod: { shots: -1, dmg: 5, fireRate: 3.2, blast: 70, bombs: true, speed: 0.92 },
+    mk2: { cost: 300, stats: { speed: 3, power: 5, armor: 3 }, trait: 'Bigger blasts, heavier bombs, and it fires a bit faster.',
+      mod: { shots: -1, dmg: 5.8, fireRate: 3.0, blast: 85, bombs: true, speed: 0.96 } } },
 ];
 // a ship id is the base id ("medic") or the MK II ("medic2")
 const mk2Cache = {};
@@ -1822,6 +1856,7 @@ const ABILITIES = {
   wraith:      { name: 'SHADOW STEP', cd: [10, 7],  dur: [1.8, 2.4], desc: 'Phase out on demand, and move 60% faster while phased.' },
   carrier:     { name: 'SWARM',       cd: [9, 7],   desc: 'Launches a swarm of homing missiles (8, or 12 for the MK II).' },
   berserker:   { name: 'RAMPAGE',     cd: [22, 16], dur: [5, 5], desc: 'Double damage and faster fire for 5s, and you smash through enemies you ram.' },
+  bomber:      { name: 'MEGATON',     cd: [12, 9],  desc: 'Drops one huge, slow bomb that blasts everything around it and blows away enemy bullets.' },
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
 };
 const AB_START = 0.35; // (a run starts with abilities 65% charged)
@@ -1925,6 +1960,11 @@ function useAbility(p, dx = 0, dy = 0) {
     const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
+  } else if (id === 'bomber') { // MEGATON: one huge, slow bomb (Payload: it wipes every enemy bullet off the screen)
+    fire(p.x, p.y - 18, -Math.PI / 2, '#ffffff', 'bomb', p);
+    const b = bullets[bullets.length - 1];
+    if (b) Object.assign(b, { mega: true, dmg: dps * (tier ? 3 : 2.4), blast: (tier ? 240 : 200) * (abm('bomber') ? 1.2 : 1), fuse: 0.9, size: b.size + 10, wipe: abm('bomber') });
+    beep(70, 0.5, 'square', 0.06, 60);
   } else if (id === 'gunslinger') { // FAN THE HAMMER: the whole cylinder in a tight fan at whatever is closest, then a free reload
     const near = [...enemies.filter(e => !e.dead && !TYPES[e.type].ghost), ...bosses.filter(bossAlive)]
       .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
@@ -2108,7 +2148,7 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(MIDDLE_ZONES.slice()), musicSeed: Math.floor(Math.random() * 1000),
+    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), musicSeed: Math.floor(Math.random() * 1000),
     // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
@@ -2155,6 +2195,12 @@ function endRun(victory = false) {
     go('gallery'); galleryPick = pr.i;
     showToast(pr.won ? `${pr.name} cleared${pr.hard ? ' on HARD' : ''}!` : `Defeated by ${pr.name}. Try again?`);
     return;
+  }
+  if (victory && run.rush) { // a Boss Rush medal (the extra ZERO fight, once THE ABYSS has been beaten, gets extra time)
+    const lv = rushMedal(); run.medal = lv;
+    if ((meta.rush.medal | 0) < lv) meta.rush.medal = lv;
+    if (!(meta.rush.best <= time)) meta.rush.best = Math.round(time);
+    if (lv >= 3) unlockAch('rushgold');
   }
   run.victory = victory;
   if (!victory && bosses.some(b => b.final)) markAbyss(); // (THE ABYSS got you: it leaves its mark on the menu)
@@ -2939,15 +2985,16 @@ const ENEMY_AI = {
 function fire(x, y, a, color, kind, p) {
   color = bulletColorOf(p, color); // (cosmetic bullet colors)
   const s = run.s, m = p ? p.ship.mod : {}, crit = Math.random() < s.crit;
-  const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1);
+  const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1) * (kind === 'bomb' ? BOMB_SPEED : 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
   const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? (s.vampire ? 5 : 3) : 1) * (m.dmg || 1) * rage // (Vampire Rounds: 5x crits)
     * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()); // (RAMPAGE, the GLASS CANNON curse, evolved ships)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
-    pierce: kind === 'rail' ? 999 : kind === 'missile' ? 0 : s.pierce + (m.pierce || 0),
-    bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : 0),
-    missile: kind === 'missile', rail: kind === 'rail', owner: p ? p.id : -1 });
+    pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0),
+    bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : kind === 'bomb' ? 5 : 0),
+    missile: kind === 'missile', rail: kind === 'rail', owner: p ? p.id : -1,
+    ...(kind === 'bomb' ? { bomb: true, fuse: BOMB_FUSE, blast: (m.blast || 70) * (abm('bomber') ? 1.35 : 1) + s.explosive * 12 } : {}) });
 }
 
 function dronePos(p, k) {
@@ -2994,6 +3041,8 @@ function killEnemy(e, src) {
   const s = run.s;
   e.dead = true;
   run.coins = (run.coins || 0) + (e.r >= 20 ? 3 : 1); // shop money (big enemies are worth more)
+  const pq = living().find(q => q.petX !== undefined && petOf(q) && Math.hypot(q.petX - e.x, q.petY - e.y) < PET_FETCH);
+  if (pq && Math.random() < 0.5) { run.coins++; popups.push({ x: pq.petX, y: pq.petY - 18, text: '+1 ●', life: 0.7, color: '#ffd23d' }); } // (a pet fetched a coin)
   run.kills = (run.kills || 0) + 1;
   const pts = addScore(e.pts * combo);
   popups.push({ x: e.x, y: e.y, text: '+' + pts.toLocaleString(), life: 0.8, hot: combo >= 4 });
@@ -3084,6 +3133,36 @@ function splash(x, y, radius, dmg, except) {
   for (const o of enemies) if (o !== except && !o.dead && Math.hypot(o.x - x, o.y - y) < radius + o.r) damageEnemy(o, dmg, 'splash');
 }
 
+// BOMBER: its bombs fly slowly, then blow up on whatever they touch (or when their fuse runs out), hitting everything around
+const BOMB_SPEED = 0.5, BOMB_FUSE = 0.75;
+function bombBlast(b) {
+  if (b.blown) return;
+  b.blown = b.dead = true;
+  const s = run.s, R = b.blast || 70;
+  for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && Math.hypot(e.x - b.x, e.y - b.y) < R + e.r) { e.lastBy = b.owner; damageEnemy(e, b.dmg, 'splash'); }
+  for (const bo of bosses) if (bossAlive(bo) && Math.hypot(bo.x - b.x, bo.y - b.y) < R + bo.r) hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
+  if (b.mega) { // MEGATON: it blows away the enemy bullets around it too (every one on the screen, with the Payload card)
+    for (const e of eBullets) if (b.wipe || Math.hypot(e.x - b.x, e.y - b.y) < R) e.dead = true;
+    screenFlash = Math.max(screenFlash, 0.4);
+  }
+  if (bossFx.rings.length < 40) { fxRing(b.x, b.y, 6, R, 0.3, '#ffb13d', b.mega ? 7 : 3); if (b.mega) fxRing(b.x, b.y, 6, R * 0.6, 0.4, '#ffffff', 4, 0.05); }
+  burst(b.x, b.y, b.mega ? '#ffffff' : '#ff9a3d', b.mega ? 50 : 10, b.mega ? 420 : 220);
+  shake = Math.max(shake, b.mega ? 18 : 3);
+  beep(b.mega ? 50 : 120, b.mega ? 0.9 : 0.15, 'sawtooth', b.mega ? 0.1 : 0.025, -40);
+}
+function drawBombs(list) { // dark round bombs with a rim of the ship's color, and a fizzing fuse
+  const t = performance.now() / 1000;
+  ctx.save(); ctx.lineWidth = 2;
+  for (const b of list) {
+    const r = b.mega ? 13 : 6, rim = b.mega ? '#ffffff' : b.color || '#ff9a3d';
+    ctx.fillStyle = '#14141e'; ctx.strokeStyle = rim; glow(rim, 10);
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0; ctx.fillStyle = Math.floor(t * 20 + b.x) % 2 ? '#ffe93d' : '#ff6a2d';
+    ctx.beginPath(); ctx.arc(b.x, b.y - r - 2, r * 0.35, 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Orbital Blades: damage what they touch (with a short per-target cooldown) and delete enemy bullets
 function updateBlades() {
   const s = run.s; if (!s.blades) return;
@@ -3162,6 +3241,7 @@ function clearForBoss() {
 }
 function spawnEncounter() {
   clearForBoss();
+  if (glitchZeroDue()) { run.secretNext = true; run.zeroHome = true; }
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
   const baseHp = bossBaseHp();
@@ -3190,7 +3270,10 @@ function spawnEncounter() {
   if (run.secretNext) { // ZERO, the secret boss (see the boss-defeat code)
     run.secretNext = false;
     encounter = { kind: 'single', name: SECRET_BOSS.name, secret: true };
-    bosses = [makeBoss(SECRET_BOSS, W / 2, Math.max(bossBaseHp() * SECRET_BOSS.hpMult, firepowerHp(SECRET_MIN_SECS)), loop, 0)];
+    if (run.rush) run.rushZero = true; // (Boss Rush medals give that fight extra time)
+    const home = run.zeroHome; run.zeroHome = false; // (at home in the GLITCH SECTOR it's a little gentler: a zone boss, not a finale)
+    bosses = [makeBoss(SECRET_BOSS, W / 2, home ? Math.max(baseHp * 1.25, firepowerHp(BOSS_MIN_SECS + 12)) : Math.max(bossBaseHp() * SECRET_BOSS.hpMult, firepowerHp(SECRET_MIN_SECS)), loop, 0)];
+    bosses[0].resident = home;
     hint = { text: SECRET_BOSS.hint, life: 7 }; screenFlash = 1; shake = 30;
     return;
   }
@@ -3838,7 +3921,7 @@ let dokiChips = [];
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
 // NEMESIS: which of its attacks copies each ship's ability, how long it takes to copy one, and how long it stays phased out
-const NEMESIS_COPY = { gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
+const NEMESIS_COPY = { bomber: 'nova', gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
 const NEMESIS_COPY_T = 1.2, NEMESIS_PHASE = 1;
 const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
 const JUDGE_WARN = 2.4, JUDGE_R = 75;     // THE ORACLE's judgment: warning time, safe circle radius
@@ -4745,10 +4828,10 @@ function updateBoss(b, dt) {
           run.secretNext = true; bossWarn = 3.2;
           fxText('SOMETHING ELSE IS HERE', W / 2, H * 0.45, '#ffffff', 30, 3);
           [880, 440, 1760, 220].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'square', 0.05, -f / 2), 600 + i * 90));
-        } else if ((b.final || b.secret) && run.rush) { // Boss Rush cleared
+        } else if ((b.final || (b.secret && !b.resident)) && run.rush) { // Boss Rush cleared
           run.victoryT = 2.4; players.forEach(p => { if (p.alive) p.inv = 99; });
           fxText('BOSS RUSH CLEARED!', W / 2, H * 0.4, '#ffe93d', 44, 2.4);
-        } else if (b.final || b.secret) {
+        } else if (b.final || (b.secret && !b.resident)) { // (ZERO at home in the GLITCH SECTOR is just that zone's boss)
           const m = startNextCycle();
           run.zoneEnd = ZONE_FIRST; // the next cycle starts the route over
           openUpgrade(`CYCLE ${run.cycle} — NEW MUTATOR: ${m.name}`, true);
@@ -5042,6 +5125,7 @@ function controlsFor(p) {
   const usePointer = scheme.includes('mouse');
   const pad = padState[k];
   if (pad && (pad.x || pad.y)) { dx = pad.x; dy = pad.y; }
+  if (glitchFlip()) dx = -dx; // (GLITCH SECTOR: INPUT ERROR)
   return { dx, dy, usePointer };
 }
 
@@ -5118,7 +5202,7 @@ function update(dt) {
       // the ship sits right under a mouse cursor, but a little above a finger so you can see it
       const ty = pointer.y - (pointer.touch ? 50 : 0);
       const k = 1 - Math.exp(-dt * 22); // frame-rate independent, snappy follow
-      p.x += (pointer.x - p.x) * k;
+      p.x += ((glitchFlip() ? W - pointer.x : pointer.x) - p.x) * k; // (flipped by an INPUT ERROR in the GLITCH SECTOR)
       p.y += (ty - p.y) * k;
     }
     p.x = Math.max(p.r, Math.min(W - p.r, p.x));
@@ -5141,7 +5225,7 @@ function update(dt) {
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
         * (abActive(p, 'berserker') ? 0.7 : 1); // (RAMPAGE: faster fire)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
-      for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, undefined, p);
+      for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, m.bombs ? 'bomb' : undefined, p);
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
       if (s.bulletHell && (p.volley = (p.volley || 0) + 1) % 5 === 0) // Bullet Hell evolution: a full ring every 5th volley
         for (let i = 0; i < 14; i++) fire(p.x, p.y, i / 14 * Math.PI * 2, p.color, undefined, p);
@@ -5217,6 +5301,8 @@ function update(dt) {
 
   // spawn (faster in co-op)
   updateHazards(dt); // (the zone's hazard, if it has one)
+  updateGlitch(dt); // (GLITCH SECTOR: its glitches play out, and wind down if you warp away mid-glitch)
+  if (run.goldT > 0 && !bosses.length && bossWarn <= 0 && !run.warp && (run.goldT -= dt) <= 0) spawnGoldShard();
   updateEliteHazards(dt); updateHail(dt); // (and its elite one, from Endless cycle 2)
   spawnT -= dt;
   if (spawnT <= 0 && !bossActive) {
@@ -5251,6 +5337,7 @@ function update(dt) {
     b.x += b.vx * dt; b.y += b.vy * dt;
     if (prisms.length) prismSplit(b, bullets); // (PRISM REACH: the two new shots fly on from here)
     if (b.missile && Math.random() < dt * 40) particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.25, max: 0.25, color: '#ff9a3d', size: 2 });
+    if (b.bomb && !b.dead && (b.fuse -= dt) <= 0) bombBlast(b); // (BOMBER: it goes off when its fuse runs out, if it hasn't hit anything)
     if (b.bounces > 0) { // Ricochet: bounce off the edges (and allow re-hitting the same enemy)
       if (b.x < 0 || b.x > W) { b.vx = -b.vx; b.x = Math.max(0, Math.min(W, b.x)); b.bounces--; b.hits = []; }
       else if (b.y < 0 || b.y > H) { b.vy = -b.vy; b.y = Math.max(0, Math.min(H, b.y)); b.bounces--; b.hits = []; }
@@ -5272,6 +5359,7 @@ function update(dt) {
         if (Math.random() < 0.3) burst(b.x, b.y, '#ffffff', 3, 120);
         continue;
       }
+      if (b.bomb) { if (hitsWyrmBody(bo, b) || distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) < bo.r + b.size) bombBlast(b); continue; } // (BOMBER)
       if (hitsWyrmBody(bo, b)) { b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner) * 0.6); if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // body: 60%
       if (distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) >= bo.r + b.size) continue;
       b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
@@ -5361,6 +5449,7 @@ function update(dt) {
     ENEMY_AI[e.type]?.(e, edt);
     for (const b of bullets) {
       if (b.dead || e.dead || TYPES[e.type].ghost || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
+      if (b.bomb) { bombBlast(b); continue; } // (BOMBER: it blows up on whatever it touches, shields and all)
       if (e.type === 'bulwark' && Math.abs(angleDiff(Math.atan2((b.py ?? b.y) - e.y, (b.px ?? b.x) - e.x), e.aimA)) < BULWARK_ARC) {
         b.dead = true; e.shieldHit = 0.1; if (Math.random() < 0.4) burst(b.x, b.y, '#dfe8ff', 3, 120); continue; // blocked by its shield
       }
@@ -5403,19 +5492,25 @@ function update(dt) {
   comboT -= dt; if (comboT <= 0) combo = 1;
 
   for (const k of pickups) {
-    k.t += dt; k.y += 90 * dt;
+    k.t += dt;
+    if (k.kind === 'gold') { k.x += k.vx * dt; k.y += Math.sin(k.t * 2) * 14 * dt; } else k.y += 90 * dt; // (a golden shard drifts across)
     {
-      const p = nearestPlayer(k.x, k.y), mag = p ? s.magnet + (p.ship.mod.magnet || 0) : 0; // Medics have a built-in magnet
+      const p = nearestPlayer(k.x, k.y), mag = p && k.kind !== 'gold' ? s.magnet + (p.ship.mod.magnet || 0) : 0; // Medics have a built-in magnet
       if (mag) {
         const d = Math.hypot(p.x - k.x, p.y - k.y);
         if (d < 140 * mag && d > 1) { k.x += (p.x - k.x) / d * 380 * dt; k.y += (p.y - k.y) / d * 380 * dt; }
       }
+    }
+    if (k.kind !== 'gold') for (const q of living()) { // a pet grabs pickups near it and brings them to you
+      if (q.petX === undefined || !petOf(q) || Math.hypot(q.petX - k.x, q.petY - k.y) > PET_GRAB) continue;
+      const d = Math.hypot(q.x - k.x, q.y - k.y) || 1; k.x += (q.x - k.x) / d * 520 * dt; k.y += (q.y - k.y) / d * 520 * dt; break;
     }
     for (const p of living()) {
       if (k.dead || Math.hypot(k.x - p.x, k.y - p.y) >= p.r + 14) continue;
       k.dead = true; beep(660, 0.25, 'triangle', 0.08, 660);
       burst(k.x, k.y, '#ffffff', 15, 150);
       if (k.kind === 'power') p.power = s.powerDur;
+      if (k.kind === 'gold') findGoldShard(k.zone || run.zone, k.x, k.y);
       if (k.kind === 'pink') {
         run.pinkCoins = (run.pinkCoins || 0) + 1;
         fxText(run.pinkCoins >= PINK_NEED ? '♥ ♥ ♥' : `PINK COIN ${run.pinkCoins}/${PINK_NEED}`, k.x, k.y - 24, '#ff9ccf', 18, 1.3);
@@ -5431,7 +5526,7 @@ function update(dt) {
       }
     }
   }
-  pickups = pickups.filter(k => !k.dead && k.y < H + 30);
+  pickups = pickups.filter(k => !k.dead && k.y < H + 30 && k.x > -60 && k.x < W + 60);
 
   updateParticles(dt);
 }
@@ -5538,6 +5633,7 @@ const HULLS = {
   medic:   { pts: [[0, -16], [12, -7], [13, 8], [5, 14], [-5, 14], [-13, 8], [-12, -7]], flames: [[-5, 13, 4], [5, 13, 4]], cross: true },
   wraith:  { pts: [[0, -20], [6, -6], [16, 4], [8, 2], [5, 14], [0, 8], [-5, 14], [-8, 2], [-16, 4], [-6, -6]], flames: [[0, 9, 3]], cockpit: [[0, -11], [2.5, -2], [-2.5, -2]] },
   carrier: { pts: [[-7, -16], [7, -16], [11, -8], [19, -6], [19, 10], [11, 14], [-11, 14], [-19, 10], [-19, -6], [-11, -8]], flames: [[-12, 13, 4], [0, 13, 4], [12, 13, 4]], cockpit: [[-4, -10], [4, -10], [4, -3], [-4, -3]] },
+  payload: { pts: [[0, -14], [6, -10], [21, 1], [21, 8], [9, 9], [5, 14], [-5, 14], [-9, 9], [-21, 8], [-21, 1], [-6, -10]], flames: [[-6, 12, 4], [6, 12, 4]], cockpit: [[0, -8], [3, -1], [-3, -1]], bombBay: true },
   revolver: { pts: [[-2.5, -24], [2.5, -24], [3, -10], [8, -8], [17, 6], [15, 12], [6, 9], [0, 13], [-6, 9], [-15, 12], [-17, 6], [-8, -8], [-3, -10]], flames: [[0, 12, 5]], cockpit: [[0, -4], [4, 4], [-4, 4]], cylinder: true },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
 };
@@ -5580,6 +5676,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
     skin_holo: 'rgba(125,249,255,0.12)', skin_candy: '#ffe3f2',
     skin_chrome: grad(['#ffffff', '#8a95a5', '#eef3f8', '#5a6575']), skin_gold: grad(['#fff3b0', '#ffd23d', '#a87a10', '#ffe58a']),
     skin_galaxy: grad(['#4a1e8e', '#12063a', '#2a0e5e']),
+    skin_champion: grad(['#7a0a1e', '#c8102e', '#4a0512']), skin_shards: grad(['#fff6c8', '#ffd23d', '#c9962a', '#fff0a0']),
   }[sk] || '#0a1a2a';
   const rim = sk === 'skin_abyss' ? '#ff1f3d' : sk === 'skin_holo' ? '#7df9ff' : color;
   glow(rim, sk === 'skin_stealth' ? 6 : sk === 'skin_wire' ? 40 : mk2 ? 32 : 25);
@@ -5587,7 +5684,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
   if (sk === 'skin_holo') ctx.globalAlpha *= 0.65 + Math.sin(t * 20) * 0.1 + (Math.random() < 0.05 ? -0.3 : 0);
   hullPath(); ctx.fill(); ctx.stroke();
   // patterns painted inside the hull
-  if (['skin_galaxy', 'skin_lava', 'skin_holo', 'skin_candy'].includes(sk)) {
+  if (['skin_galaxy', 'skin_lava', 'skin_holo', 'skin_candy', 'skin_champion', 'skin_shards'].includes(sk)) {
     ctx.save(); hullPath(); ctx.clip(); ctx.shadowBlur = 0;
     if (sk === 'skin_galaxy') for (let i = 0; i < 14; i++) { // drifting stars
       const sx = ((i * 37.3 + t * 6) % 44) - 22, sy = ((i * 53.7) % 44) - 22;
@@ -5598,6 +5695,15 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
     } else if (sk === 'skin_holo') { // scanlines
       ctx.fillStyle = '#7df9ff'; ctx.globalAlpha = 0.35;
       for (let y = -24 + ((t * 20) % 4); y < 24; y += 4) ctx.fillRect(-24, y, 48, 1);
+    } else if (sk === 'skin_champion') { // a gold star, and a shine sweeping across
+      ctx.fillStyle = '#ffd23d'; glow('#ffd23d', 8); ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, R = i % 2 ? 2.4 : 5.5; ctx.lineTo(Math.cos(a) * R, 3 + Math.sin(a) * R); }
+      ctx.fill(); ctx.shadowBlur = 0;
+      const sx = ((t * 30) % 80) - 40; ctx.fillStyle = 'rgba(255,240,180,0.35)';
+      ctx.beginPath(); ctx.moveTo(sx, -24); ctx.lineTo(sx + 6, -24); ctx.lineTo(sx - 10, 24); ctx.lineTo(sx - 16, 24); ctx.fill();
+    } else if (sk === 'skin_shards') { // golden crystal facets, each catching the light in turn
+      ctx.lineWidth = 1;
+      h.pts.forEach(([x, y], i) => { ctx.strokeStyle = `rgba(255,255,255,${0.2 + 0.7 * Math.max(0, Math.sin(t * 3 - i * 0.8))})`; ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(x, y); ctx.stroke(); });
     } else { // candy stripes
       ctx.fillStyle = '#ff5dc8'; ctx.globalAlpha = 0.8;
       for (let x = -40; x < 40; x += 9) { ctx.beginPath(); ctx.moveTo(x, -24); ctx.lineTo(x + 4, -24); ctx.lineTo(x + 24, 24); ctx.lineTo(x + 20, 24); ctx.fill(); }
@@ -5610,6 +5716,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
     ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * 0.62, y * 0.62 + 1); ctx.closePath(); ctx.stroke();
   }
   ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.globalAlpha *= 0.7;
+  if (h.bombBay) for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * 11, 5, 2.4, 0, Math.PI * 2); ctx.fill(); } // (the BOMBER's two bomb bays)
   if (h.cylinder) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; ctx.beginPath(); ctx.arc(Math.cos(a) * 9, 6 + Math.sin(a) * 3.5, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the revolver's cylinder, across its wings)
   if (h.cross) {
     if (mk2) { ctx.globalAlpha /= 0.7; ctx.fillStyle = '#fff'; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); }
@@ -5674,15 +5781,30 @@ const PETS = {
   },
 };
 function drawPetShape(id, t, c) { const f = PETS[id]; if (f) { ctx.save(); f(t, c); ctx.restore(); ctx.shadowBlur = 0; } }
-// a pet trails behind its ship's shoulder, bobbing (each screen moves its own copy: it's only for looks)
+// pet tricks: a pet grabs pickups that come near it and brings them to you, fetches a bonus coin from some kills close
+// to it, pops a heart when you're revived, and jumps for joy while a boss goes down
+const PET_GRAB = 80, PET_FETCH = 100;
+const petOf = p => PETS[cosOf(p).pet] ? cosOf(p).pet : null;
+// a pet trails behind its ship's shoulder, bobbing (each screen moves its own copy: the host's copy grabs the pickups)
 function drawPet(p) {
-  const id = cosOf(p).pet;
-  if (!PETS[id]) return;
+  const id = petOf(p);
+  if (!id) return;
+  const now = performance.now() / 1000;
+  if (!p.alive) { p.petDown = true; return; } // (remembered, for the heart when you're back)
+  if (p.petDown) { p.petDown = false; p.petHeartAt = now; }
+  const cheer = bosses.some(b => b.dying > 0);
   const side = p.id % 2 ? 1 : -1, tx = p.x + side * 32, ty = p.y + 18;
   if (p.petX === undefined || Math.hypot(p.petX - tx, p.petY - ty) > 400) { p.petX = tx; p.petY = ty; }
   p.petX += (tx - p.petX) * 0.08; p.petY += (ty - p.petY) * 0.08;
-  const t = performance.now() / 1000 + p.id;
-  ctx.save(); ctx.translate(p.petX, p.petY + Math.sin(t * 3) * 4); drawPetShape(id, t, p.color || P_COLORS[p.id] || '#7df9ff'); ctx.restore();
+  const t = now + p.id, bob = cheer ? -Math.abs(Math.sin(t * 9)) * 14 : Math.sin(t * 3) * 4;
+  ctx.save(); ctx.translate(p.petX, p.petY + bob); if (cheer) ctx.rotate(Math.sin(t * 9) * 0.5);
+  drawPetShape(id, t, p.color || P_COLORS[p.id] || '#7df9ff'); ctx.restore();
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (cheer) { ctx.font = 'bold 12px system-ui'; ctx.fillStyle = '#ffe93d'; // (little stars and notes floating up)
+    for (let i = 0; i < 2; i++) { const ph = (t * 0.9 + i * 0.5) % 1; ctx.globalAlpha = 1 - ph; ctx.fillText(i ? '♪' : '★', p.petX + (i ? 11 : -11), p.petY - 14 - ph * 26); } }
+  const ha = now - (p.petHeartAt ?? -9);
+  if (ha < 1.4) { ctx.globalAlpha = 1 - ha / 1.4; ctx.font = 'bold 18px system-ui'; ctx.fillStyle = '#ff6fb5'; glow('#ff4fa3', 12); ctx.fillText('♥', p.petX, p.petY - 18 - ha * 30); }
+  ctx.restore(); ctx.shadowBlur = 0;
 }
 function drawShip(p) {
   const tilt = p.tilt || 0;
@@ -8426,8 +8548,9 @@ function drawPlayerBullets() {
       ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx / sp * l, b.y - b.vy / sp * l);
     }
   };
-  const normal = [], crits = [], rails = [], missiles = [];
-  for (const b of bullets) (b.missile ? missiles : b.rail ? rails : b.crit ? crits : normal).push(b);
+  const normal = [], crits = [], rails = [], missiles = [], bombs = [];
+  for (const b of bullets) (b.bomb ? bombs : b.missile ? missiles : b.rail ? rails : b.crit ? crits : normal).push(b);
+  if (bombs.length) drawBombs(bombs);
   const byColor = {};
   for (const b of normal) (byColor[b.color] ||= []).push(b);
   if (crits.length) byColor['#ffffff'] = crits;
@@ -8445,6 +8568,15 @@ function drawPlayerBullets() {
 }
 
 const PICK = { power: ['#ffe93d', 'P'], shield: ['#7df9ff', 'S'], life: ['#ff6fb5', '+'], pink: ['#ff4fa3', '♥'] };
+// a golden shard: a faint, twinkling crystal (easy to miss if you aren't looking)
+function drawGoldShard(k) {
+  const tw = 0.5 + 0.5 * Math.sin(k.t * 5);
+  ctx.save(); ctx.translate(k.x, k.y); ctx.rotate(Math.sin(k.t * 1.5) * 0.4);
+  ctx.globalAlpha = 0.4 + tw * 0.5; glow('#ffd23d', 10 + tw * 14); ctx.fillStyle = '#ffd23d'; ctx.strokeStyle = '#fff6c8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(6, 0); ctx.lineTo(0, 11); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.globalAlpha = tw; ctx.fillStyle = '#ffffff'; ctx.fillRect(-0.75, -16, 1.5, 6); ctx.fillRect(-9, -0.75, 4, 1.5); // (a glint)
+  ctx.restore(); ctx.shadowBlur = 0;
+}
 
 function drawWorld() {
   drawTide();
@@ -8508,6 +8640,8 @@ function drawWorld() {
   for (const e of enemies) drawEnemyTelegraph(e);
   for (const e of enemies) drawEnemy(e);
   for (const k of pickups) {
+    if (k.kind === 'gold') { drawGoldShard(k); continue; }
+    if (!PICK[k.kind]) continue;
     const [c, l] = PICK[k.kind];
     glow(c, 20); ctx.strokeStyle = c; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(k.x, k.y, 13 + Math.sin(k.t * 6) * 2, 0, Math.PI * 2); ctx.stroke();
@@ -8517,7 +8651,7 @@ function drawWorld() {
   drawLinks();
   for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
-  for (const p of players) if (p.alive) drawPet(p);
+  for (const p of players) drawPet(p);
   drawTeamUi();
   drawBossFx('over');
   // floating score from kills
@@ -8972,6 +9106,10 @@ function drawMenu() {
   if (haunted && marks.word) { // the subtitle whispers instead
     ctx.save(); ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2); ctx.globalAlpha = Math.min(1, marks.word.t * 2, (2.4 - marks.word.t) * 2);
     fitText(marks.word.text, top - 40, 16, '#ff1f3d', 'italic'); ctx.restore();
+  } else if (runType === 'rush') { // Boss Rush picked: your best medal, or what the medals need
+    const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
+    fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
+      : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
   } else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
@@ -9310,7 +9448,8 @@ function drawShop() {
 let cosTab = 'skin';
 function drawCosmetics() {
   title('SKINS & COSMETICS', 56, '#ff5dc8', 40);
-  fitText(`◆ ${meta.shards} shards  ·  just for looks — online, your friends see them too`, 98, 14, '#ffe93d', 'bold');
+  fitText(cosTab === 'pet' ? `◆ ${meta.shards} shards  ·  pets grab pickups near them, fetch bonus coins and cheer you on`
+    : `◆ ${meta.shards} shards  ·  just for looks — online, your friends see them too`, 98, 14, '#ffe93d', 'bold');
   // category tabs
   const nt = COS_CATS.length, tw = Math.min(140, (W - 32 - (nt - 1) * 8) / nt), tx = (W - (tw * nt + (nt - 1) * 8)) / 2;
   COS_CATS.forEach(([cat, label], i) => button(W < 520 ? label : `${label} [${i + 1}]`, tx + i * (tw + 8), 118, tw, 36, cat === cosTab ? '#ff5dc8' : '#667', () => { cosTab = cat; sel = i; }));
@@ -9490,7 +9629,7 @@ function drawBossPage(e, rec, t) {
 
 function drawHangar() {
   title('HANGAR', 56, '#ffe93d', 52);
-  fitText(`◆ ${meta.shards} shards`, 102, 18, '#ffe93d', 'bold');
+  fitText(`◆ ${meta.shards} shards  ·  ✦ ${goldCount()}/${GOLD_ZONES().length} golden shards`, 102, 18, '#ffe93d', 'bold');
   // two columns on wide screens, one tight column on phones
   const cols = W >= 760 ? 2 : 1, perCol = Math.ceil(META_ITEMS.length / cols), gap = cols > 1 ? 8 : 6, colGap = 12;
   const rw = Math.min(cols > 1 ? 420 : 560, (W - 32 - colGap * (cols - 1)) / cols), x0 = (W - (rw * cols + colGap * (cols - 1))) / 2;
@@ -9528,6 +9667,10 @@ function drawOver() {
     ctx.restore();
   }
   if (run.victory) title(run.rush ? 'RUSH CLEARED!' : 'VICTORY!', cy, '#ffe93d', run.rush ? 56 : 72);
+  if (run.victory && run.rush) { // the medal, and what the next one needs
+    const lv = run.medal || rushMedal(), md = RUSH_MEDALS[lv], next = RUSH_MEDALS[lv + 1];
+    fitText(`${md.icon} ${md.name} MEDAL  ·  ${fmtTime(time)}${next ? `  ·  ${next.name.toLowerCase()} needs under ${fmtTime(rushLimit(lv + 1))}` : ''}`, cy + 36, 16, md.color, 'bold');
+  }
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   if (run.abyssLoss) { ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); fitText('it\'s still waiting.', cy + 34, 13, '#ff1f3d', 'italic'); ctx.restore(); }
   const lines = [
@@ -9609,12 +9752,50 @@ const ZONES = [
     hazard: 'PRISMS', hazardDesc: 'Any shot through a prism splits in three, yours AND theirs',
     hint: 'PRISM REACH: shoot through a prism to split your shots in three. Careful: enemy shots split too!',
     bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
+  // the secret zone: it only shows up on the route map once you've beaten ZERO, and ZERO lives there (see glitchZeroDue)
+  { id: 'glitch', name: 'GLITCH SECTOR', sub: 'Where the code of space comes apart', color: '#ff3df2', tints: ['#2a0a3a', '#0a2a3a'], secret: true,
+    hazard: 'GLITCHES', hazardDesc: 'The screen tears, enemies teleport, and your controls flip for a moment',
+    hint: 'GLITCH SECTOR: watch for warnings! Torn strips shift sideways, flickering enemies jump, and INPUT ERROR flips your controls.',
+    bosses: ['PHANTOM', 'ECHO', 'THE ORACLE', 'CHRONOS'], bias: { warper: 2.4, mimic: 2, mirror: 2, shade: 1.8, zigzag: 1.6 } },
   { id: 'horizon', name: 'EVENT HORIZON', sub: 'Where not even light escapes', color: '#ff3d4d', tints: ['#3a0a1a', '#2a0612'], final: true,
     bosses: ['THE SINGULARITY', 'ECHO', 'CHRONOS', 'PHANTOM'], bias: { vortex: 2.2, magnet: 2, kamikaze: 2, swarm: 1.6, carrier: 1.4 } },
 ];
 const ZONE_FIRST = 'deep', ZONE_LAST = 'horizon', BOSSES_PER_ZONE = 2, ZONES_PER_CYCLE = BOSS_CYCLE / BOSSES_PER_ZONE;
-const MIDDLE_ZONES = ZONES.filter(z => z.id !== ZONE_FIRST && z.id !== ZONE_LAST).map(z => z.id);
+const MIDDLE_ZONES = ZONES.filter(z => z.id !== ZONE_FIRST && z.id !== ZONE_LAST && !z.secret).map(z => z.id);
+const middleZones = () => meta.ach.zero ? [...MIDDLE_ZONES, 'glitch'] : MIDDLE_ZONES; // (the GLITCH SECTOR, once ZERO is beaten)
 const zoneDef = id => ZONES.find(z => z.id === id) || ZONES[0];
+
+// ---------- golden shards: one hidden in each of the 8 zones. Find them all for a secret skin ----------
+// (a zone you haven't found its shard in has this chance, each visit, that it drifts across the screen once; online, a
+// shard found by anyone counts for everyone)
+const GOLD_CHANCE = 0.45, GOLD_SPEED = 46;
+const GOLD_ZONES = () => ZONES.filter(z => !z.secret).map(z => z.id);
+const goldCount = () => GOLD_ZONES().filter(id => meta.goldShards[id]).length;
+function spawnGoldShard() {
+  const side = Math.random() < 0.5 ? 1 : -1;
+  pickups.push({ kind: 'gold', zone: run.zone, x: side > 0 ? -20 : W + 20, y: H * (0.15 + Math.random() * 0.35), t: 0, vx: side * GOLD_SPEED });
+  [2637, 3136].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'sine', 0.025), i * 140)); // (a faint chime: something's out there)
+}
+function findGoldShard(zone, x, y) {
+  netRec(['gs', zone]);
+  noteGoldShard(zone);
+  fxText(`✦ GOLDEN SHARD ${goldCount()}/${GOLD_ZONES().length} ✦`, x, y - 26, '#ffd23d', 22, 2.2);
+  burst(x, y, '#ffd23d', 40, 260);
+  [1319, 1568, 2093, 2637].forEach((f, i) => setTimeout(() => beep(f, 0.16, 'triangle', 0.06), i * 90));
+}
+function noteGoldShard(zone) {
+  if (!GOLD_ZONES().includes(zone) || meta.goldShards[zone]) return;
+  meta.goldShards[zone] = true; saveMeta();
+  showToast(`Golden shard found in ${zoneDef(zone).name}! (${goldCount()}/${GOLD_ZONES().length})`);
+  if (goldCount() >= GOLD_ZONES().length) unlockAch('goldshards');
+}
+
+// ---------- Boss Rush medals: clear it fast enough for silver or gold (gold unlocks the Champion skin) ----------
+const RUSH_MEDALS = [null, { name: 'BRONZE', icon: '🥉', color: '#e0955a' }, { name: 'SILVER', icon: '🥈', color: '#dfe8f2', under: 22 * 60 },
+  { name: 'GOLD', icon: '🥇', color: '#ffd23d', under: 16 * 60 }];
+const RUSH_ZERO_TIME = 75; // (extra time when ZERO joins the end of the rush)
+const rushLimit = lv => RUSH_MEDALS[lv].under + (run?.rushZero ? RUSH_ZERO_TIME : 0);
+const rushMedal = () => time <= rushLimit(3) ? 3 : time <= rushLimit(2) ? 2 : 1;
 const curZone = () => zoneDef(run?.zone && (inRun() || state === 'over') ? run.zone : ZONE_FIRST); // (menus are in DEEP SPACE)
 const regularLabel = k => TYPES[k === 'swarm' ? 'swarmer' : k].label;
 
@@ -9640,14 +9821,14 @@ function assignZoneBosses(z) {
 // ---------- the route map: after a zone is cleared, choose where to go next ----------
 function routeOptions() {
   if (run.route.length >= ZONES_PER_CYCLE - 1) return [ZONE_LAST]; // every route ends at the EVENT HORIZON
-  return shuffle(MIDDLE_ZONES.filter(id => !run.route.includes(id))).slice(0, ROUTE_CHOICES);
+  return shuffle(middleZones().filter(id => !run.route.includes(id))).slice(0, ROUTE_CHOICES);
 }
 const ROUTE_CHOICES = 3; // zones offered at each fork
 function openRoute() {
   // each choice shows who might be waiting there: bosses from its list you haven't fought this cycle
   const cycleStart = Math.floor(bossCount / BOSS_CYCLE) * BOSS_CYCLE + 1, fought = new Set();
   for (let k = cycleStart; k <= bossCount; k++) { const e = encounterDef(k); if (e.single !== undefined) fought.add(BOSSES[e.single].name); }
-  run.routeOpts = routeOptions().map(id => ({ id, bosses: zoneDef(id).bosses.filter(n => !fought.has(n)) }));
+  run.routeOpts = routeOptions().map(id => ({ id, bosses: [...zoneDef(id).bosses.filter(n => !fought.has(n)), ...(id === 'glitch' && !run.rush ? ['ZERO'] : [])] })); // (ZERO waits at the end of the GLITCH SECTOR)
   go('route');
   [392, 523, 659].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'triangle', 0.05), i * 90));
 }
@@ -9691,7 +9872,9 @@ function enterZone(id, quiet) {
   const z = zoneDef(id);
   if (id === ZONE_FIRST) run.route = []; // (a new cycle starts the route over)
   run.zone = id; run.route.push(id); run.hazardT = 4;
-  run.eliteT = 6; run.hail = null; run.tide = run.tideW = 0;
+  run.eliteT = 6; run.hail = null; run.tide = run.tideW = 0; run.tear = null; run.flipW = run.flipT = 0;
+  // a golden shard might be hiding in this zone (if it hasn't been found yet): it drifts past once, some time in
+  run.goldT = !run.rush && !run.practice && GOLD_ZONES().includes(id) && !meta.goldShards[id] && Math.random() < GOLD_CHANCE ? 12 + Math.random() * 40 : 0;
   if (!run.rush) assignZoneBosses(z);
   showZoneCard(id, run.route.length);
   if (z.hint) hint = { text: z.hint, life: 7 };
@@ -9705,7 +9888,8 @@ function enterZone(id, quiet) {
 }
 function noteZone(id) { // (for the Star Chart trophy)
   (meta.stats.zones ||= {})[id] = true;
-  if (ZONES.every(q => meta.stats.zones[q.id])) unlockAch('voyager');
+  if (ZONES.every(q => q.secret || meta.stats.zones[q.id])) unlockAch('voyager');
+  if (id === 'glitch') unlockAch('glitch');
 }
 
 // ---------- the zone title card: a big name across the screen when you arrive ----------
@@ -9782,8 +9966,77 @@ function updateHazards(dt) {
   } else if (id === 'prism') { // a prism drifts in: every shot through it splits in three (not during boss fights)
     run.hazardT = (boss ? 15 : 8) + Math.random() * 4;
     if (!boss && enemies.filter(e => e.type === 'prism').length < 2) makeEnemy('prism', 60 + Math.random() * (W - 120), -30);
+  } else if (id === 'glitch') { // GLITCHES: one of three, never the same twice in a row (see updateGlitch)
+    run.hazardT = (boss ? 9 : 6) + Math.random() * 3;
+    const kinds = ['tear', 'blink', 'flip'].filter(k => k !== run.lastGlitch), k = kinds[Math.floor(Math.random() * kinds.length)];
+    run.lastGlitch = k;
+    if (k === 'tear') { // a strip of the screen flickers, then tears: whatever is in it jumps sideways
+      const h = 80 + Math.random() * 50;
+      run.tear = { y: Math.round(H * 0.12 + Math.random() * (H * 0.62 - h)), h: Math.round(h), t: 0, dx: Math.round((Math.random() < 0.5 ? -1 : 1) * W * (0.25 + Math.random() * 0.2)) };
+      beep(90, 0.3, 'square', 0.05, 900);
+    } else if (k === 'blink') { // a few enemies flicker, then teleport
+      const pool = enemies.filter(e => !e.dead && !TYPES[e.type].ghost && !(e.blinkT > 0));
+      for (const e of shuffle(pool).slice(0, 4)) { e.blinkT = GLITCH_WARN; fxRing(e.x, e.y, e.r * 3, e.r, GLITCH_WARN, '#ff3df2', 2); }
+      beep(1800, 0.15, 'square', 0.03, -1500);
+    } else { // INPUT ERROR: a warning, then everyone's left and right swap for a moment
+      run.flipW = GLITCH_WARN;
+      fxText('⚠ INPUT ERROR', W / 2, H * 0.42, '#ff3df2', 30, GLITCH_WARN);
+      [880, 660, 880, 660].forEach((f, i) => setTimeout(() => beep(f, 0.08, 'square', 0.04), i * 120));
+    }
   }
   run.eliteT = Math.max(run.eliteT ?? 0, HAZARD_GAP); // (the zone's elite hazard waits a moment: never both at once)
+}
+// GLITCH SECTOR: the glitches play out (the host's game, or solo: guests see the results, and flip their own controls)
+const GLITCH_WARN = 1.2, TEAR_SHOW = 0.7, FLIP_TIME = 2.6;
+const glitchFlip = () => inRun() && (run.flipT || 0) > 0; // (left and right are swapped)
+function updateGlitch(dt) {
+  const tr = run.tear;
+  if (tr) {
+    const before = tr.t; tr.t += dt;
+    if (before < GLITCH_WARN && tr.t >= GLITCH_WARN) { // the tear: everything in the strip jumps sideways (wrapping around)
+      const inside = y => y > tr.y && y < tr.y + tr.h, wrap = x => ((x + tr.dx) % W + W) % W;
+      for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && inside(e.y)) { e.x = wrap(e.x); if (e.dest) e.dest.x = wrap(e.dest.x); }
+      for (const b of eBullets) if (!b.orb && inside(b.y)) b.x = wrap(b.x);
+      shake = Math.max(shake, 8); beep(60, 0.3, 'sawtooth', 0.06, 300);
+    }
+    if (tr.t >= GLITCH_WARN + TEAR_SHOW) run.tear = null;
+  }
+  for (const e of enemies) if (e.blinkT > 0 && (e.blinkT -= dt) <= 0) { // flicker... and it's somewhere else
+    burst(e.x, e.y, '#ff3df2', 10, 200);
+    e.x = 40 + Math.random() * (W - 80); e.y = H * (0.08 + Math.random() * 0.4); if (e.dest) e.dest = { x: e.x, y: e.y };
+    burst(e.x, e.y, '#7df9ff', 10, 200);
+  }
+  if (run.flipW > 0) { if ((run.flipW -= dt) <= 0) { run.flipW = 0; run.flipT = FLIP_TIME; beep(220, 0.4, 'square', 0.05, -110); } }
+  else if (run.flipT > 0) run.flipT = Math.max(0, run.flipT - dt);
+}
+// what the glitches look like: the strip's warning and its tear, and the flipped-controls banner
+function drawGlitchFx() {
+  if (!inRun() || run.zone !== 'glitch') return;
+  const tr = run.tear, t = performance.now() / 1000;
+  ctx.save();
+  if (tr) {
+    if (tr.t < GLITCH_WARN) { // warning: the strip's edges flicker in magenta and cyan
+      ctx.globalAlpha = 0.35 + 0.35 * (Math.floor(t * 14) % 2);
+      ctx.fillStyle = 'rgba(255,61,242,0.12)'; ctx.fillRect(0, tr.y, W, tr.h);
+      ctx.fillStyle = '#ff3df2'; ctx.fillRect(0, tr.y, W, 2); ctx.fillStyle = '#7df9ff'; ctx.fillRect(0, tr.y + tr.h - 2, W, 2);
+      ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ff3df2';
+      ctx.fillText('⚠ TEAR', 10, tr.y + 12);
+    } else { // torn: bars of shifted color and noise across the strip
+      ctx.globalCompositeOperation = 'lighter';
+      for (let y = tr.y; y < tr.y + tr.h; y += 6) {
+        const off = (Math.random() - 0.5) * 60;
+        ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,61,242,0.22)' : 'rgba(125,249,255,0.22)';
+        ctx.fillRect(off + (tr.dx > 0 ? 0 : -20), y, W + 20, 3 + Math.random() * 3);
+      }
+    }
+  }
+  if ((run.flipT || 0) > 0) { // the banner while controls are flipped
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    glow('#ff3df2', 14); ctx.fillStyle = Math.floor(t * 6) % 2 ? '#ff3df2' : '#ffffff';
+    ctx.fillText(`⇄ CONTROLS FLIPPED  ${run.flipT.toFixed(1)}s`, W / 2 + (Math.random() - 0.5) * 3, H - 70);
+  }
+  ctx.restore();
 }
 // hazards never land on top of each other: the zone's two hazards take turns (at least this many seconds apart),
 // and strikes that land together are kept apart
@@ -10038,6 +10291,12 @@ function drawZoneIcon(id, x, y, r) { // a tiny picture of each zone
     const g = ctx.createLinearGradient(-r, -r, r, r); RAINBOW.forEach((c, i) => g.addColorStop(i / (RAINBOW.length - 1), c));
     ctx.fillStyle = g; ctx.globalAlpha *= 0.8; ctx.beginPath(); ctx.moveTo(0, -r * 0.6); ctx.lineTo(r * 0.55, r * 0.4); ctx.lineTo(-r * 0.55, r * 0.4); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  } else if (id === 'glitch') { // a broken pixel: offset magenta and cyan squares, and a white one between them
+    const s = r * 0.62, j = Math.floor(performance.now() / 300) % 4 === 0 ? r * 0.12 : 0;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = 'rgba(255,61,242,0.75)'; ctx.fillRect(-s / 2 - r * 0.12 - j, -s / 2, s, s);
+    ctx.fillStyle = 'rgba(125,249,255,0.75)'; ctx.fillRect(-s / 2 + r * 0.12 + j, -s / 2, s, s);
+    ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#ffffff'; ctx.fillRect(-s * 0.2, -s * 0.2, s * 0.4, s * 0.4);
   } else if (id === 'horizon') {
     ctx.strokeStyle = '#ffb13d'; ctx.lineWidth = r * 0.12; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, r * 0.2, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = 'rgba(255,150,80,0.7)'; ctx.lineWidth = r * 0.08; ctx.beginPath(); ctx.arc(0, 0, r * 0.42, Math.PI, Math.PI * 2); ctx.stroke();
@@ -10177,7 +10436,7 @@ function makeRock(top, zone) {
   if (FLECK_ZONES.includes(zone)) // a glittering fleck: ice (rings), a spark of the solar wind (corona), or rainbow dust (prism)
     return { x: Math.random() * W, y: top ? -5 - Math.random() * H * 0.3 : Math.random() * H, r: 0.8 + Math.random() * 1.6,
       vy: (15 + Math.random() * 40) * (zone === 'corona' ? 2.2 : 1), vx: (Math.random() - 0.5) * (zone === 'corona' ? 30 : 6), rot: 0, vr: 0, tw: Math.random() * 10,
-      color: zone === 'prism' ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)] : zone === 'corona' ? (Math.random() < 0.5 ? '#ffb13d' : '#ff6a2d') : '#e8f8ff' };
+      color: zone === 'glitch' ? ['#ff3df2', '#7df9ff', '#ffffff'][Math.floor(Math.random() * 3)] : zone === 'prism' ? RAINBOW[Math.floor(Math.random() * RAINBOW.length)] : zone === 'corona' ? (Math.random() < 0.5 ? '#ffb13d' : '#ff6a2d') : '#e8f8ff' };
   const belt = zone === 'belt', depth = belt ? 0.35 + Math.random() * 0.65 : 1, r = belt ? 3 + Math.random() ** 2 * 30 * depth + 2 : 4 + Math.random() * 16, n = 7;
   return { x: Math.random() * W, y: top ? -r - Math.random() * H * 0.5 : Math.random() * H, r, depth,
     vy: (25 + Math.random() * 45) * (belt ? depth * 1.3 : 1), vx: (Math.random() - 0.5) * (belt ? 24 : 10), rot: Math.random() * 6, vr: (Math.random() - 0.5) * 1.2,
@@ -10186,7 +10445,7 @@ function makeRock(top, zone) {
 const holeR = () => Math.min(W, H) * 0.09;
 function makeEmber() { return { a: Math.random() * Math.PI * 2, d: Math.max(W, H) * (0.5 + Math.random() * 0.5), hot: Math.random() }; }
 const NEBULA_COLORS = ['#ff2d55', '#c0306e', '#7a1f8e', '#ff5d8d', '#a0203e'];
-const FLECK_ZONES = ['rings', 'corona', 'prism'];
+const FLECK_ZONES = ['rings', 'corona', 'prism', 'glitch'];
 // DERELICT FLEET: a huge broken warship drifting past (further ones are smaller, dimmer and slower)
 function makeWreck(top) {
   const depth = 0.35 + Math.random() * 0.65, len = Math.max(W, H) * (0.3 + Math.random() * 0.3) * depth;
@@ -10205,7 +10464,7 @@ function initScenery(zone) {
   scenery.planets = zone === 'deep' ? [makePlanet(true)] : [];
   scenery.wrecks = zone === 'derelict' ? Array.from({ length: 4 }, () => makeWreck(false)).sort((a, b) => a.depth - b.depth) : [];
   scenery.crystals = zone === 'prism' ? Array.from({ length: 5 }, () => makeCrystal(false)).sort((a, b) => a.depth - b.depth) : [];
-  const nRocks = { deep: 14, belt: 34, nebula: 5, rings: 46, corona: 40, derelict: 10, prism: 50, horizon: 4 }[zone] ?? 14;
+  const nRocks = { deep: 14, belt: 34, nebula: 5, rings: 46, corona: 40, derelict: 10, prism: 50, glitch: 44, horizon: 4 }[zone] ?? 14;
   scenery.rocks = Array.from({ length: nRocks }, () => makeRock(false, zone)).sort((a, b) => (a.depth || 1) - (b.depth || 1)); // (far rocks first)
   scenery.clouds = zone === 'nebula' ? Array.from({ length: 6 }, (_, i) => ({ x: Math.random(), y: i / 6 * 1.4 - 0.2, R: 0.22 + Math.random() * 0.2,
     color: NEBULA_COLORS[i % NEBULA_COLORS.length], vy: 0.006 + Math.random() * 0.008, flash: 0 })) : [];
@@ -10482,7 +10741,33 @@ function drawBackground() {
   else if (z === 'corona') drawSun(t);
   else if (z === 'derelict') drawWrecks(t);
   else if (z === 'prism') drawCrystals(t);
+  else if (z === 'glitch') drawGlitchSky(t);
   drawScenery(z);
+}
+// GLITCH SECTOR: a faint grid, columns of falling data, and blocks of corrupted color that blink in and out
+function drawGlitchSky(t) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(125,249,255,0.05)'; ctx.lineWidth = 1; // the grid (it jumps a few pixels now and then)
+  const j = Math.floor(t * 3) % 7 === 0 ? 4 : 0;
+  ctx.beginPath();
+  for (let x = (t * 8) % 60; x < W; x += 60) { ctx.moveTo(x + j, 0); ctx.lineTo(x + j, H); }
+  for (let y = (t * 20) % 60; y < H; y += 60) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
+  const cols = settings.lowfx ? 8 : 20; // falling data: a bright head and a fading tail of bits
+  for (let i = 0; i < cols; i++) {
+    const x = (i + 0.5) / cols * W, sp = 60 + (i * 37 % 7) * 22, head = (t * sp + i * 173) % (H + 240) - 120;
+    for (let k = 0; k < 10; k++) {
+      const y = head - k * 11; if (y < -10 || y > H) continue;
+      if (((i * 7 + k * 13 + Math.floor(t * 6)) % 5) === 0) continue; // (gaps flicker along the tail)
+      ctx.fillStyle = k === 0 ? 'rgba(255,255,255,0.5)' : i % 3 ? `rgba(125,249,255,${0.42 - k * 0.04})` : `rgba(255,61,242,${0.42 - k * 0.04})`;
+      ctx.fillRect(x - 3, y, 6, 6);
+    }
+  }
+  if (!settings.lowfx && Math.random() < 0.18) { // a block of corrupted color
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,61,242,0.12)' : 'rgba(125,249,255,0.12)';
+    ctx.fillRect(Math.random() * W, Math.random() * H, 20 + Math.random() * 160, 4 + Math.random() * 30);
+  }
+  ctx.restore();
 }
 // hyperspace: a glow of the destination's color rushing toward you (the stars stretch into streaks in draw)
 function drawWarpFx() {
@@ -10526,6 +10811,7 @@ function draw() {
   ctx.globalAlpha = 1;
   drawWarpFx();
   if (inRun()) drawWorld();
+  drawGlitchFx();
   // particles shrink as they fade, so they can all be batched without per-particle alpha
   drawGlowDots(particles.map(p => ({ x: p.x, y: p.y, r: p.size * 0.55 * Math.max(0.15, p.life / p.max), color: p.color })), false);
   if (inRun()) drawAbyssDark(); // the final boss's darkness covers the world (not the HUD)
@@ -10578,7 +10864,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const PEER_PREFIX = 'neondrift-v3-'; // bumped when the online protocol changes, so old and new versions don't mix
+const PEER_PREFIX = 'neondrift-v4-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
 // (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
@@ -10812,6 +11098,7 @@ function packSnap() {
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
     lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
     td: [r2(run.tide || 0), r2(run.tideW || 0)], // (EVENT HORIZON's gravity tide: guests pull their own ships)
+    gl: [r2(run.flipW || 0), r2(run.flipT || 0), run.tear ? [run.tear.y, run.tear.h, r2(run.tear.t), run.tear.dx] : 0], // (GLITCH SECTOR: flipped controls, and a tear)
     pc: run.dokiMet ? 0 : run.pinkCoins || 0, // (pink coins found so far)
     ev: net.events.splice(0),
   };
@@ -10843,7 +11130,7 @@ function packBoss(b) {
 function packBullets(s) {
   const colors = [], ci = c => { let i = colors.indexOf(c); if (i < 0) { i = colors.length; colors.push(c); } return i; };
   const bu = [], eb = [];
-  for (const b of bullets) bu.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), ci(b.color), (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0));
+  for (const b of bullets) bu.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), ci(b.color), (b.crit ? 1 : 0) | (b.rail ? 2 : 0) | (b.missile ? 4 : 0) | (b.bomb ? 8 : 0) | (b.mega ? 16 : 0));
   const flow = bulletFlow();
   for (const b of eBullets) eb.push(Math.round(b.x), Math.round(b.y), Math.round(b.vx * flow), Math.round(b.vy * flow), b.r || 5, ci(b.color || '#ff4d4d'), b.fuse !== undefined ? r2(b.fuse) : -1);
   return { bu, eb, cl: colors };
@@ -11111,7 +11398,7 @@ function applySnap(s) {
   // bullets fly in straight lines, so they're redrawn from where they were at snapshot time (see guestFrame)
   const cl = s.cl;
   bullets = [];
-  for (let i = 0; i < s.bu.length; i += 6) { const a = s.bu; bullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, color: cl[a[i + 4]], crit: !!(a[i + 5] & 1), rail: !!(a[i + 5] & 2), missile: !!(a[i + 5] & 4) }); }
+  for (let i = 0; i < s.bu.length; i += 6) { const a = s.bu; bullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, color: cl[a[i + 4]], crit: !!(a[i + 5] & 1), rail: !!(a[i + 5] & 2), missile: !!(a[i + 5] & 4), bomb: !!(a[i + 5] & 8), mega: !!(a[i + 5] & 16) }); }
   eBullets = [];
   for (let i = 0; i < s.eb.length; i += 7) { const a = s.eb; eBullets.push({ x0: a[i], y0: a[i + 1], x: a[i], y: a[i + 1], vx: a[i + 2], vy: a[i + 3], t0: s.ts, r: a[i + 4], color: cl[a[i + 5]], ...(a[i + 6] >= 0 ? { fuse: a[i + 6] } : {}) }); }
   pickups = s.pk.map(a => ({ x: a[0], y: a[1], y0: a[1], t0: s.ts, kind: a[2], t: a[3] }));
@@ -11138,6 +11425,10 @@ function applySnap(s) {
   run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
   run.curses = Object.fromEntries(cleanCurses(s.cu).map(id => [id, true])); // (the host's curses)
   if (Array.isArray(s.td)) { run.tide = num(s.td[0], 0, TIDE_T, 0); run.tideW = num(s.td[1], 0, TIDE_WARN, 0); }
+  if (Array.isArray(s.gl)) {
+    run.flipW = num(s.gl[0], 0, GLITCH_WARN, 0); run.flipT = num(s.gl[1], 0, FLIP_TIME, 0);
+    const g = s.gl[2]; run.tear = Array.isArray(g) ? { y: num(g[0], 0, 5000, 0), h: num(g[1], 0, 400, 80), t: num(g[2], 0, 5, 0), dx: num(g[3], -5000, 5000, 0) } : null;
+  }
   run.pinkCoins = Math.round(num(s.pc, 0, PINK_NEED, 0));
   run.linkView = Array.isArray(s.lk) ? s.lk.slice(0, 28).filter(l => Array.isArray(l) && okIdx(l[0], MAX_ONLINE) && okIdx(l[1], MAX_ONLINE))
     .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0)]) : [];
@@ -11173,6 +11464,7 @@ function replayEvent(ev) {
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
     case 's': beep(num(ev[1], 20, 8000, 440), num(ev[2], 0.01, 3, 0.1), OSC_TYPES.includes(ev[3]) ? ev[3] : 'square', num(ev[4], 0, 0.2, 0.05), num(ev[5], -8000, 8000, 0)); break;
     case 'o': showToast(String(ev[1]).slice(0, 120)); break;
+    case 'gs': if (typeof ev[1] === 'string') noteGoldShard(ev[1]); break; // (a golden shard: found for everyone)
     case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
     case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
@@ -11210,7 +11502,7 @@ function guestFrame(dt) {
     const since = t0 => Math.min(0.25, Math.max(0, (hostNow - t0) / 1000));
     for (const b of bullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
     for (const b of eBullets) { const k = since(b.t0); b.x = b.x0 + b.vx * k; b.y = b.y0 + b.vy * k; }
-    for (const k of pickups) k.y = k.y0 + 90 * since(k.t0);
+    for (const k of pickups) if (k.kind !== 'gold') k.y = k.y0 + 90 * since(k.t0);
   }
   if (state === 'play' && !paused) {
     time += dt;
@@ -11241,7 +11533,7 @@ function guestMove(dt) { // (the gamepads were read at the start of guestFrame)
     if (dx || dy) { const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt; }
     else if (usePointer && pointer) {
       const k = 1 - Math.exp(-dt * 22), ty = pointer.y - (pointer.touch ? 50 : 0);
-      p.x += (pointer.x - p.x) * k; p.y += (ty - p.y) * k;
+      p.x += ((glitchFlip() ? W - pointer.x : pointer.x) - p.x) * k; p.y += (ty - p.y) * k;
     }
     if (run.tide > 0 && zoneElite()) { const c = tideAt(), d = Math.hypot(c.x - p.x, c.y - p.y) || 1; p.x += (c.x - p.x) / d * TIDE_PULL * dt; p.y += (c.y - p.y) / d * TIDE_PULL * dt; } // (the gravity tide)
     p.x = Math.max(p.r, Math.min(W - p.r, p.x)); p.y = Math.max(p.r, Math.min(H - p.r, p.y));

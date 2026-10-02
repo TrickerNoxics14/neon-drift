@@ -25,9 +25,9 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-10 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+11 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 43 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 46 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### MK II to MK V
 
@@ -53,8 +53,9 @@ Every ship has one ability on a cooldown (the MK II's is stronger and comes back
 - **Carrier — Swarm:** a swarm of homing missiles.
 - **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
 - **Gunslinger — Fan the Hammer:** empties the whole cylinder at the closest enemy at double damage, then reloads instantly. (The Gunslinger fires 6 heavy rounds fast, then has to reload.)
+- **Bomber — Megaton:** drops one huge, slow bomb that blasts everything around it and blows away enemy bullets. (The Bomber fires slow bombs that explode on whatever they touch, hitting everything nearby.)
 
-Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst and Speed Loader. A ship's card only shows up when someone is flying that ship.
+Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst, Speed Loader and Payload. A ship's card only shows up when someone is flying that ship.
 
 ### Ship mastery
 
@@ -74,7 +75,7 @@ Before a run, press **X** on the menu (or in an online lobby, as the host) to sw
 
 ### Music
 
-27 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
+29 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
@@ -138,6 +139,8 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 - **Derelict Fleet:** old turrets shoot at everything, enemies included.
 - **Prism Reach:** prisms split every shot in three, yours and theirs.
 
+**The Glitch Sector:** a secret zone that starts showing up on the route map once you've beaten ZERO. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. It has two songs of its own, **Corrupted Data** and **Stack Overflow**.
+
 **Elite zones:** from cycle 2 of Endless, every zone gets a second hazard on top of its own:
 - **Deep Space:** Starfall, with falling stars down marked columns.
 - **Shattered Belt:** meteors that shed burning rocks.
@@ -164,4 +167,12 @@ THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a t
 
 ### Pets
 
-A little companion that follows your ship around, just for looks (Hangar → Skins & Cosmetics → Pets). Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+
+### Boss Rush medals
+
+Clear Boss Rush fast enough for a medal: 🥇 **gold** under 16:00, 🥈 **silver** under 22:00, and 🥉 **bronze** for any clear (when ZERO joins the end of the rush, you get 1:15 extra). Your best medal and time show on the menu when Boss Rush is picked. Gold unlocks the **Champion** skin.
+
+### Golden shards
+
+One golden shard is hidden in each of the 8 regular zones. Each time you visit a zone whose shard you haven't found, there's a chance it drifts across the screen once, faint and twinkling. Fly into it to keep it. Online, a shard found by anyone counts for everyone. The Hangar shows how many you have, and finding all 8 unlocks the **Shardglass** skin.
