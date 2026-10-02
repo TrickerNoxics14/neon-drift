@@ -9660,7 +9660,6 @@ function drawPause() {
   else items.push(['RESUME FOR EVERYONE  [P]', '#7df9ff', () => forcePause(false)]);
   if (online && !guest && !paused) items.push(['⏸  PAUSE FOR EVERYONE  [P]', '#ffe93d', () => forcePause(true)]);
   items.push(['SETTINGS', '#9ab', () => { pauseView = 'settings'; }]);
-  if (modOk()) items.push(['🛠  MOD MENU  [`]', '#5dff7a', openMod]);
   if (!guest) { items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
   if (online) items.push([guest ? 'LEAVE GAME' : 'CLOSE ROOM', '#ff5a70', () => leaveOnline(guest ? 'You left the game' : undefined)]);
   const wide = W >= 760, bw = wide ? 250 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
@@ -9846,7 +9845,6 @@ function drawMenu() {
   button('ONLINE CO-OP  🌐  [N]', bx, cy + gap * 4, bw, bh, '#5dffc8', () => go('online'));
   const sw = (bw - 16) / 3, ry = cy + gap * 5;
   if (touchMode || padSeen) button('⛶', W - 58, 12, 46, 40, '#9ab', toggleFullscreen); // (phones and tablets: no F key)
-  if (modOk()) button('🛠', 12, 12, 46, 40, '#5dff7a', openMod); // (the owner's mod menu)
   button('HANGAR [H]', bx, ry, sw, bh, '#ffe93d', () => go('hangar'));
   button('TROPHIES [T]', bx + sw + 8, ry, sw, bh, '#ffb13d', () => go('achievements'));
   button('SETTINGS [O]', bx + (sw + 8) * 2, ry, sw, bh, '#9ab', () => go('settings'));
