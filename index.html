@@ -196,8 +196,9 @@ const SONGS = {
     B: { chords: '6 7 1 1 4 2 1 1', ins: 'flute', dr: 'taiko', gt: 'chug', mel: [
       '6-------q-------', '7-------w-------', 'q-------5-------', '5-------w-q-----',
       '4-------6---q---', 'w-------6---4---', 'q-------7-6-5---', '1---------------'] } } },
-  // the secret boss: glitchy synth arps that turn into a guitar duel
-  zero: { name: 'Null Pointer', bpm: 136, root: 42, scale: 'minor', lead: 66, battle: true, form: ['A', 'B'], parts: {
+  // the secret boss: a recording (zero.mp3, played like THE ABYSS's); the notes below (glitchy synth arps that turn into
+  // a guitar duel) are what plays if the file can't be loaded (or until it has)
+  zero: { name: 'Death', file: 'zero.mp3', loop: [1.38, 69.3], gain: 1.8, bpm: 136, root: 42, scale: 'minor', lead: 66, battle: true, form: ['A', 'B'], parts: {
     A: { chords: '1 6 1 6 1 6 7 5^', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
       '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.', '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.',
       '1.5.3.5.q.5.3.5.', '6.3.1.3.6.3.q.3.', '7.4.2.4.7.4.2.4.', '5.5.2.5.w.5.2.5.'] },
@@ -360,10 +361,11 @@ function startMusic() {
   music.timer = setInterval(scheduleMusic, 25);
 }
 function scheduleMusic() {
-  if (!ac || ac.state !== 'running') { if (rec.el && !rec.el.paused) rec.el.pause(); return; } // (a recorded song waits while the tab is away)
-  // start loading a boss's recorded song early: DOKI DOLL's once a run is one pink coin away (or she's here), THE ABYSS's in the last zone
-  if (run && ((!run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) || bosses.some(b => b.gimmick === 'doki'))) prepRecorded(SONGS.doki);
-  else if (run?.zone === ZONE_LAST) prepRecorded(SONGS.abyss);
+  if (!ac || ac.state !== 'running') { for (const el of Object.values(rec.els)) if (!el.paused) el.pause(); return; } // (recorded songs wait while the tab is away)
+  // start loading the secret and final bosses' recorded songs before they're needed: DOKI DOLL's once a run is one pink
+  // coin away, and in the last zone THE ABYSS's, and ZERO's too when it could crawl out after it
+  if (run && !run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) prepRecorded(SONGS.doki);
+  if (run?.zone === ZONE_LAST) { prepRecorded(SONGS.abyss); if (meta.ach.omega && (run.endless || run.rush)) prepRecorded(SONGS.zero); }
   if (inRun() && abyssCine()?.cine < CINE.rise) { stopRecorded(); music.next = ac.currentTime + 0.05; return; } // (its entrance: dead silence until it rises)
   const want = wantedSong();
   if (recordedOk(want)) { // a recorded song: the band sits out while it plays
@@ -380,39 +382,41 @@ function scheduleMusic() {
 // it sends through Web Audio that way.) Its volume follows the music setting, dips while paused like the band's
 // muffle, and fades in and out. They loop between their `loop` points, skipping the silence at either end, at their
 // own `gain` (matched to the band's loudness). Until enough of the file has loaded (or if it can't load, or the
-// browser won't let it play yet), the song's written-out version plays instead.
-const rec = { el: null, song: null, failed: {}, blocked: false };
+// browser won't let it play yet), the song's written-out version plays instead. Each file has its own <audio> element,
+// so the next boss's song can load while another one plays (ZERO's while THE ABYSS's is on, say).
+const rec = { els: {}, song: null, failed: {}, blocked: false };
 function recordedOk(id) {
   const s = SONGS[id];
   if (!s?.file || rec.failed[s.file] || rec.blocked) return false;
   return rec.song === id || prepRecorded(s).readyState >= 3; // (HAVE_FUTURE_DATA: it can start playing now)
 }
 function prepRecorded(s) {
-  if (rec.el?.dataset.file === s.file) return rec.el;
-  const el = rec.el = new Audio(s.file);
-  el.dataset.file = s.file; el.preload = 'auto'; el.volume = 0;
-  el.addEventListener('error', () => { rec.failed[s.file] = true; rec.song = null; });
+  let el = rec.els[s.file];
+  if (!el) {
+    el = rec.els[s.file] = new Audio(s.file);
+    el.preload = 'auto'; el.volume = 0;
+    el.addEventListener('error', () => { rec.failed[s.file] = true; if (SONGS[rec.song]?.file === s.file) rec.song = null; });
+  }
   return el;
 }
 const recordedVolume = s => settings.music ? s.gain * MUSIC_LEVEL * (paused || state === 'upgrade' ? 0.45 : 1) : 0;
-function fadeRecorded(target) { const el = rec.el; el.volume = Math.max(0, Math.min(1, el.volume + Math.max(-0.02, Math.min(0.02, target - el.volume)))); }
+function fadeEl(el, target) { el.volume = Math.max(0, Math.min(1, el.volume + Math.max(-0.02, Math.min(0.02, target - el.volume)))); }
+// every recorded song except `keep` fades out, then pauses
+function fadeOthers(keep) { for (const el of Object.values(rec.els)) if (el !== keep && !el.paused) { fadeEl(el, 0); if (el.volume <= 0) el.pause(); } }
 function playRecorded(id) {
-  const s = SONGS[id], el = rec.el;
+  const s = SONGS[id], el = prepRecorded(s);
   if (rec.song !== id) { rec.song = id; el.currentTime = s.loop[0]; el.volume = 0; } // (from the top, fading in)
-  if (el.paused) el.play().catch(() => { // the browser wants a click first: play the written-out version until then
+  if (el.paused) el.play().catch(err => { // the browser wants a click first: play the written-out version until then
+    if (err?.name !== 'NotAllowedError') return; // (any other hiccup, like a start cut short by a pause, just tries again next time)
     rec.blocked = true; rec.song = null;
     const retry = () => { rec.blocked = false; removeEventListener('pointerdown', retry); removeEventListener('keydown', retry); };
     addEventListener('pointerdown', retry); addEventListener('keydown', retry);
   });
   if (el.currentTime >= s.loop[1]) el.currentTime = s.loop[0];
-  fadeRecorded(recordedVolume(s));
+  fadeEl(el, recordedVolume(s));
+  fadeOthers(el); // (whatever was playing before fades out underneath)
 }
-function stopRecorded() { // fade out, then pause
-  rec.song = null;
-  const el = rec.el; if (!el || el.paused) return;
-  fadeRecorded(0);
-  if (el.volume <= 0) el.pause();
-}
+function stopRecorded() { rec.song = null; fadeOthers(null); } // (fade out, then pause)
 // which song should be playing right now
 function wantedSong() {
   if (state === 'jukebox') return music.pick || 'menu';

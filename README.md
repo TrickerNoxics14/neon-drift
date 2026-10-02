@@ -67,9 +67,9 @@ Before a run, press **X** on the menu (or in an online lobby, as the host) to sw
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
-THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight. The pink secret boss has her own recorded song too, **Doki Doki** (`doki.mp3`).
+THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight. The secret bosses have recorded songs too: **Death** for the first one (`zero.mp3`), and **Doki Doki** for the pink one (`doki.mp3`).
 
-Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for those two recordings, all the music is played live by the browser from notes written in the code.
+Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for those three recordings, all the music is played live by the browser from notes written in the code.
 
 ### Bosses
 
