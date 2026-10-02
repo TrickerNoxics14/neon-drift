@@ -1617,7 +1617,7 @@ const DOKI_BOSS = { name: 'DOKI DOLL', style: 'doki', color: '#ff6fd8', sides: 8
 const DOKI_POSSESSED = ['hearts', 'tantrum', 'charge', 'paws', 'yarn', 'kisses', 'tantrum', 'twirl'];
 const PINK_DROP = 0.006, PINK_NEED = 3; // (chance per kill of a pink coin; coins needed)
 // how much each thing moves her meter (0-1), how long she waits for an answer, how close counts as a graze
-const DOKI_GRAZE = 0.009, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 5, GRAZE_R = 20;
+const DOKI_GRAZE = 0.009, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 8, GRAZE_R = 20;
 // [what she asks, four answers (keys 1-4, or click one), which answer charms her, only once she's possessed (the creepy ones)]
 const DOKI_ASKS = [
   ['Do you think I\'m cute?~', ['You\'re adorable!', 'Not really.', 'Who even are you?', 'I\'m kind of busy...'], 0],
@@ -2181,7 +2181,8 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), musicSeed: Math.floor(Math.random() * 1000),
+    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
+    musicSeed: Math.floor(Math.random() * 1000),
     // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
@@ -2262,7 +2263,7 @@ function continueEndless() {
   for (const p of players) { if (!p.alive && !p.gone) revive(p, alive[0]); p.inv = 2; }
   paused = false; eBullets = []; lasers = [];
   const m = startNextCycle();
-  run.zoneEnd = 'glitch'; run.route = []; // (out of the dark... and straight into the GLITCH SECTOR, the first zone of Endless)
+  run.zoneEnd = 'glitch'; run.route = []; run.glitchy = true; // (out of the dark... and straight into the GLITCH SECTOR, the first zone of Endless)
   openUpgrade(`ENDLESS BEGINS — NEW MUTATOR: ${m.name}`, true);
 }
 
@@ -3419,6 +3420,7 @@ function bossHome(b, enraged, hoverY) {
   if (b.style === 'abyss') return { x: W / 2 + Math.sin(b.t * 0.25) * W * 0.18, y: hoverY + 30 + Math.sin(b.t * 0.7) * 14 }; // a slow, looming drift
   if (b.style === 'wyrm') return { x: W / 2 + Math.sin(b.t * 0.55) * (W / 2 - 60), y: H * 0.28 + Math.sin(b.t * 0.9) * H * 0.13 }; // slithers across the top half
   const amp = Math.max(0, W / 2 - b.r - 20);
+  if (b.gimmick === 'doki') return { x: W / 2 + Math.sin(b.t * 0.3) * amp * 0.55, y: hoverY }; // (DOKI DOLL drifts slowly, so you can read her questions)
   const sweep = { x: W / 2 + Math.sin(b.t * (enraged ? 0.9 : 0.6)) * amp, y: b.hoverLow ? Math.max(hoverY, H * 0.33) : hoverY };
   if (!encounter || encounter.kind === 'single') return sweep;
   const partner = bosses.find(o => o !== b && bossAlive(o));
@@ -4519,7 +4521,7 @@ function abyssCineStep(b, dt) {
   }
   if (hit(CINE.title)) { beep(90, 0.9, 'square', 0.1, -50); shake = Math.max(shake, 16); }
   if (b.cine >= CINE_LEN) { // the fight begins
-    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b);
+    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b); glitchBoss(b);
     if (b.hint) hint = { text: b.hint, life: 6 };
     if (!meta.seenAbyss && net.role !== 'guest') { meta.seenAbyss = true; saveMeta(); }
   }
@@ -4964,7 +4966,7 @@ function updateBoss(b, dt) {
     b.introRingT -= dt;
     if (b.introRingT <= 0) { b.introRingT = 0.35; fxRing(b.x, b.y, b.r * 2.5, b.r * 0.3, 0.4, b.color, 2); }
     if (b.y >= hoverY) {
-      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b);
+      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b); glitchBoss(b);
       shake = Math.max(shake, 16); bossRoar(b, true);
       fxRing(b.x, b.y, b.r, b.r * 5, 0.7, b.color, 5); fxRing(b.x, b.y, b.r, b.r * 3.5, 0.5, '#ffffff', 3, 0.1);
       burst(b.x, b.y, b.color, 60, 400);
@@ -4994,6 +4996,7 @@ function updateBoss(b, dt) {
   if (gim === 'hold') return;
   if (updateAscend(b, dt)) return;
   if (b.super && b.dying <= 0) ascendOf(b)?.update?.(b, dt); // (a second life's own new attack)
+  if (b.glitch) updateGlitchBoss(b, dt); // (a GLITCH variant skips around)
   const fury = b.rageMove && b.wasEnraged ? updateRageMove(b, dt, tgt) : null;
   if (fury === 'hold') return;
 
@@ -5394,10 +5397,12 @@ function update(dt) {
   if (run.goldT > 0 && !bosses.length && bossWarn <= 0 && !run.warp && (run.goldT -= dt) <= 0) spawnGoldShard();
   updateEliteHazards(dt); updateHail(dt); // (and its elite one, from Endless cycle 2)
   spawnT -= dt;
-  if (spawnT <= 0 && !bossActive) {
+  if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
+  if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
     spawnEnemy();
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'))
-      / (curse('horde') ? 1.4 : 1); // (HORDE curse)
+      / (curse('horde') ? 1.4 : 1) // (HORDE curse)
+      * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
@@ -7483,8 +7488,10 @@ function drawBoss(b) {
   const sp = b.special;
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
   if (fury && b.rage > 0 && key === 'phantom' && Math.random() < 0.4) ctx.globalAlpha *= 0.15; // (PHANTOM strobes as it's possessed)
+  if (b.glitch && Math.random() < 0.04) ctx.globalAlpha *= 0.3; // (a GLITCH variant flickers)
   ctx.scale(sc, sc);
   const a0 = ctx.globalAlpha;
+  if (b.glitch) drawGlitchGhosts(b, rot, k);
   const rageLayer = (layer, ...args) => { if (fury && form[layer]) { ctx.save(); form[layer](b, k, tr, b.r, ...args); ctx.restore(); } };
 
   rageLayer('back');
@@ -10012,7 +10019,7 @@ const ZONES = [
   { id: 'glitch', name: 'GLITCH SECTOR', sub: 'Where the code of space comes apart', color: '#ff3df2', tints: ['#2a0a3a', '#0a2a3a'], secret: true,
     hazard: 'GLITCHES', hazardDesc: 'The screen tears, enemies teleport, and your controls flip for a moment',
     hint: 'GLITCH SECTOR: watch for warnings! Torn strips shift sideways, flickering enemies jump, and INPUT ERROR flips your controls.',
-    bosses: ['PHANTOM', 'ECHO', 'THE ORACLE', 'CHRONOS'], bias: { warper: 2.4, mimic: 2, mirror: 2, shade: 1.8, zigzag: 1.6 } },
+    bosses: ['PHANTOM', 'ECHO', 'THE ORACLE', 'CHRONOS'], bias: { warper: 1.4, mimic: 1.6, mirror: 1.6, zigzag: 1.6 } }, // (no shades: invisible enemies on top of glitches was too much)
   { id: 'horizon', name: 'EVENT HORIZON', sub: 'Where not even light escapes', color: '#ff3d4d', tints: ['#3a0a1a', '#2a0612'], final: true,
     bosses: ['THE SINGULARITY', 'ECHO', 'CHRONOS', 'PHANTOM'], bias: { vortex: 2.2, magnet: 2, kamikaze: 2, swarm: 1.6, carrier: 1.4 } },
 ];
@@ -10146,6 +10153,7 @@ function noteZone(id) { // (for the Star Chart trophy)
   (meta.stats.zones ||= {})[id] = true;
   if (ZONES.every(q => q.secret || meta.stats.zones[q.id])) unlockAch('voyager');
   if (id === 'glitch') unlockAch('glitch');
+  if (id === 'glitch') { run.calmT = 8; run.hazardT = 8; } // (no enemies or glitches for the first moments)
 }
 
 // ---------- the zone title card: a big name across the screen when you arrive ----------
@@ -10264,6 +10272,39 @@ function updateGlitch(dt) {
   }
   if (run.flipW > 0) { if ((run.flipW -= dt) <= 0) { run.flipW = 0; run.flipT = FLIP_TIME; beep(220, 0.4, 'square', 0.05, -110); } }
   else if (run.flipT > 0) run.flipT = Math.max(0, run.flipT - dt);
+}
+// GLITCH variants: in the GLITCH SECTOR, and all through Endless once THE ABYSS is beaten, every boss is a glitched copy of
+// itself (a corrupted name, cyan and magenta ghosts, and every few seconds it skips: a flicker, then it's somewhere else),
+// and every zone's sky glitches now and then
+const glitchWorld = () => !!run && inRun() && (run.zone === 'glitch' || !!run.glitchy);
+const glitchName = s => s.replace(/[AEIO]/g, c => ({ A: '4', E: '3', I: '1', O: '0' })[c]);
+function glitchBoss(b) {
+  if (!glitchWorld() || b.glitch) return;
+  b.glitch = true; if (!b.title) b.title = glitchName(b.name);
+}
+function updateGlitchBoss(b, dt) {
+  if (b.dying > 0 || b.final || b.gimmick === 'doki' || b.charge || b.special || b.run || b.xf >= 0 || b.split || b.downed) return;
+  if (b.gwarn > 0) {
+    if ((b.gwarn -= dt) <= 0) {
+      burst(b.x, b.y, '#ff3df2', 20, 260);
+      b.x = Math.max(b.r, Math.min(W - b.r, b.x + (Math.random() - 0.5) * 320)); b.y = Math.max(80, Math.min(H * 0.45, b.y + (Math.random() - 0.5) * 120));
+      burst(b.x, b.y, '#7df9ff', 20, 260); beep(1800, 0.08, 'square', 0.03, -1500);
+    }
+  } else if ((b.gT = (b.gT ?? 4 + Math.random() * 3) - dt) <= 0) { b.gT = 5 + Math.random() * 3; b.gwarn = 0.45; }
+}
+function drawGlitchGhosts(b, rot, k) { // cyan and magenta copies of its outline, jittering (wildly just before it skips)
+  const j = b.gwarn > 0 ? 6 + Math.random() * 6 : 2 + (Math.random() < 0.05 ? 6 : 0);
+  ctx.save(); ctx.lineWidth = 2; ctx.shadowBlur = 0; ctx.globalAlpha *= 0.6;
+  ctx.strokeStyle = '#7df9ff'; ctx.translate(-j, 0); bossPath(b, b.r, rot, k); ctx.stroke();
+  ctx.strokeStyle = '#ff3df2'; ctx.translate(j * 2, 1); bossPath(b, b.r, rot, k); ctx.stroke();
+  ctx.restore();
+}
+function drawGlitchCorruption() { // (Endless after THE ABYSS: blocks of corrupted color blink over every zone's sky)
+  if (settings.lowfx || Math.random() > 0.12) return;
+  ctx.save(); ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,61,242,0.14)' : 'rgba(125,249,255,0.14)';
+  ctx.fillRect(Math.random() * W, Math.random() * H, 30 + Math.random() * 200, 3 + Math.random() * 24);
+  if (Math.random() < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(0, Math.random() * H, W, 2); }
+  ctx.restore();
 }
 // what the glitches look like: the strip's warning and its tear, and the flipped-controls banner
 function drawGlitchFx() {
@@ -10999,6 +11040,7 @@ function drawBackground() {
   else if (z === 'prism') drawCrystals(t);
   else if (z === 'glitch') drawGlitchSky(t);
   drawScenery(z);
+  if (z !== 'glitch' && glitchWorld()) drawGlitchCorruption();
 }
 // GLITCH SECTOR: a faint grid, columns of falling data, and blocks of corrupted color that blink in and out
 function drawGlitchSky(t) {
@@ -11355,6 +11397,7 @@ function packSnap() {
     pp: popups.map(p => [Math.round(p.x), Math.round(p.y), p.text, r2(p.life), p.hot ? 1 : 0, p.color || 0, p.dn || 0]), ks: [run.kills || 0, Math.round(run.dmgDone || 0)],
     lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
     td: [r2(run.tide || 0), r2(run.tideW || 0)], // (EVENT HORIZON's gravity tide: guests pull their own ships)
+    gw: run.glitchy ? 1 : 0,
     gl: [r2(run.flipW || 0), r2(run.flipT || 0), run.tear ? [run.tear.y, run.tear.h, r2(run.tear.t), run.tear.dx] : 0], // (GLITCH SECTOR: flipped controls, and a tear)
     pc: run.dokiMet ? 0 : run.pinkCoins || 0, // (pink coins found so far)
     ev: net.events.splice(0),
@@ -11374,7 +11417,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gwarn']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -11682,6 +11725,7 @@ function applySnap(s) {
   run.route = s.rh || run.route; run.routeOpts = s.ro; net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
   run.curses = Object.fromEntries(cleanCurses(s.cu).map(id => [id, true])); // (the host's curses)
   if (Array.isArray(s.td)) { run.tide = num(s.td[0], 0, TIDE_T, 0); run.tideW = num(s.td[1], 0, TIDE_WARN, 0); }
+  run.glitchy = s.gw === 1;
   if (Array.isArray(s.gl)) {
     run.flipW = num(s.gl[0], 0, GLITCH_WARN, 0); run.flipT = num(s.gl[1], 0, FLIP_TIME, 0);
     const g = s.gl[2]; run.tear = Array.isArray(g) ? { y: num(g[0], 0, 5000, 0), h: num(g[1], 0, 400, 80), t: num(g[2], 0, 5, 0), dx: num(g[3], -5000, 5000, 0) } : null;

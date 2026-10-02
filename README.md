@@ -141,7 +141,9 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 - **Derelict Fleet:** old turrets shoot at everything, enemies included.
 - **Prism Reach:** prisms split every shot in three, yours and theirs.
 
-**The Glitch Sector:** a secret zone. Beat THE ABYSS in a Standard run and press the (very glitchy) **CONTINUE INTO ENDLESS** button, and Endless starts right there. Once you've beaten ZERO, it can also show up on the route map. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. Its song is **Normal World**, made by the game's creator.
+**The Glitch Sector:** a secret zone. Beat THE ABYSS in a Standard run and press the (very glitchy) **CONTINUE INTO ENDLESS** button, and Endless starts right there. Once you've beaten ZERO, it can also show up on the route map. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. Its song is **Normal World**, made by the game's creator. It sends fewer enemies than other zones (its glitches are the danger), and gives you a few calm seconds when you arrive.
+
+**GLITCH variants:** in the Glitch Sector, and all through Endless once you've beaten THE ABYSS, every boss is a glitched copy of itself: a corrupted name (THE WARDEN becomes TH3 W4RD3N), cyan and magenta ghosts around it, and every few seconds it flickers and skips to somewhere else. In that Endless, every zone's sky glitches now and then too.
 
 **Elite zones:** from cycle 2 of Endless, every zone gets a second hazard on top of its own:
 - **Deep Space:** Starfall, with falling stars down marked columns.
