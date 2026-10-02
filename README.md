@@ -18,6 +18,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
+- **Phones and tablets:** drag anywhere to fly (your ship sits just above your finger). The round button in the bottom right uses your ability, **II** in the top left pauses, and **⛶** on the menu goes fullscreen. Your phone buzzes when you get hit.
 - **Ability:** Space, Q, E, Shift or right-click (gamepad: A, X or a right bumper/trigger; touch screens get a button)
 - **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
 - **Online:** **Esc** opens your own menu while the game keeps going for everyone (settings, leave game). The host's menu also has **PAUSE FOR EVERYONE** (or press **P**).

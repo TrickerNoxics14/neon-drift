@@ -2,11 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05050f">
 <title>Neon Drift</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #05050f; overflow: hidden; font-family: system-ui, sans-serif; color: #fff; }
-  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  html, body { margin: 0; height: 100%; background: #05050f; overflow: hidden; font-family: system-ui, sans-serif; color: #fff;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; } /* (dvh: phones' address bars don't cut off the bottom) */
 </style>
 </head>
 <body>
@@ -1454,10 +1458,14 @@ const hitButton = (x, y) => buttons.findIndex(b => x >= b.x && x <= b.x + b.w &&
 // (pointer positions are converted to world coordinates, which differ from the screen for scaled online guests)
 cv.addEventListener('contextmenu', e => e.preventDefault()); // (right-click is an ability button)
 let abTouchId = null; // the finger on the on-screen ability button (it mustn't steer the ship)
+let touchMode = false; // (playing with a finger: the on-screen pause and ability buttons show)
 cv.addEventListener('pointerdown', e => {
   const w = toWorld(e.clientX, e.clientY);
+  touchMode = e.pointerType !== 'mouse';
   ensureAudio();
   if (state === 'play' && !paused && !menuOpen && run) {
+    if (e.pointerType !== 'mouse' && touchPauseHit(w.x, w.y)) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
+    if (skipAbyssIntro()) return; // (a tap skips THE ABYSS's entrance, once you've seen it)
     const chip = dokiChips.find(c => w.x >= c.x && w.x <= c.x + c.w && w.y >= c.y && w.y <= c.y + c.h);
     if (chip && dokiAsking()) { answerDoki(chip.k); return; } // (answering DOKI DOLL by clicking)
     const mk = mouseOwner();
@@ -1884,6 +1892,8 @@ const mouseOwner = () => localSchemes().findIndex(sc => sc.includes('mouse'));
 // the round button for touch screens (bottom-right corner)
 const touchAb = () => ({ x: W - 64, y: H - 96, r: 40 });
 const touchAbHit = (x, y) => { const b = touchAb(); return Math.hypot(x - b.x, y - b.y) < b.r + 12; };
+const touchPause = () => ({ x: 38, y: 136, r: 20 }); // (under the score, out of the way of your steering finger)
+const touchPauseHit = (x, y) => { const b = touchPause(); return Math.hypot(x - b.x, y - b.y) < b.r + 10; };
 // which way a player is heading (for DASH): the keys or stick, else toward the mouse, else the way they were flying
 function abilityDir(p) {
   const { dx, dy, usePointer } = controlsFor(p);
@@ -5136,7 +5146,7 @@ function revive(p, by, earned) {
 
 // red screen edges for whoever got hit (online, each player only sees their own)
 function flashHurt(p, amount) {
-  if (!p.remote) hurtFlash = Math.max(hurtFlash, amount);
+  if (!p.remote) { hurtFlash = Math.max(hurtFlash, amount); if (touchMode) navigator.vibrate?.(40); }
   netRec(['h', p.id, amount]);
 }
 
@@ -8934,12 +8944,18 @@ function drawHUD() {
     else if (curse('powerless')) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
     else { // the ship's ability, and when it's ready
       const ab = abilityOf(p), ready = p.abCd <= 0;
-      ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name + '  ·  ', W - 16 - ctx.measureText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`).width, y + 26);
+      if (W >= 480) ctx.fillStyle = hexA(p.color, 0.55), ctx.fillText(p.ship.name + '  ·  ', W - 16 - ctx.measureText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`).width, y + 26);
       ctx.fillStyle = ready ? p.color : '#778'; ctx.fillText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`, W - 16, y + 26);
     }
   });
   // touch screens: the ability button for the player steering with their finger
-  if (pointer?.touch && state === 'play' && !paused && !curse('powerless')) {
+  if (touchMode && state === 'play' && !paused && !menuOpen) { // the pause button (online: your own menu)
+    const { x, y, r } = touchPause();
+    ctx.save(); ctx.globalAlpha = 0.75; ctx.fillStyle = 'rgba(10,12,28,0.7)'; ctx.strokeStyle = '#9ab'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#dfe8ff'; ctx.fillRect(x - 6, y - 7, 4, 14); ctx.fillRect(x + 2, y - 7, 4, 14); ctx.restore();
+  }
+  if (touchMode && state === 'play' && !paused && !menuOpen && !curse('powerless')) {
     const mk = mouseOwner(), p = players[net.role ? net.mine[mk] : mk];
     if (p?.alive) {
       const { x, y, r } = touchAb(), ready = p.abCd <= 0;
@@ -9266,14 +9282,21 @@ function drawMenu() {
   button('4-PLAYER CO-OP  [4]', bx, cy + gap * 3, bw, bh, '#c08dff', () => openShipSelect(4));
   button('ONLINE CO-OP  🌐  [N]', bx, cy + gap * 4, bw, bh, '#5dffc8', () => go('online'));
   const sw = (bw - 16) / 3, ry = cy + gap * 5;
+  if (touchMode) button('⛶', W - 58, 12, 46, 40, '#9ab', toggleFullscreen); // (phones and tablets: no F key)
   button('HANGAR [H]', bx, ry, sw, bh, '#ffe93d', () => go('hangar'));
   button('TROPHIES [T]', bx + sw + 8, ry, sw, bh, '#ffb13d', () => go('achievements'));
   button('SETTINGS [O]', bx + (sw + 8) * 2, ry, sw, bh, '#9ab', () => go('settings'));
   fitText(`◆ ${meta.shards} shards   ·   ★ ${achCount()} / ${ACHIEVEMENTS.length} trophies`, ry + bh + 22, 14, '#ffe93d', 'bold');
   const ty = ry + bh + 52;
-  fitText('2P: P1 = WASD · P2 = Arrows or mouse', ty, 13, '#789');
-  fitText('3P: P1 = Mouse · P2 = WASD · P3 = Arrows', ty + 20, 13, '#789');
-  fitText('4P: P1 = Mouse · P2 = WASD · P3 = Arrows · P4 = IJKL  ·  Gamepads work too', ty + 40, 13, '#789');
+  if (touchMode) { // (on a phone or tablet: how to play with a finger)
+    fitText('Drag anywhere to fly: your ship sits just above your finger', ty, 13, '#789');
+    fitText('Tap the round button (bottom right) for your ability', ty + 20, 13, '#789');
+    fitText('II (top left) pauses  ·  ⛶ (top right) goes fullscreen', ty + 40, 13, '#789');
+  } else {
+    fitText('2P: P1 = WASD · P2 = Arrows or mouse', ty, 13, '#789');
+    fitText('3P: P1 = Mouse · P2 = WASD · P3 = Arrows', ty + 20, 13, '#789');
+    fitText('4P: P1 = Mouse · P2 = WASD · P3 = Arrows · P4 = IJKL  ·  Gamepads work too', ty + 40, 13, '#789');
+  }
   fitText('Pick upgrades each sector. Die, earn shards, buy permanent unlocks. Go again.', ty + 64, 13, '#567');
 }
 
@@ -9698,6 +9721,7 @@ function drawGallery() {
   title('BOSS GALLERY', 52, '#ff8d5d', 40);
   const list = galleryEntries(), log = meta.bossLog, beaten = list.filter(e => log[e.name]?.beat).length;
   fitText(`${beaten} / ${list.length} beaten  ·  [R] ${galleryRage ? 'normal forms' : 'rage & super forms'}`, 90, 14, '#ffb08d', 'bold');
+  if (galleryPick < 0) buttons.push({ x: W / 2 - 160, y: 78, w: 320, h: 26, action: () => { galleryRage = !galleryRage; } }); // (tap the line to switch, too)
   const cols = W >= 900 ? 7 : W >= 640 ? 5 : 3, gap = 8, rows = Math.ceil(list.length / cols);
   const cw = Math.min(130, (W - 32 - gap * (cols - 1)) / cols), ch = Math.max(70, Math.min(116, (H - 180) / rows - gap));
   const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 112, t = performance.now() / 1000;
@@ -11608,7 +11632,7 @@ function replayEvent(ev) {
     case 's': beep(num(ev[1], 20, 8000, 440), num(ev[2], 0.01, 3, 0.1), OSC_TYPES.includes(ev[3]) ? ev[3] : 'square', num(ev[4], 0, 0.2, 0.05), num(ev[5], -8000, 8000, 0)); break;
     case 'o': showToast(String(ev[1]).slice(0, 120)); break;
     case 'gs': if (typeof ev[1] === 'string') noteGoldShard(ev[1]); break; // (a golden shard: found for everyone)
-    case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
+    case 'h': if (isMine(ev[1])) { hurtFlash = Math.max(hurtFlash, ev[2]); if (touchMode) navigator.vibrate?.(40); } break;
     case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
     case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
     case 'a': // an ability's beam or dash trail
