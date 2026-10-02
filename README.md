@@ -11,6 +11,8 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 3. Everyone else clicks **ONLINE CO-OP → BROWSE PUBLIC GAMES** and picks the room, or **JOIN WITH A CODE** and types the code. Sharing a computer? Set **PLAYERS ON THIS PC** first (they split the keyboard like local co-op).
 4. Pick your ship right in the lobby (**CHANGE MY SHIP**) — the host presses **START**. Public games can be joined even after they start.
 
+Online play checks everything other players send. Nobody can control someone else's ship, crash the game with bad data, mess with your shards, or remove other people's games from the public list. The online library is only run if it matches its known fingerprint.
+
 ## Controls
 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically

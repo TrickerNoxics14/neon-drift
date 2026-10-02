@@ -792,7 +792,7 @@ const META_ITEMS = [
 ];
 const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default' };
 let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } } };
-try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: m.shards || 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
+try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: Number.isFinite(m.shards) ? Math.max(0, m.shards) : 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } } }; } catch (e) {}
 const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
@@ -8419,11 +8419,36 @@ const SNAP_RATE = 0.05, INPUT_RATE = 0.033;
 const MAX_ONLINE = 8; // players in an online room (local co-op stays at 4)
 const TYPE_LIST = Object.keys(TYPES);
 
+// ----- checking what comes in from other computers -----
+// Anything another player sends could have been tampered with, so it's checked before the game uses it:
+// numbers must be real numbers in range, ships and cosmetics must exist, and list indexes must be in the list.
+const okIdx = (v, n) => Number.isInteger(v) && v >= 0 && v < n;
+const num = (v, lo, hi, def = lo) => typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
+const SHIP_IDS = new Set(SHIPS.flatMap(s => s.mk2 ? [s.id, s.id + '2'] : [s.id]));
+const cleanShip = id => SHIP_IDS.has(id) ? id : 'striker';
+function cleanCos(c) {
+  const o = { ...COS_DEFAULT };
+  if (c && typeof c === 'object') for (const cat in COS_DEFAULT) { const x = cosById(c[cat]); if (x && x.cat === cat) o[cat] = x.id; }
+  return o;
+}
+// each connection gets a budget of messages per second (plenty for 4 players on one computer); floods are dropped
+function overBudget(conn, perSec = 200) {
+  const now = performance.now();
+  conn._tok = Math.min(perSec, (conn._tok ?? perSec) + (now - (conn._tokT ?? now)) / 1000 * perSec); conn._tokT = now;
+  return --conn._tok < 0;
+}
+// a bad message must never break the game: it's dropped (and logged) instead
+function safely(fn) { try { fn(); } catch (e) { console.error('Ignored a bad network message:', e); } }
+
+// the online library, checked against its known fingerprint: if the copy on the CDN were ever changed, it won't run
+const PEER_SRC = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+const PEER_SRI = 'sha384-nlUQ8ZqCbvStErob+biJNzSgltf6urV3VGqhfIfzhmg9RXmpeRm76ELw0pYnKlTR';
 function loadPeer() {
   if (window.Peer) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+    s.integrity = PEER_SRI; s.crossOrigin = 'anonymous';
+    s.src = PEER_SRC;
     s.onload = () => resolve(); s.onerror = () => reject(new Error('load'));
     document.head.appendChild(s);
   });
@@ -8460,7 +8485,7 @@ async function hostGame() {
     peer.on('connection', conn => {
       // a guest says hello with how many players share their computer (and their ships); see onHello
       conn.on('open', () => { if (net.playing && !net.public) refuse(conn); });
-      conn.on('data', d => onHostData(conn, d));
+      conn.on('data', d => { if (!overBudget(conn)) safely(() => onHostData(conn, d)); });
       conn.on('close', () => onGuestLeft(conn));
     });
   };
@@ -8470,8 +8495,9 @@ function refuse(conn) { conn.send({ full: 1 }); setTimeout(() => conn.close(), 3
 // the host's own slots come first (one per player sharing the host's computer)
 const hostSlots = () => Array.from({ length: net.localN }, (_, k) => ({ ship: lastShips[k] || 'striker', cos: k === 0 ? meta.cos.eq : COS_DEFAULT }));
 function onHello(conn, h) {
-  if (conn.slots) return;
-  const n = Math.max(1, Math.min(4, h.n | 0)), ships = h.ships || [], slot = k => ({ ship: ships[k] || 'striker', cos: k === 0 && h.cos ? h.cos : COS_DEFAULT });
+  if (conn.slots || !h || typeof h !== 'object') return;
+  const n = Math.max(1, Math.min(4, h.n | 0)), ships = Array.isArray(h.ships) ? h.ships : [];
+  const slot = k => ({ ship: cleanShip(ships[k]), cos: k === 0 ? cleanCos(h.cos) : COS_DEFAULT });
   if (!net.playing) { // in the lobby: add their players to the end
     if (net.slots.length + n > MAX_ONLINE) { refuse(conn); return; }
     conn.slots = [];
@@ -8494,20 +8520,29 @@ function broadcastLobby() {
   for (const c of net.conns) if (c.slots) c.send({ lobby: { slots: net.slots, runType }, you: c.slots });
 }
 function onHostData(conn, d) {
+  if (!d || typeof d !== 'object') return;
   if (d.hello) { onHello(conn, d.hello); return; }
   if (!conn.slots) return;
-  const id = conn.slots[d.k || 0]; // which of their players this is about
-  if (d.ship && !net.playing && net.slots[id]) { net.slots[id].ship = d.ship; if (d.cos) net.slots[id].cos = d.cos; broadcastLobby(); }
+  const k = d.k ?? 0; // which of their players this is about — only ever one of their own
+  if (!okIdx(k, conn.slots.length)) return;
+  const id = conn.slots[k];
+  if (d.ship && !net.playing && net.slots[id]) { net.slots[id].ship = cleanShip(d.ship); if (d.cos) net.slots[id].cos = cleanCos(d.cos); broadcastLobby(); }
   if (!net.playing || !run) return;
   const p = players[id];
-  if (d.in && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
-    p.toff = clockOffset(p.toff, d.in[4]); (p.track ||= newTrack()); trackPush(p.track, d.in[4], d.in.slice(0, 4));
+  if (Array.isArray(d.in) && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
+    const [x, y, tilt, thrust, ts] = d.in;
+    if (typeof ts !== 'number' || !Number.isFinite(ts)) return;
+    p.toff = clockOffset(p.toff, ts); (p.track ||= newTrack());
+    trackPush(p.track, ts, [num(x, p.r, W - p.r, p.x), num(y, p.r, H - p.r, p.y), num(tilt, -1, 1, 0), num(thrust, 0, 1, 0)]); // (inside the arena)
   }
-  if (d.pick !== undefined && state === 'upgrade' && offer) pickUpgrade(d.pick);
-  if (d.route !== undefined && state === 'route') pickRoute(d.route);
-  if (d.reroll && state === 'upgrade') reroll();
-  if (d.buy !== undefined && state === 'shop' && shop) buyShop(d.buy);
-  if (d.emote !== undefined && p) { showEmote(id, d.emote); netRec(['e', id, d.emote]); }
+  if (state === 'upgrade' && offer && okIdx(d.pick, offer.cards.length)) pickUpgrade(d.pick);
+  if (state === 'route' && okIdx(d.route, run.routeOpts?.length || 0)) pickRoute(d.route);
+  if (d.reroll === 1 && state === 'upgrade' && offer) reroll();
+  if (state === 'shop' && shop && okIdx(d.buy, shop.items.length)) buyShop(d.buy);
+  if (p && okIdx(d.emote, EMOTES.length) && !((p.emoteCd || 0) > performance.now())) { // (no spamming)
+    p.emoteCd = performance.now() + 500; // (a little under the sender's own 700ms, for network jitter)
+    showEmote(id, d.emote); netRec(['e', id, d.emote]);
+  }
 }
 // host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
 function smoothRemotePlayers() {
@@ -8644,28 +8679,39 @@ async function joinGame(code) {
       net.status = 'Connected! Pick your ship — the host starts the game.';
       conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq } });
     });
-    conn.on('data', onGuestData);
+    conn.on('data', d => safely(() => onGuestData(d)));
     conn.on('close', () => { if (net.role === 'guest') leaveOnline('The host left the game'); });
   });
   peer.on('error', err => { net.status = err.type === 'peer-unavailable' ? `No game found with code ${code}` : 'Network problem: ' + err.type; });
 }
+// a sane world size from the host (anything else is ignored)
+const okSize = (w, h) => Number.isFinite(w) && Number.isFinite(h) && w >= 200 && h >= 200 && w <= 10000 && h <= 10000;
+const cleanMine = you => [].concat(you).filter(i => okIdx(i, MAX_ONLINE)).slice(0, 4);
 function onGuestData(d) {
+  if (!d || typeof d !== 'object') return;
   if (d.full) { leaveOnline('That game is full or already running'); return; }
   if (d.lobby) {
-    net.slots = d.lobby.slots; net.mine = [].concat(d.you); net.myId = net.mine[0]; runType = d.lobby.runType;
+    if (!Array.isArray(d.lobby.slots)) return;
+    net.slots = d.lobby.slots.slice(0, MAX_ONLINE).map(s => ({ ship: cleanShip(s?.ship), cos: cleanCos(s?.cos) }));
+    net.mine = cleanMine(d.you); net.myId = net.mine[0] ?? 0; if (RUN_TYPES.includes(d.lobby.runType)) runType = d.lobby.runType;
     if (net.playing) { net.playing = false; resize(); go('lobby'); }
     else if (state !== 'lobby' && !(state === 'ships' && shipPick?.online)) go('lobby'); // don't yank me out of the ship picker
   }
   if (d.start) {
-    if (d.start.you !== undefined) { net.mine = [].concat(d.start.you); net.myId = net.mine[0]; } // (slots may have been renumbered)
-    runType = d.start.runType; net.hostW = d.start.w; net.hostH = d.start.h;
+    const st = d.start, n = Math.max(1, Math.min(MAX_ONLINE, st.n | 0));
+    if (!okSize(st.w, st.h) || !Array.isArray(st.ships)) return;
+    if (st.you !== undefined) { net.mine = cleanMine(st.you); net.myId = net.mine[0] ?? 0; } // (slots may have been renumbered)
+    if (RUN_TYPES.includes(st.runType)) runType = st.runType;
+    net.hostW = st.w; net.hostH = st.h;
     net.playing = true; net.rewarded = false; resize();
     Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map() });
-    start(d.start.n, d.start.ships, d.start.cos);
+    const cos = Array.isArray(st.cos) ? st.cos : [];
+    start(n, Array.from({ length: n }, (_, i) => cleanShip(st.ships[i])), Array.from({ length: n }, (_, i) => cleanCos(cos[i])));
     players.forEach((p, i) => p.remote = !isMine(i));
   }
   if (d.addPlayer && net.playing && run) { // someone dropped into the game
-    const a = d.addPlayer, p = makePlayer(a.id, W / 2, a.ship, a.cos);
+    const a = d.addPlayer; if (!okIdx(a.id, MAX_ONLINE)) return;
+    const p = makePlayer(a.id, W / 2, cleanShip(a.ship), cleanCos(a.cos));
     p.remote = true; players[a.id] = p; mode = players.length;
   }
   if (d.snap && net.playing && run) applySnap(d.snap);
@@ -8694,8 +8740,8 @@ async function dirConnect() {
   serve.on('open', () => { dir.serving = true; dir.connecting = false; dir.status = ''; dirBeat(); });
   serve.on('connection', c => {
     dir.clients.add(c);
-    c.on('data', d => dirServe(c, d));
-    c.on('close', () => dir.clients.delete(c));
+    c.on('data', d => { if (!overBudget(c, 5)) safely(() => dirServe(c, d)); });
+    c.on('close', () => { dir.clients.delete(c); for (const [k, r] of dir.rooms) if (r.by === c) dir.rooms.delete(k); }); // (their rooms go with them)
   });
   serve.on('error', err => {
     if (err.type === 'unavailable-id') { serve.destroy(); dirJoin(config); }
@@ -8709,7 +8755,7 @@ function dirJoin(config) {
     const c = p.connect(DIR_ID, { reliable: true, serialization: 'json' });
     dir.conn = c;
     c.on('open', () => { dir.connecting = false; dir.status = ''; dirBeat(); });
-    c.on('data', d => { if (d.rooms) dir.list = d.rooms; });
+    c.on('data', d => safely(() => { if (Array.isArray(d?.rooms)) dir.list = d.rooms.slice(0, DIR_MAX).map(cleanRoom).filter(Boolean); }));
     c.on('close', () => dirReset(1 + Math.random() * 2)); // the directory left: reconnect (maybe take over)
   });
   p.on('error', err => { if (dir.peer === p) { dir.status = err.type === 'peer-unavailable' ? 'Looking for public games…' : 'Network problem: ' + err.type; dirReset(1 + Math.random() * 2); } });
@@ -8720,16 +8766,28 @@ function dirReset(wait = 0) {
   dir.clients.clear();
   try { p?.destroy(); } catch (e) {}
 }
-// directory side: remember rooms, answer list requests
+// a room on the list, with only the fields it should have (anything odd and it's dropped)
+const DIR_MAX = 40; // rooms the list holds at most
+function cleanRoom(r) {
+  if (!r || typeof r !== 'object' || typeof r.code !== 'string' || !new RegExp(`^\\d{${CODE_LEN}}$`).test(r.code)) return null;
+  const name = typeof r.name === 'string' ? r.name.replace(/[^\w ]/g, '').slice(0, 24).trim() : '';
+  return { code: r.code, name: name || 'Neon Room', n: Math.round(num(r.n, 0, MAX_ONLINE, 1)),
+    run: RUN_TYPES.includes(r.run) ? r.run : RUN_TYPES[0], playing: r.playing ? 1 : 0 };
+}
+// directory side: remember rooms, answer list requests. A room belongs to whoever listed it:
+// only they can update or remove it (c is null for the directory's own room)
 function dirServe(c, d) {
-  if (d.room) dir.rooms.set(d.room.code, { ...d.room, t: performance.now() });
-  if (d.unroom) dir.rooms.delete(d.unroom);
-  if (d.list && c.open) c.send({ rooms: dirRooms() });
+  if (!d || typeof d !== 'object') return;
+  const room = d.room && cleanRoom(d.room), old = room && dir.rooms.get(room.code);
+  if (room && (old ? old.by === c : dir.rooms.size < DIR_MAX && [...dir.rooms.values()].filter(r => r.by === c).length < 2))
+    dir.rooms.set(room.code, { ...room, by: c, t: performance.now() });
+  if (typeof d.unroom === 'string' && dir.rooms.get(d.unroom)?.by === c) dir.rooms.delete(d.unroom);
+  if (d.list && c?.open) c.send({ rooms: dirRooms() });
 }
 function dirRooms() {
   const now = performance.now();
   for (const [k, r] of dir.rooms) if (now - r.t > DIR_STALE * 1000) dir.rooms.delete(k);
-  return [...dir.rooms.values()].map(({ t, ...r }) => r);
+  return [...dir.rooms.values()].map(({ t, by, ...r }) => r);
 }
 // joinable rooms first (lobbies, then games in progress — public games can be joined mid-game), busiest first
 const roomOpen = r => r.n < MAX_ONLINE;
@@ -8787,6 +8845,7 @@ function clockOffset(prev, ts) {
 }
 
 function applySnap(s) {
+  if (!okSize(s.w, s.h)) return;
   if (s.w !== net.hostW || s.h !== net.hostH) { net.hostW = s.w; net.hostH = s.h; resize(); }
   net.soff = clockOffset(net.soff, s.ts); net.lastTs = s.ts;
   if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over' || s.st === 'route') sel = 0; state = s.st; }
@@ -8848,27 +8907,33 @@ function applySnap(s) {
   hint = s.hi ? { text: s.hi[0], life: s.hi[1] } : null;
   popups = s.pp.map(a => ({ x: a[0], y: a[1], text: a[2], life: a[3], hot: !!a[4], color: a[5] || undefined, dn: a[6] || 0 }));
   [run.kills, run.dmgDone] = s.ks || [0, 0];
-  for (const ev of s.ev) replayEvent(ev);
+  if (Array.isArray(s.ev)) for (const ev of s.ev.slice(0, 400)) replayEvent(ev); // (a flood of effects is cut short)
   if (net.rewarded && state !== 'over') { net.rewarded = false; run.paid = (run.paid || 0) + run.earned; } // the host carried on into Endless
   if (state === 'over' && !net.rewarded) { // guests earn shards too
     net.rewarded = true;
-    run.earned = Math.max(0, runShards() - (run.paid || 0));
+    // (worked out from the host's numbers, so a broken or tampered host can't wipe or flood my shards)
+    run.earned = Math.round(num(runShards() - num(run.paid, 0, GUEST_SHARD_CAP, 0), 0, GUEST_SHARD_CAP, 0));
     meta.shards += run.earned; saveMeta();
   }
 }
+const GUEST_SHARD_CAP = 20000; // far more than any real run pays
+const OSC_TYPES = ['sine', 'square', 'sawtooth', 'triangle'];
+// effects the host asks for: sizes, counts and volumes are kept to what the game itself ever uses
 function replayEvent(ev) {
+  if (!Array.isArray(ev)) return;
   switch (ev[0]) {
-    case 'b': burst(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
+    case 'b': burst(ev[1], ev[2], ev[3], num(ev[4], 0, 200, 20), num(ev[5], 0, 2000, 250)); break;
     case 'e': if (!isMine(ev[1])) showEmote(ev[1], ev[2]); break; // a teammate's quick chat
-    case 'r': fxRing(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6], ev[7], ev[8]); break;
-    case 't': fxText(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
-    case 'g': bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: ev[4], r: ev[5], color: ev[6], life: ev[7], max: ev[7], shape: ev[8], t: ev[9] }); break;
+    case 'r': if (bossFx.rings.length < 120) fxRing(ev[1], ev[2], ev[3], ev[4], num(ev[5], 0, 10, 0.5), ev[6], ev[7], num(ev[8], 0, 10, 0)); break;
+    case 't': if (bossFx.texts.length < 40) fxText(String(ev[1]).slice(0, 80), ev[2], ev[3], ev[4], num(ev[5], 6, 120, 28), num(ev[6], 0, 10, 1.6)); break;
+    case 'g': if (bossFx.ghosts.length < 60) bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: num(ev[4], 3, 16, 6), r: ev[5], color: ev[6],
+      life: num(ev[7], 0, 5, 0.5), max: num(ev[7], 0.01, 5, 0.5), shape: ev[8], t: ev[9] }); break;
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
-    case 's': beep(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
-    case 'o': showToast(ev[1]); break;
+    case 's': beep(num(ev[1], 20, 8000, 440), num(ev[2], 0.01, 3, 0.1), OSC_TYPES.includes(ev[3]) ? ev[3] : 'square', num(ev[4], 0, 0.2, 0.05), num(ev[5], -8000, 8000, 0)); break;
+    case 'o': showToast(String(ev[1]).slice(0, 120)); break;
     case 'h': if (isMine(ev[1])) hurtFlash = Math.max(hurtFlash, ev[2]); break;
-    case 'd': shatterFx(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6]); break;
-    case 'k': shardsAt(ev[1], ev[2], ev[3], ev[4], ev[5]); break;
+    case 'd': shatterFx(ev[1], ev[2], ev[3], num(ev[4], 0, 16, 6), ev[5], ev[6]); break;
+    case 'k': shardsAt(ev[1], ev[2], ev[3], num(ev[4], 0, 40, 6), ev[5]); break;
   }
 }
 // a guest's frame: move my own ship, glide everything else along until the next snapshot, run local effects
@@ -9126,21 +9191,29 @@ function heartbeat(dt) {
   if (!mine.some(p => p?.alive && p.lives === 1 && maxLivesOf(p) > 1)) { beatT = 0; return; }
   if ((beatT -= dt) <= 0) { beatT = 0.9; beep(58, 0.12, 'sine', 0.09, -8); setTimeout(() => beep(50, 0.14, 'sine', 0.07, -8), 150); }
 }
+let loopErrors = 0;
 function loop(now) {
+  requestAnimationFrame(loop); // (asked for first, so one bad frame can never stop the game for good)
   // cap big hitches (tab switches) without slowing the game down on 30-50fps machines
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
-  if (raw > 0) fps += (1 / raw - fps) * 0.05; // (smoothed, for SHOW FPS)
-  if (raw < 1) autoPerf(raw); // (ignore the huge gap after switching tabs)
-  heartbeat(dt);
-  dirTick(dt); // public lobby list
-  if (net.role === 'guest' && net.playing) guestFrame(dt);
-  else {
-    if (net.role === 'host' && net.playing && run) smoothRemotePlayers();
-    update(dt);
-    if (net.role === 'host' && net.playing && run) hostTick(dt);
+  try {
+    if (raw > 0) fps += (1 / raw - fps) * 0.05; // (smoothed, for SHOW FPS)
+    if (raw < 1) autoPerf(raw); // (ignore the huge gap after switching tabs)
+    heartbeat(dt);
+    dirTick(dt); // public lobby list
+    if (net.role === 'guest' && net.playing) guestFrame(dt);
+    else {
+      if (net.role === 'host' && net.playing && run) smoothRemotePlayers();
+      update(dt);
+      if (net.role === 'host' && net.playing && run) hostTick(dt);
+    }
+    draw();
+  } catch (e) {
+    if (loopErrors++ < 5) console.error(e); // (don't flood the console if it keeps happening)
+    // a crash halfway through drawing can leave the canvas clipped or moved: start the next frame clean
+    if (ctx.reset) ctx.reset(); else cv.width = cv.width;
+    ctx.setTransform(DPR * net.vs, 0, 0, DPR * net.vs, DPR * net.vx, DPR * net.vy);
   }
-  draw();
-  requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 </script>
