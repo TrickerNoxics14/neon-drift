@@ -1251,8 +1251,17 @@ function leaveShop() {
 
 // ---------- screens & buttons ----------
 let state = 'menu', paused = false;
+// online, Esc opens a menu just for you while the game keeps going for everyone (menuOpen); the host can still pause
+// everyone (paused, which reaches the guests through the snapshots)
+let menuOpen = false;
 let buttons = [], sel = 0;
-function go(s) { state = s; sel = 0; buttons = []; }
+function go(s) { state = s; sel = 0; buttons = []; menuOpen = false; }
+function toggleMenu() { menuOpen = !menuOpen; pauseView = 'main'; sel = 0; }
+function forcePause(on) { // (the host only)
+  if (net.role === 'guest') return;
+  paused = on; menuOpen = false; pauseView = 'main'; sel = 0;
+  netRec(['o', on ? 'The host paused the game' : 'The host resumed the game']);
+}
 const inRun = () => state === 'play' || state === 'upgrade' || state === 'shop' || state === 'route'; // in a run (the world is on screen)
 function moveSel(d) { if (buttons.length) sel = (sel + d + buttons.length) % buttons.length; }
 function activate() { buttons[sel]?.action(); }
@@ -1269,15 +1278,22 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') { toggleSetting('music'); showToast(settings.music ? 'MUSIC ON' : 'MUSIC OFF'); return; }
   if (e.code === 'KeyF' && state !== 'joinCode') { toggleFullscreen(); return; }
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
-  if (state === 'play' && !paused && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
+  const inMenu = paused || menuOpen; // (paused, or online, a menu of your own while the game keeps going)
+  if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
-    if (paused && pauseView === 'settings' && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
-    if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
-    if (paused && e.code === 'KeyR') { restartRun(); return; }
-    if (!paused && /^Digit[1-4]$/.test(e.code)) { sendEmote(+e.code.slice(5) - 1); return; } // quick chat
-    if (!paused) { const k = abilityKeyOwner(e.code); if (k >= 0) localAbility(k); return; } // ship abilities
-    if (!paused) return;
-    // fall through: arrows/WASD/Enter drive the pause menu
+    if (inMenu && pauseView === 'settings' && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
+    if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
+      if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
+      if (e.code === 'KeyP') { if (net.role === 'host') forcePause(!paused); return; }
+    } else if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
+    if (inMenu && e.code === 'KeyR' && net.role !== 'guest') { restartRun(); return; }
+    if (!inMenu && /^Digit[1-4]$/.test(e.code)) { // quick chat (or, while DOKI DOLL is asking, an answer)
+      const k = +e.code.slice(5) - 1;
+      if (dokiAsking()) answerDoki(k); else sendEmote(k);
+      return;
+    }
+    if (!inMenu) { const k = abilityKeyOwner(e.code); if (k >= 0) localAbility(k); return; } // ship abilities
+    // fall through: arrows/WASD/Enter drive the menu
   }
   if (['ArrowLeft', 'ArrowUp', 'KeyA', 'KeyW'].includes(e.code)) moveSel(-1);
   if (['ArrowRight', 'ArrowDown', 'KeyD', 'KeyS'].includes(e.code)) moveSel(1);
@@ -1330,7 +1346,7 @@ addEventListener('keydown', e => {
 });
 // pause automatically if you switch tabs or windows mid-run
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (state === 'play' && !paused) { paused = true; sel = 0; } ac?.suspend(); saveMeta(); }
+  if (document.hidden) { if (state === 'play' && !paused) { if (net.playing) menuOpen = true; else paused = true; sel = 0; } ac?.suspend(); saveMeta(); } // (online: just your own menu, the game goes on)
   else ac?.resume();
 });
 let toast = null;
@@ -1343,21 +1359,21 @@ let abTouchId = null; // the finger on the on-screen ability button (it mustn't 
 cv.addEventListener('pointerdown', e => {
   const w = toWorld(e.clientX, e.clientY);
   ensureAudio();
-  if (state === 'play' && !paused && run) {
+  if (state === 'play' && !paused && !menuOpen && run) {
     const chip = dokiChips.find(c => w.x >= c.x && w.x <= c.x + c.w && w.y >= c.y && w.y <= c.y + c.h);
-    if (chip) { sendEmote(chip.k); return; } // (answering DOKI DOLL by clicking)
+    if (chip && dokiAsking()) { answerDoki(chip.k); return; } // (answering DOKI DOLL by clicking)
     const mk = mouseOwner();
     if (e.pointerType !== 'mouse' && mk >= 0 && touchAbHit(w.x, w.y)) { abTouchId = e.pointerId; localAbility(mk); return; }
     if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
   }
   pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
-  if (state !== 'play' || paused) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
+  if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
 });
 cv.addEventListener('pointermove', e => {
   if (e.pointerId === abTouchId) return;
   const w = toWorld(e.clientX, e.clientY);
   if (pointer || e.pointerType === 'mouse') pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
-  if (state !== 'play' || paused) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
+  if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
 });
 // paste a room code
 document.addEventListener('paste', e => {
@@ -1482,12 +1498,17 @@ const DOKI_POSSESSED = ['hearts', 'tantrum', 'charge', 'paws', 'yarn', 'kisses',
 const PINK_DROP = 0.006, PINK_NEED = 3; // (chance per kill of a pink coin; coins needed)
 // how much each thing moves her meter (0-1), how long she waits for an answer, how close counts as a graze
 const DOKI_GRAZE = 0.007, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 5, GRAZE_R = 20;
-// [what she asks, the quick chat that charms her (0 HELP!, 1 REVIVE ME!, 2 ON MY WAY, 3 NICE!), only once she's possessed]
+// [what she asks, four answers (keys 1-4, or click one), which answer charms her, only once she's possessed (the creepy ones)]
 const DOKI_ASKS = [
-  ['Do you think I\'m cute?~', 3], ['Come here and play with me!', 2], ['Are you scared of me?~', 0],
-  ['Is my cuteness too much for you?', 1], ['Isn\'t my bow pretty?', 3],
-  ['Will you stay with me... FOREVER?', 2, true], ['Say I\'m CUTE.', 3, true], ['You\'re not scared... are you?', 0, true],
-  ['Can you even breathe right now?', 1, true]];
+  ['Do you think I\'m cute?~', ['You\'re adorable!', 'Not really.', 'Who even are you?', 'I\'m kind of busy...'], 0],
+  ['Come here and play with me!', ['Maybe later...', 'Sure, let\'s play!', 'No way!', 'Go away.'], 1],
+  ['Are you scared of me?~', ['Of a doll? Ha!', 'A little...', 'Terrified!', 'No, you\'re sweet!'], 3],
+  ['Isn\'t my bow pretty?', ['It\'s okay, I guess.', 'What bow?', 'It\'s so pretty!', 'It\'s crooked.'], 2],
+  ['Do you want to be my friend?', ['Of course I do!', 'I have enough friends.', 'Ew, no.', 'Do I have a choice?'], 0],
+  ['Will you stay with me... FOREVER?', ['No thanks!', 'Forever and ever ♥', 'Let me GO!', 'HELP!'], 1, true],
+  ['Say I\'m CUTE.', ['...Make me.', 'You\'re the cutest!', 'No.', '...'], 1, true],
+  ['You\'re not scared... are you?', ['Y-yes!!', 'A little...', 'Never! You\'re my friend.', 'Please stop.'], 2, true],
+  ['Why won\'t you love me?', ['But I do! ♥', 'You\'re scary!', 'You\'re a DOLL.', 'Leave me alone!'], 0, true]];
 const DOKI_HEARTS = ['#ff4fa3', '#ff9ccf']; // (enemy bullets in these colors are drawn as hearts, on guests' screens too)
 // where her heart breaks once she's possessed: [down the heart (from its notch at -0.4 to its tip at 0.85), sideways], in heart sizes
 const DOKI_CRACK = [[-0.4, 0], [-0.18, 0.09], [0.04, -0.07], [0.26, 0.08], [0.5, -0.06], [0.68, 0.05], [0.85, 0]];
@@ -2175,7 +2196,11 @@ function spawnEnemy() {
     a.mate = b; b.mate = a;
   } else {
     const r = TYPES[type].r;
-    const e = makeEnemy(type, r + Math.random() * (W - r * 2), -r * 2);
+    // (not right on top of the last few that came in: they spread out across the top)
+    const recent = run.spawnXs ||= [], s = spreadSpot(recent.map(x => [x, 0]), Math.min(110, W / 6), () => [r + Math.random() * (W - r * 2), 0]);
+    const x = s ? s[0] : r + Math.random() * (W - r * 2);
+    recent.unshift(x); if (recent.length > 3) recent.pop();
+    const e = makeEnemy(type, x, -r * 2);
     if (level >= 3 && Math.random() < eliteChance()) makeElite(e);
   }
 }
@@ -2973,7 +2998,15 @@ const firepowerHp = secs => (run.dpsEst || 0) * BOSS_HIT_RATE * secs * (1 + 0.3 
 // +40% per fight through the first cycle, then a gentler +20% so endless stays beatable
 const bossBaseHp = () => 180 * Math.pow(1.4, Math.min(bossCount - 1, BOSS_CYCLE - 1)) * Math.pow(1.2, Math.max(0, bossCount - BOSS_CYCLE))
   * (1 + 0.4 * (mode - 1)) * (1 + 0.3 * mut('titans'));
+// a boss arrives: every enemy still flying blows up (and their bullets fizzle), so it's just you, the boss and its minions
+function clearForBoss() {
+  for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost) { burst(e.x, e.y, e.color, 14, 240); if (bossFx.rings.length < 40) fxRing(e.x, e.y, 4, e.r * 2.5, 0.3, e.color, 3); }
+  for (const b of eBullets) if (Math.random() < 0.3) burst(b.x, b.y, b.color || '#ff8080', 2, 80);
+  enemies = []; eBullets = []; lasers = []; run.hail = null;
+  shake = Math.max(shake, 10); beep(140, 0.5, 'sawtooth', 0.06, -60);
+}
 function spawnEncounter() {
+  clearForBoss();
   const e = encounterDef(bossCount);
   const loop = Math.floor((bossCount - 1) / BOSS_CYCLE); // tougher each cycle
   const baseHp = bossBaseHp();
@@ -3518,10 +3551,22 @@ function dokiGraze(b, p) {
     beep(1500 + Math.random() * 400, 0.04, 'sine', 0.02);
   }
 }
-// a quick chat (1-4) while she's asking something: the right one charms her, the wrong one sets off a tantrum
-function dokiAnswer(k) {
+// is she waiting for an answer? (then keys 1-4 answer her instead of sending a quick chat; works on guests too)
+const dokiAsking = () => bosses.some(b => b.gimmick === 'doki' && b.ask && b.dying <= 0 && DOKI_ASKS[b.ask[0]]);
+// a player on this computer picks answer k (key 1-4, or a click): the host judges it
+function answerDoki(k) {
+  const id = net.role ? net.mine[0] : 0, p = players[id];
+  if (!p || (p.ansCd || 0) > performance.now()) return;
+  p.ansCd = performance.now() + 400;
+  if (net.role === 'guest') net.host?.send({ dokiAns: k }); else dokiAnswer(k, id);
+}
+// what player `id` answered (shown over their ship for everyone): the right answer charms her, a wrong one sets off a tantrum
+function dokiAnswer(k, id) {
   const b = dokiBoss(); if (!b?.ask) return;
-  const right = DOKI_ASKS[b.ask[0]][1] === k, fast = b.ask[1] > DOKI_ASK_T * 0.5;
+  const ask = DOKI_ASKS[b.ask[0]], p = players[id];
+  if (!ask || !okIdx(k, 4)) return;
+  if (p) fxText(`"${ask[1][k]}"`, p.x, Math.max(30, p.y - 46), p.color, 15, 1.6);
+  const right = ask[2] === k, fast = b.ask[1] > DOKI_ASK_T * 0.5;
   b.ask = null; b.askT = 5 + Math.random() * 3;
   if (right) {
     dokiAdd(b, DOKI_RIGHT + (fast ? 0.04 : 0));
@@ -3833,7 +3878,7 @@ const GIMMICKS = {
           dokiAdd(b, -DOKI_IGNORED); dokiSay(b, randomOf(['...hello?!', 'Are you IGNORING me?!', 'Rude...']), false);
         }
       } else if ((b.askT = (b.askT ?? 3) - dt) <= 0) { // a new question (creepier ones once she's possessed)
-        const pool = DOKI_ASKS.map((q, i) => i).filter(i => !!DOKI_ASKS[i][2] === !!b.possessed && i !== b.lastAsk);
+        const pool = DOKI_ASKS.map((q, i) => i).filter(i => !!DOKI_ASKS[i][3] === !!b.possessed && i !== b.lastAsk);
         b.lastAsk = randomOf(pool); b.ask = [b.lastAsk, DOKI_ASK_T];
         beep(1320, 0.12, 'sine', 0.05); setTimeout(() => beep(1760, 0.12, 'sine', 0.05), 110);
       }
@@ -4670,7 +4715,7 @@ const CONTROLS = {
 function controlsFor(p) {
   let dx = 0, dy = 0;
   // online: remote players' ships are moved by their own computers; the local player gets every control
-  if (net.role && p.remote) return { dx: 0, dy: 0, usePointer: false };
+  if ((net.role && p.remote) || menuOpen) return { dx: 0, dy: 0, usePointer: false }; // (and your ship holds still while your menu is open)
   // (online, players sharing this computer split the keyboard like local co-op)
   const k = net.role ? net.mine.indexOf(p.id) : p.id, scheme = CONTROLS[net.role ? net.localN : mode]?.[k] || ['wasd', 'arrows', 'mouse'];
   if (scheme.includes('wasd')) { if (keys.KeyA) dx--; if (keys.KeyD) dx++; if (keys.KeyW) dy--; if (keys.KeyS) dy++; }
@@ -4692,10 +4737,10 @@ function update(dt) {
   padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
   padState.forEach((pad, i) => {
     if (!pad) return;
-    if (state === 'play' && !paused && pad.pressed && skipAbyssIntro()) return;
-    if (state === 'play' && pad.start) { paused = !paused; sel = 0; return; }
-    if (state === 'play' && !paused && pad.ab) localAbility(i); // (gamepad N is player N on this computer)
-    if (state !== 'play' || paused) { if (pad.nav) moveSel(pad.nav); if (pad.pressed || pad.start) activate(); }
+    if (state === 'play' && !paused && !menuOpen && pad.pressed && skipAbyssIntro()) return;
+    if (state === 'play' && pad.start) { if (!net.playing) { paused = !paused; sel = 0; } else if (paused) forcePause(false); else toggleMenu(); return; }
+    if (state === 'play' && !paused && !menuOpen && pad.ab) localAbility(i); // (gamepad N is player N on this computer)
+    if (state !== 'play' || paused || menuOpen) { if (pad.nav) moveSel(pad.nav); if (pad.pressed || pad.start) activate(); }
   });
   if (state === 'menu') updateMenuMarks(dt);
 
@@ -7616,13 +7661,15 @@ function drawGimmick(b) {
       ctx.fillStyle = b.possessed ? '#ff5a70' : '#a0306a'; ctx.font = `${b.possessed ? 'bold italic' : 'bold'} 14px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(ask[0], bx + bw / 2 + jig, by + bh / 2, bw - 16);
       ctx.fillStyle = b.possessed ? '#ff3d6d' : '#ff6fd8'; ctx.fillRect(bx + 10, by + bh - 5, (bw - 20) * Math.max(0, b.ask[1] / DOKI_ASK_T), 2); // (time left)
-      const cw = Math.min(118, (W - 40) / 4 - 6), cx0 = Math.max(20, Math.min(W - 20 - (cw * 4 + 18), b.x - (cw * 4 + 18) / 2)), cy = by + bh + 10;
-      EMOTES.forEach(([text, col], i) => {
-        const x = cx0 + i * (cw + 6);
-        dokiChips.push({ x, y: cy, w: cw, h: 26, k: i });
+      // her four possible answers, two by two (keys 1-4, or click one)
+      const cw = Math.min(210, (W - 46) / 2), ch = 26, cx0 = Math.max(20, Math.min(W - 20 - (cw * 2 + 6), b.x - (cw * 2 + 6) / 2)), cy = by + bh + 10;
+      const col = b.possessed ? '#ff5a70' : '#ff9ccf';
+      ask[1].forEach((text, i) => {
+        const x = cx0 + (i % 2) * (cw + 6), y = cy + Math.floor(i / 2) * (ch + 6);
+        dokiChips.push({ x, y, w: cw, h: ch, k: i });
         ctx.fillStyle = 'rgba(10,12,28,0.88)'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.roundRect(x, cy, cw, 26, 8); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = col; ctx.font = 'bold 11px system-ui'; ctx.fillText(`${i + 1}  ${text}`, x + cw / 2, cy + 13, cw - 8);
+        ctx.beginPath(); ctx.roundRect(x, y, cw, ch, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#ffe6f2'; ctx.font = 'bold 12px system-ui'; ctx.fillText(`${i + 1}   ${text}`, x + cw / 2, y + ch / 2, cw - 10);
       });
       break;
     }
@@ -8079,14 +8126,14 @@ function drawHUD() {
     ctx.font = `900 ${Math.min(56, W / 9)}px system-ui`; ctx.fillText(info.team ? 'TEAM BOSS' : 'WARNING', W / 2, H / 2 - 14);
     ctx.shadowBlur = 0; fitText(`${info.name} APPROACHING${info.final ? ' — FINAL BOSS' : ''}`, H / 2 + 30, 16, '#ffb0bb');
   }
-  if (hint && !paused) {
+  if (hint && !paused && !menuOpen) {
     ctx.save(); ctx.globalAlpha = Math.min(1, hint.life);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '15px system-ui'; ctx.fillStyle = '#cde';
     wrap(hint.text, Math.min(620, W - 40)).forEach((l, i) => ctx.fillText(l, W / 2, H * 0.62 + i * 20));
     ctx.restore();
   }
-  if (paused) drawPause();
+  if (paused || (menuOpen && state === 'play')) drawPause();
 }
 
 const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'],
@@ -8110,25 +8157,37 @@ function restartRun() {
   paused = false; pauseView = 'main';
   if (net.role === 'host') startOnline(); else start(mode, run.ships);
 }
+// the pause screen (playing alone or on one computer), and online, your own menu: the game keeps going for everyone
+// while it's open, unless the host pauses everyone
 function drawPause() {
-  ctx.fillStyle = 'rgba(3,3,12,0.78)'; ctx.fillRect(0, 0, W, H);
-  if (net.role === 'guest') { title('PAUSED BY HOST', 90, '#7df9ff', 40); drawBuildPanel((W - Math.min(520, W - 32)) / 2, 130, Math.min(520, W - 32)); return; }
+  const online = net.playing, guest = net.role === 'guest';
+  ctx.fillStyle = paused ? 'rgba(3,3,12,0.78)' : 'rgba(3,3,12,0.55)'; ctx.fillRect(0, 0, W, H);
+  if (guest && !menuOpen) { // (the host paused everyone)
+    title('PAUSED BY HOST', 90, '#7df9ff', 40); fitText('Esc: your menu', 122, 13, '#9ab');
+    drawBuildPanel((W - Math.min(520, W - 32)) / 2, 140, Math.min(520, W - 32)); return;
+  }
   if (pauseView === 'settings') {
     title('SETTINGS', 70, '#7df9ff', 44);
     const y = settingsButtons(110), bw = Math.min(260, W - 32);
     button('BACK  [Esc]', (W - bw) / 2, y + 6, bw, 42, '#9ab', () => { pauseView = 'main'; });
     return;
   }
-  title('PAUSED', 64, '#7df9ff', 48);
+  title(!online ? 'PAUSED' : paused ? (guest ? 'PAUSED BY HOST' : 'PAUSED FOR EVERYONE') : 'MENU', 64, '#7df9ff', 48);
+  if (online && !paused) fitText('The game keeps going for everyone — your ship is still out there!', 98, 13, '#ffb13d', 'bold');
   // buttons on the left (or on top on phones), your build on the right (or below)
-  const wide = W >= 760, bw = wide ? 240 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
-  const bx = wide ? W / 2 - 280 : (W - bw) / 2, by = 110;
-  button('RESUME  [P]', bx, by, bw, bh, '#7df9ff', () => { paused = false; });
-  button('SETTINGS', bx, by + gap, bw, bh, '#9ab', () => { pauseView = 'settings'; });
-  button('RESTART  [R]', bx, by + gap * 2, bw, bh, '#ffe93d', restartRun);
-  button('END RUN  (keeps shards)', bx, by + gap * 3, bw, bh, '#ff5a70', () => endRun());
+  const items = [];
+  if (!online) items.push(['RESUME  [P]', '#7df9ff', () => { paused = false; }]);
+  else if (guest || !paused) items.push(['BACK TO THE GAME  [Esc]', '#7df9ff', toggleMenu]);
+  else items.push(['RESUME FOR EVERYONE  [P]', '#7df9ff', () => forcePause(false)]);
+  if (online && !guest && !paused) items.push(['⏸  PAUSE FOR EVERYONE  [P]', '#ffe93d', () => forcePause(true)]);
+  items.push(['SETTINGS', '#9ab', () => { pauseView = 'settings'; }]);
+  if (!guest) { items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
+  if (online) items.push([guest ? 'LEAVE GAME' : 'CLOSE ROOM', '#ff5a70', () => leaveOnline(guest ? 'You left the game' : undefined)]);
+  const wide = W >= 760, bw = wide ? 250 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
+  const bx = wide ? W / 2 - 290 : (W - bw) / 2, by = 116;
+  items.forEach(([label, color, act], i) => button(label, bx, by + gap * i, bw, bh, color, act));
   if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
-  else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * 4 + 6, Math.min(420, W - 32));
+  else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * items.length + 6, Math.min(420, W - 32));
 }
 // your stats, your upgrades and how close you are to each evolution
 function drawBuildPanel(x, y, w) {
@@ -8558,7 +8617,7 @@ function sendEmote(k) {
   if (!p || (p.emoteCd || 0) > performance.now()) return; // no spamming
   p.emoteCd = performance.now() + 700;
   showEmote(me, k);
-  if (net.role === 'guest') net.host?.send({ emote: k }); else { netRec(['e', me, k]); dokiAnswer(k); } // (it may be answering DOKI DOLL)
+  if (net.role === 'guest') net.host?.send({ emote: k }); else netRec(['e', me, k]);
 }
 // callouts, name tags (online) and arrows pointing to downed teammates
 function drawTeamUi() {
@@ -8922,29 +8981,44 @@ function updateHazards(dt) {
     const side = Math.random() < 0.5 ? 1 : -1, y = H * (0.3 + Math.random() * 0.55), n = level >= 9 && Math.random() < 0.4 ? 2 : 1;
     for (let i = 0; i < n; i++) { const m = makeEnemy('meteor', side > 0 ? -80 : W + 80, y); m.side = side; m.timer = METEOR_WARN + i * 0.4; }
     beep(220, 0.2, 'square', 0.04, 220);
-  } else if (id === 'nebula') { // lightning: one strike right where someone is, and a stray or two
+  } else if (id === 'nebula') { // lightning: one strike right where someone is, and a stray or two (well away from it)
     run.hazardT = (boss ? 8 : 5) + Math.random() * 3;
-    const alive = living(), p = alive[Math.floor(Math.random() * alive.length)];
-    if (p) makeEnemy('bolt', p.x, p.y);
-    for (let i = 0; i < (level >= 8 ? 2 : 1); i++) makeEnemy('bolt', 50 + Math.random() * (W - 100), H * (0.3 + Math.random() * 0.6));
+    const alive = living(), p = alive[Math.floor(Math.random() * alive.length)], spots = p ? [[p.x, p.y]] : [];
+    for (let i = 0; i < (level >= 8 ? 2 : 1); i++) {
+      const s = spreadSpot(spots, BOLT_R * 2.8, () => [50 + Math.random() * (W - 100), H * (0.3 + Math.random() * 0.6)]);
+      if (s) spots.push(s);
+    }
+    for (const [x, y] of spots) makeEnemy('bolt', x, y);
     beep(1500, 0.3, 'sawtooth', 0.02, -1200);
-  } else if (id === 'rings') { // another chunk of ice drifts in from the top
+  } else if (id === 'rings') { // another chunk of ice drifts in from the top (not during boss fights: just you and the boss)
     run.hazardT = (boss ? 7 : 3.5) + Math.random() * 3;
-    if (enemies.filter(e => e.type === 'ice').length < 5) makeEnemy('ice', 40 + Math.random() * (W - 80), -40);
+    if (!boss && enemies.filter(e => e.type === 'ice').length < 5) makeEnemy('ice', 40 + Math.random() * (W - 80), -40);
   } else if (id === 'corona') { // solar flares: a column glows, then fire blasts down it (one aimed near someone)
     run.hazardT = (boss ? 11 : 6.5) + Math.random() * 3;
     const alive = living(), p = alive[Math.floor(Math.random() * alive.length)], xs = [];
     if (p) xs.push(Math.max(FLARE_W / 2, Math.min(W - FLARE_W / 2, p.x + (Math.random() - 0.5) * 60)));
-    if (level >= 8 || !p) { let x; do x = FLARE_W / 2 + Math.random() * (W - FLARE_W); while (xs.some(o => Math.abs(o - x) < FLARE_W * 1.6)); xs.push(x); }
+    if (level >= 8 || !p) { // (a second column, with plenty of room to stand between them)
+      const s = spreadSpot(xs.map(x => [x, 0]), FLARE_W * 2.8, () => [FLARE_W / 2 + Math.random() * (W - FLARE_W), 0]);
+      if (s) xs.push(s[0]);
+    }
     for (const x of xs) lasers.push({ x, warn: FLARE_WARN, fire: FLARE_FIRE, w: FLARE_W, color: '#ff8d2d', flare: true });
     beep(180, 0.5, 'sawtooth', 0.04, 260);
-  } else if (id === 'derelict') { // an old turret drifts in, still shooting at whatever is closest
+  } else if (id === 'derelict') { // an old turret drifts in, still shooting at whatever is closest (not during boss fights)
     run.hazardT = (boss ? 12 : 7) + Math.random() * 4;
-    if (enemies.filter(e => e.type === 'turret').length < 2) makeEnemy('turret', 50 + Math.random() * (W - 100), -30);
-  } else if (id === 'prism') { // a prism drifts in: every shot through it splits in three
+    if (!boss && enemies.filter(e => e.type === 'turret').length < 2) makeEnemy('turret', 50 + Math.random() * (W - 100), -30);
+  } else if (id === 'prism') { // a prism drifts in: every shot through it splits in three (not during boss fights)
     run.hazardT = (boss ? 15 : 8) + Math.random() * 4;
-    if (enemies.filter(e => e.type === 'prism').length < 2) makeEnemy('prism', 60 + Math.random() * (W - 120), -30);
+    if (!boss && enemies.filter(e => e.type === 'prism').length < 2) makeEnemy('prism', 60 + Math.random() * (W - 120), -30);
   }
+  run.eliteT = Math.max(run.eliteT ?? 0, HAZARD_GAP); // (the zone's elite hazard waits a moment: never both at once)
+}
+// hazards never land on top of each other: the zone's two hazards take turns (at least this many seconds apart),
+// and strikes that land together are kept apart
+const HAZARD_GAP = 2.6;
+// a random spot (from make) at least minD from all of the others, or null if there's no room after a few tries
+function spreadSpot(others, minD, make) {
+  for (let i = 0; i < 16; i++) { const s = make(); if (others.every(([x, y]) => Math.hypot(s[0] - x, s[1] - y) >= minD)) return s; }
+  return null;
 }
 const FLARE_W = 64, FLARE_WARN = 1.4, FLARE_FIRE = 0.8, TURRET_RANGE = 430, PRISM_R = 26, PRISM_SPREAD = 0.3;
 
@@ -8982,8 +9056,8 @@ function updateEliteHazards(dt) {
   if (id === 'deep') { // STARFALL: three columns, one right on someone
     run.eliteT = (boss ? 9 : 6) + Math.random() * 3;
     const xs = p ? [p.x] : [];
-    while (xs.length < 3) { const x = 30 + Math.random() * (W - 60); if (xs.every(o => Math.abs(o - x) > 80)) xs.push(x); }
-    for (const x of xs) lasers.push({ x, warn: 1.2, fire: 0.35, w: 26, color: '#cfe8ff' });
+    for (let i = 0; i < 2; i++) { const s = spreadSpot(xs.map(x => [x, 0]), 170, () => [30 + Math.random() * (W - 60), 0]); if (s) xs.push(s[0]); } // (well apart)
+    for (const x of xs) lasers.push({ x, warn: 1.3, fire: 0.35, w: 26, color: '#cfe8ff' });
     beep(1800, 0.4, 'sine', 0.03, -1200);
   } else if (id === 'nebula') { // CHAIN STORM: five strikes in a line through someone, one after another
     run.eliteT = (boss ? 10 : 7) + Math.random() * 3;
@@ -9001,10 +9075,10 @@ function updateEliteHazards(dt) {
     run.hail = { t: 3.2, side: Math.random() < 0.5 ? -1 : 1, acc: 0 };
     fxText(run.hail.side > 0 ? 'ICE STORM  »' : '«  ICE STORM', W / 2, H * 0.18, '#dff6ff', 24, 1.4);
     beep(900, 1.2, 'sawtooth', 0.02, -600);
-  } else if (id === 'corona') { // FLARE WALLS: a wall of flares with one gap
+  } else if (id === 'corona') { // FLARE WALLS: a wall of flares with one wide gap (three columns), and a long warning
     run.eliteT = (boss ? 15 : 11) + Math.random() * 3;
-    const n = Math.floor(W / FLARE_W), gap = Math.floor(Math.random() * (n - 1));
-    for (let i = 0; i < n; i++) if (i !== gap && i !== gap + 1) lasers.push({ x: FLARE_W / 2 + i * FLARE_W + (W - n * FLARE_W) / 2, warn: FLARE_WARN + 0.5, fire: FLARE_FIRE, w: FLARE_W, color: '#ff8d2d', flare: true });
+    const n = Math.floor(W / FLARE_W), gap = Math.floor(Math.random() * (n - 2));
+    for (let i = 0; i < n; i++) if (i < gap || i > gap + 2) lasers.push({ x: FLARE_W / 2 + i * FLARE_W + (W - n * FLARE_W) / 2, warn: FLARE_WARN + 0.9, fire: FLARE_FIRE, w: FLARE_W, color: '#ff8d2d', flare: true });
     beep(160, 0.8, 'sawtooth', 0.05, 200);
   } else if (id === 'derelict') { // BOARDING DRONES: every turret launches one
     run.eliteT = (boss ? 7 : 5) + Math.random() * 2;
@@ -9024,12 +9098,13 @@ function updateEliteHazards(dt) {
     run.eliteT = (boss ? 15 : 12) + Math.random() * 3;
     run.tideW = TIDE_WARN; fxText('GRAVITY TIDE!', W / 2, H * 0.32, '#ff3d4d', 28, 1.4); beep(60, TIDE_WARN, 'sine', 0.06, 40);
   } else run.eliteT = 5;
+  if (run.eliteT > 2) run.hazardT = Math.max(run.hazardT ?? 0, HAZARD_GAP); // (it went off: the zone's own hazard waits a moment)
 }
 // ICE STORM hail: falls across the screen at an angle (runs alongside updateEliteHazards)
 function updateHail(dt) {
   const h = run.hail; if (!h) return;
   if ((h.t -= dt) <= 0) { run.hail = null; return; }
-  for (h.acc += dt; h.acc > 0.035; h.acc -= 0.035) {
+  for (h.acc += dt; h.acc > 0.06; h.acc -= 0.06) { // (thin enough to weave through)
     const x = h.side > 0 ? Math.random() * W * 1.2 - W * 0.4 : Math.random() * W * 1.2 + W * 0.2;
     eBullets.push({ x, y: -10, vx: h.side * 150, vy: 240 + Math.random() * 60, r: 4, color: '#dff6ff' });
   }
@@ -9874,9 +9949,10 @@ function onHostData(conn, d) {
   if (d.reroll === 1 && state === 'upgrade' && offer) reroll();
   if (state === 'shop' && shop && okIdx(d.buy, shop.items.length)) buyShop(d.buy);
   if (d.ab === 1 && p) useAbility(p, num(d.dx, -1, 1, 0), num(d.dy, -1, 1, 0)); // (the cooldown keeps it honest)
+  if (p && okIdx(d.dokiAns, 4)) dokiAnswer(d.dokiAns, id); // (answering DOKI DOLL)
   if (p && okIdx(d.emote, EMOTES.length) && !((p.emoteCd || 0) > performance.now())) { // (no spamming)
     p.emoteCd = performance.now() + 500; // (a little under the sender's own 700ms, for network jitter)
-    showEmote(id, d.emote); netRec(['e', id, d.emote]); dokiAnswer(d.emote);
+    showEmote(id, d.emote); netRec(['e', id, d.emote]);
   }
 }
 // host: glide each guest's ship along the positions it reported, instead of jumping 30x a second
@@ -10230,7 +10306,7 @@ function applySnap(s) {
   if (!okSize(s.w, s.h)) return;
   if (s.w !== net.hostW || s.h !== net.hostH) { net.hostW = s.w; net.hostH = s.h; resize(); }
   net.soff = clockOffset(net.soff, s.ts); net.lastTs = s.ts;
-  if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over' || s.st === 'route') sel = 0; state = s.st; }
+  if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over' || s.st === 'route') sel = 0; state = s.st; menuOpen = false; }
   paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t;
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
   Object.assign(run.s, s.rs);
@@ -10332,6 +10408,15 @@ function replayEvent(ev) {
 }
 // a guest's frame: move my own ship, glide everything else along until the next snapshot, run local effects
 function guestFrame(dt) {
+  // gamepads: START opens your menu (only the host can pause everyone); in a menu, the stick moves and A picks;
+  // otherwise A/X/bumper/trigger use your ability (gamepad N is player N on this computer)
+  padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
+  padState.forEach((pad, i) => {
+    if (!pad) return;
+    if (state === 'play' && pad.start) { toggleMenu(); return; }
+    if (state !== 'play' || paused || menuOpen) { if (pad.nav) moveSel(pad.nav); if (pad.pressed) activate(); return; }
+    if (pad.ab && i < net.mine.length) localAbility(i);
+  });
   updateBackground(dt); updateAchBanner(dt); updateMusicFilter();
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
@@ -10372,8 +10457,7 @@ function guestFrame(dt) {
   }
 }
 // move every ship controlled from this computer (sharing the keyboard like local co-op when there are several)
-function guestMove(dt) {
-  padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
+function guestMove(dt) { // (the gamepads were read at the start of guestFrame)
   for (const id of net.mine) {
     const p = players[id];
     if (!p || !p.alive) continue;
@@ -10391,7 +10475,6 @@ function guestMove(dt) {
     p.thrust = (p.thrust || 0) + (Math.max(0, Math.min(1, -(p.y - oy) / dt / 400)) - (p.thrust || 0)) * kk;
     p.mvx = (p.mvx || 0) + ((p.x - ox) / dt - (p.mvx || 0)) * kk; p.mvy = (p.mvy || 0) + ((p.y - oy) / dt - (p.mvy || 0)) * kk; // (for DASH)
   }
-  if (state === 'play' && !paused) padState.forEach((pad, i) => { if (pad?.ab && i < net.mine.length) localAbility(i); }); // (gamepad ability buttons)
 }
 
 // ----- lobby: pick ships -----
@@ -10445,13 +10528,12 @@ function onlineKey(e) {
     if (net.role === 'guest' && net.joinFail && e.code === 'Enter') { joinGame(net.joinFail); return true; }
     return true;
   }
-  if (net.role === 'guest' && net.playing) {
+  if (net.role === 'guest' && net.playing && state !== 'play') { // (in play, Esc opens the menu: see the keydown handler)
     if (e.code === 'Escape') { // press twice to leave
       if (performance.now() < net.leaveArm) leaveOnline('You left the game');
       else { net.leaveArm = performance.now() + 2000; showToast('Press Esc again to leave the game'); }
       return true;
     }
-    if (e.code === 'KeyP') return true; // only the host can pause
     if (state === 'over') return true;  // the host decides what happens next
   }
   return false;

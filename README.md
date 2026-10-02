@@ -20,6 +20,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 - **Move:** mouse, WASD, arrow keys, or a gamepad — your ship fires automatically
 - **Ability:** Space, Q, E, Shift or right-click (gamepad: A, X or a right bumper/trigger; touch screens get a button)
 - **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
+- **Online:** **Esc** opens your own menu while the game keeps going for everyone (settings, leave game). The host's menu also has **PAUSE FOR EVERYONE** (or press **P**).
 - Local co-op: 2P = WASD (ability Q) + arrows/mouse (Right Shift / right-click) · 3P = mouse, WASD, arrows · 4P adds IJKL (ability U)
 
 ## Features
