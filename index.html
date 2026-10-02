@@ -345,6 +345,7 @@ function startMusic() {
 function scheduleMusic() {
   if (!ac || ac.state !== 'running') { if (rec.el && !rec.el.paused) rec.el.pause(); return; } // (a recorded song waits while the tab is away)
   if (run?.zone === ZONE_LAST) prepRecorded(SONGS.abyss); // (THE ABYSS waits in the last zone: start loading its song early)
+  if (inRun() && abyssCine()?.cine < CINE.rise) { stopRecorded(); music.next = ac.currentTime + 0.05; return; } // (its entrance: dead silence until it rises)
   const want = wantedSong();
   if (recordedOk(want)) { // a recorded song: the band sits out while it plays
     playRecorded(want);
@@ -403,7 +404,7 @@ function wantedSong() {
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
   if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
-  if (bosses.some(b => b.final) || warn?.final) return 'abyss';
+  if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
   if ((encounter && encounter.kind !== 'single') || warn?.team) return 'rival';
   return zoneSong(run.zone);
 }
@@ -1165,6 +1166,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') { toggleSetting('music'); showToast(settings.music ? 'MUSIC ON' : 'MUSIC OFF'); return; }
   if (e.code === 'KeyF' && state !== 'joinCode') { toggleFullscreen(); return; }
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
+  if (state === 'play' && !paused && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
     if (paused && pauseView === 'settings' && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
     if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
@@ -2560,7 +2562,9 @@ function makeBoss(def, x, hp, loop, side) {
     look: { x: 0, y: 1 }, faceA: Math.PI / 2, ghostT: 0, bigAtk: true, cracks: [],
     // THE ABYSS: tentacles [aim, reach 0-1, state 0 idle/1 warn/2 strike/3 retract, timer, lash length], eruptions, darkness
     ...(def.gimmick === 'abyss' && { tents: Array.from({ length: TENT_N }, () => [0, 0, 0, 0, 0]), erupt: [], dark: 0, darkR: 175,
-      phase: 1, maw: 0, mawN: 0, wasEnraged: true }) }; // (no generic ENRAGED moment: it has its own phases)
+      phase: 1, maw: 0, mawN: 0, wasEnraged: true, // (no generic ENRAGED moment: it has its own phases)
+      // its entrance cinematic (cine counts up to CINE_LEN), eyes and hands in the dark, whispers, and its moves per phase
+      cine: 0, voidEyes: [], hands: [], whisper: null, phaseAt: 0, patterns: ABYSS_PATTERNS[1] }) };
 }
 
 // Boss HP floor: strong builds used to melt bosses in seconds, so every boss has at least enough HP to last
@@ -2586,7 +2590,7 @@ function spawnEncounter() {
     encounter = { kind: 'single', name: def.name, final: def.final };
     // the curve above, or enough to survive your team's actual firepower for a while — whichever is bigger
     bosses = [makeBoss(def, W / 2, Math.max(baseHp * (def.hpMult || 1), firepowerHp(def.final ? FINAL_MIN_SECS : BOSS_MIN_SECS)), loop, 0)];
-    if (def.hint) hint = { text: def.hint, life: 6 };
+    if (def.hint && !def.final) hint = { text: def.hint, life: 6 }; // (THE ABYSS's comes after its entrance)
   } else {
     const team = TEAMS[e.team], n = team.members.length;
     const teamHp = Math.max(baseHp, firepowerHp(TEAM_MIN_SECS) / team.members.reduce((t, m) => t + m.hpShare, 0));
@@ -2639,7 +2643,7 @@ function updateDrain(b, dt) {
   if (d.t > 3) b.drain = null;
 }
 
-const bossAlive = b => b.dying <= 0 && !b.downed;
+const bossAlive = b => b.dying <= 0 && !b.downed && !(b.cine < CINE_LEN); // (THE ABYSS can't be touched during its entrance)
 const isEnraged = b => b.hp < b.max / 2 || b.forceRage;
 
 // distance from point (px,py) to the segment a-b (for the Sol & Luna tether)
@@ -2935,6 +2939,40 @@ const BOSS_ATTACKS = {
     shake = Math.max(shake, 10); bossRoar(b, true);
     b.atkT = 3 * rate;
   },
+  stare(b, enraged, rate) { // EYES IN THE DARK: eyes open around the edges of the screen, lock onto you, and fire beams
+    const ps = living(); if (!ps.length) return;
+    const n = 1 + (b.phase || 1) * 2;
+    for (let i = 0; i < n; i++) {
+      const side = (i + Math.floor(Math.random() * 4)) % 4, along = 0.1 + Math.random() * 0.8;
+      const [x, y] = [[W * along, 34], [W - 34, H * (0.15 + along * 0.7)], [W * along, H - 34], [34, H * (0.15 + along * 0.7)]][side];
+      b.voidEyes.push([Math.round(x), Math.round(y), r2(-i * 0.2), 0, ps[i % ps.length].id]);
+    }
+    b.atkT = 2.6 * rate; beep(300, 0.7, 'sine', 0.04, -220);
+  },
+  grasp(b, enraged, rate) { // THE HAND: a giant hand of shadow reaches in from the side of the screen and closes on you
+    const ps = living(); if (!ps.length) return;
+    const n = b.phase >= 2 ? 2 : 1;
+    for (let i = 0; i < n; i++) { const p = ps[i % ps.length]; b.hands.push([Math.round(p.x), Math.round(p.y), (p.x < W / 2 ? 1 : -1) * (i ? -1 : 1), r2(-i * 0.45), p.id]); }
+    b.atkT = 2.6 * rate; beep(48, 1.1, 'sawtooth', 0.08, 25);
+  },
+  deluge(b, enraged, rate) { // BLACK RAIN: ink pours down from above, with one lane left dry that drifts across
+    b.deluge = { t: 0, x: 60 + Math.random() * (W - 120), dir: Math.random() < 0.5 ? -1 : 1, acc: 0 };
+    b.atkT = 3 * rate; beep(90, 1.6, 'sawtooth', 0.05, -40);
+  },
+  brood(b, enraged, rate) { // it spits out shades: shadows that drift toward you, nearly invisible until they're close
+    const n = Math.min((b.phase || 1) + 1, 6 - enemies.filter(e => e.type === 'shade' && !e.dead).length);
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI / 2 + (i - (n - 1) / 2) * 0.55, e = makeEnemy('shade', b.x + Math.cos(a) * b.r, b.y + Math.sin(a) * b.r);
+      e.aimA = a; e.vx = Math.cos(a) * 120; e.vy = Math.sin(a) * 120;
+    }
+    if (n > 0) { burst(b.x, b.y + b.r * 0.6, b.color, 30, 220); beep(85, 0.7, 'sawtooth', 0.06, -40); }
+    b.atkT = 2 * rate;
+  },
+  frenzy(b, enraged, rate) { // every tentacle lashes at you, one after another
+    if (!living().length) return;
+    b.frenzy = { n: TENT_N, t: 0 }; bossRoar(b, true); shake = Math.max(shake, 12);
+    b.atkT = 3.4 * rate;
+  },
   blink(b, enraged, rate) { // teleport somewhere new and burst
     fxGhost(b, 0.6); fxRing(b.x, b.y, b.r * 1.4, 4, 0.3, b.color, 3); // implode where it was
     b.appear = 1;
@@ -3182,13 +3220,16 @@ const GIMMICKS = {
       // three phases: at 66% the lights go out, at 33% it fully awakens
       const ph = b.hp > b.max * 0.66 ? 1 : b.hp > b.max * 0.33 ? 2 : 3;
       if (ph > b.phase) {
-        b.phase = ph; b.rage = 1.6; b.atkT = Math.max(b.atkT, 1.6);
+        b.phase = ph; b.rage = 1.6; b.atkT = Math.max(b.atkT, 1.6); b.phaseAt = b.t;
+        b.patterns = ABYSS_PATTERNS[ph]; b.pattern = 0; // (new moves each phase)
         shake = Math.max(shake, 28); bossRoar(b, true); beep(40, 2, 'sawtooth', 0.12, 20);
+        if (ph === 3) for (let i = 0; i < 8; i++) setTimeout(() => beep(200 + Math.random() * 2000, 0.06, 'square', 0.03), i * 90); // (and a burst of static)
         fxText(ph === 2 ? 'THE LIGHTS GO OUT' : 'IT AWAKENS', W / 2, H * 0.45, b.color, 38, 2.6);
         for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (4 + i * 2), 0.9, i % 2 ? '#ffffff' : b.color, 6, i * 0.2);
         const ps = living(); // every tentacle lashes out at once
         if (ps.length) for (let i = 0; i < TENT_N; i++) if (!b.tents[i][2]) abyssLash(b, ps[i % ps.length], true, i);
       }
+      abyssHazards(b, dt);
       b.dark += ((b.phase >= 2 ? 1 : 0) - b.dark) * Math.min(1, dt * 0.7);
       b.darkR = b.phase >= 3 ? 140 : 180;
       if (b.phase >= 3) { // a heartbeat you can feel
@@ -3273,6 +3314,99 @@ const ABYSS_INK = '#0b0006'; // its bullets: black, with a red rim (see drawWorl
 const TENT_N = 10, TENT_SEG = 12;
 const LASH_WARN = 0.75, LASH_OUT = 0.16, LASH_HOLD = 0.3, LASH_BACK = 0.55;
 const ERUPT_WARN = 1.0, ERUPT_END = 1.9, ERUPT_W = 30;
+const STARE_LOCK = 1.15, STARE_FIRE = 1.4, STARE_BEAM = 0.28, STARE_END = 1.95, STARE_W = 20; // eyes in the dark
+const GRASP_LOCK = 0.25, GRASP_CLOSE = 1.15, GRASP_END = 1.9, GRASP_R = 62;                    // the hands
+const DELUGE_T = 2.4, DELUGE_GAP = 150, WHISPER_T = 3.2;
+const WHISPERS = ['you can\'t win', 'stay with me', 'it\'s so cold here', 'no one is coming', 'let go', 'we see you', 'why do you fight', 'this is the end', 'come closer'];
+const ABYSS_PATTERNS = { // its moves in each phase (it picks at random)
+  1: ['lash', 'ink', 'stare', 'eruption', 'grasp', 'lash', 'deluge'],
+  2: ['lash', 'ink', 'eruption', 'maw', 'stare', 'grasp', 'brood', 'deluge', 'spiral'],
+  3: ['frenzy', 'maw', 'stare', 'grasp', 'eruption', 'brood', 'deluge', 'lash', 'ink', 'spiral'],
+};
+// its newer hazards: eyes in the dark, hands, black rain, the tentacle frenzy, and whispers in the dark
+function abyssHazards(b, dt) {
+  const ps = living(), byId = id => ps.find(p => p.id === id) || ps[0];
+  for (const E of b.voidEyes) { // eyes: [x, y, age, aim, target]: open, track you, lock on (a red line), fire a beam, close
+    E[2] = r2(E[2] + dt);
+    const p = byId(E[4]);
+    if (E[2] < STARE_LOCK && p) E[3] = r2(Math.atan2(p.y - E[1], p.x - E[0]));
+    if (E[2] >= STARE_FIRE && E[2] - dt < STARE_FIRE) { beep(180, 0.3, 'sawtooth', 0.05, 300); shake = Math.max(shake, 4); }
+    if (E[2] >= STARE_FIRE && E[2] < STARE_FIRE + STARE_BEAM) {
+      const ex = E[0] + Math.cos(E[3]) * 3000, ey = E[1] + Math.sin(E[3]) * 3000;
+      for (const q of ps) if (distToSeg(q.x, q.y, E[0], E[1], ex, ey) < STARE_W / 2 + q.r * 0.4) hurt(q);
+    }
+  }
+  b.voidEyes = b.voidEyes.filter(E => E[2] < STARE_END);
+  for (const Hd of b.hands) { // hands: [x, y, side, age, target]: follow you a moment, lock on, close with a crunch, pull back
+    Hd[3] = r2(Hd[3] + dt);
+    const p = byId(Hd[4]);
+    if (Hd[3] < GRASP_LOCK && p) { Hd[0] = Math.round(p.x); Hd[1] = Math.round(p.y); }
+    if (Hd[3] >= GRASP_CLOSE && Hd[3] - dt < GRASP_CLOSE) { shake = Math.max(shake, 14); beep(70, 0.35, 'square', 0.1, -40); burst(Hd[0], Hd[1], b.color, 18, 220); }
+    if (Hd[3] >= GRASP_CLOSE && Hd[3] < GRASP_CLOSE + 0.35) for (const q of ps) if (Math.hypot(q.x - Hd[0], q.y - Hd[1]) < GRASP_R + q.r * 0.4) hurt(q);
+  }
+  b.hands = b.hands.filter(Hd => Hd[3] < GRASP_END);
+  if (b.deluge) { // black rain, with a dry lane drifting across
+    const d = b.deluge, gx = d.x + d.dir * d.t * 70;
+    d.t += dt; d.acc += dt;
+    for (; d.acc > 0.05; d.acc -= 0.05) for (let k = 0; k < 2; k++) {
+      const x = Math.random() * W; if (Math.abs(x - gx) < DELUGE_GAP / 2) continue;
+      eBullets.push({ x, y: -8, vx: 0, vy: (240 + Math.random() * 80) * BOSS_BULLET_SPEED, r: 6, color: ABYSS_INK, src: b });
+    }
+    if (d.t > DELUGE_T) b.deluge = null;
+  }
+  if (b.frenzy && ps.length) { const f = b.frenzy; f.t -= dt; if (f.t <= 0) { f.t = 0.14; abyssLash(b, ps[f.n % ps.length], f.n % 2 === 0); if (--f.n <= 0) b.frenzy = null; } }
+  if (b.whisper) { b.whisper[3] = r2(b.whisper[3] + dt); if (b.whisper[3] > WHISPER_T) b.whisper = null; } // whispers: [text, x, y, age]
+  if (b.phase >= 2 && (b.whisperT = (b.whisperT ?? 4) - dt) <= 0) {
+    b.whisperT = 5 + Math.random() * 4;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    b.whisper = [Math.floor(Math.random() * WHISPERS.length), Math.round(W / 2 + side * W * (0.2 + Math.random() * 0.22)), Math.round(H * (0.3 + Math.random() * 0.5)), 0];
+  }
+}
+
+// ----- THE ABYSS's entrance -----
+// A cinematic before the fight (b.cine counts up through these moments): the music dies and the world freezes, the
+// screen glitches until the game seems to crash, a dead terminal types out a warning, one great eye opens in the dark,
+// then dozens more, they all close as it laughs, tentacles slam in from the edges, and it rises out of the dark with a
+// roar (and its song) before its name slams onto the screen. Nothing can hurt anyone, and the ships hold their fire.
+// Once you've seen it, ENTER / SPACE (or A on a gamepad) skips to the part where it rises.
+const CINE = { freeze: 0.6, cut: 2.0, text: 2.25, eye: 5.9, eyes: 7.4, laugh: 8.7, slam: 9.0, rise: 9.7, flash: 10.6, title: 11.0, end: 12.8 };
+const CINE_LEN = CINE.end;
+const CINE_LINES = [ // [text, color, when it starts (after CINE.text), how fast it types (characters a second)]
+  ['> SIGNAL LOST', '#8fa3b8', 0, 40], ['> REBOOTING NEON DRIFT...', '#8fa3b8', 0.6, 40], ['> ERROR: SOMETHING IS IN THE CODE', '#ffb0bb', 1.35, 40], ['> it sees you.', '#ff1f3d', 2.35, 13]];
+const abyssCine = () => bosses.find(b => b.cine < CINE_LEN);
+function skipAbyssIntro() {
+  const b = abyssCine();
+  if (!b || net.role === 'guest' || !meta.seenAbyss || b.cine >= CINE.rise - 0.6) return false;
+  b.cine = CINE.rise - 0.6; return true;
+}
+function abyssCineStep(b, dt) {
+  const t0 = b.cine, hit = T => t0 < T && b.cine >= T;
+  b.cine = Math.min(CINE_LEN, b.cine + dt);
+  b.x = W / 2; b.y = Math.min(170, H * 0.22) + 30;
+  b.intro = Math.max(0, Math.min(1, (b.cine - CINE.rise) / (CINE.flash - CINE.rise)));
+  if (t0 === 0) { enemies = []; eBullets = []; lasers = []; beep(3400, 1.4, 'sine', 0.02); } // (a ringing in your ears)
+  if (b.cine > CINE.freeze && b.cine < CINE.cut && Math.random() < dt * (6 + (b.cine - CINE.freeze) * 16)) { // static crackling, faster and faster
+    beep(150 + Math.random() * 2400, 0.04 + Math.random() * 0.08, Math.random() < 0.5 ? 'square' : 'sawtooth', 0.025); shake = Math.max(shake, 3);
+  }
+  if (hit(CINE.cut)) beep(45, 0.35, 'square', 0.12, -20);
+  CINE_LINES.forEach(([, , at], i) => { if (hit(CINE.text + at)) i === 3 ? beep(70, 1.2, 'sawtooth', 0.07, -20) : beep(1100, 0.05, 'square', 0.02); });
+  if (hit(CINE.eye)) beep(65, 1.4, 'sawtooth', 0.07, 30); // (something wet, opening)
+  for (const T of [CINE.eye + 0.6, CINE.eye + 1.25]) if (hit(T)) { beep(52, 0.18, 'sine', 0.16, -10); setTimeout(() => beep(46, 0.2, 'sine', 0.12, -10), 160); } // heartbeats
+  if (b.cine > CINE.eyes && b.cine < CINE.laugh && Math.random() < dt * 14) beep(260 + Math.random() * 300, 0.06, 'triangle', 0.025, -120);
+  for (let k = 0; k < 3; k++) if (hit(CINE.laugh + 0.05 + k * 0.3)) { beep(150 - k * 18, 0.22, 'sawtooth', 0.13, -40); beep(75 - k * 9, 0.25, 'square', 0.08, -20); shake = Math.max(shake, 12); } // HA. HA. HA.
+  if (hit(CINE.slam)) { shake = Math.max(shake, 24); beep(50, 0.6, 'sawtooth', 0.12, -20); }
+  if (hit(CINE.rise)) { bossRoar(b, true); beep(35, 2.2, 'sawtooth', 0.14, 20); shake = Math.max(shake, 30); }
+  if (hit(CINE.flash)) {
+    screenFlash = 0.9; shake = Math.max(shake, 30); burst(b.x, b.y, b.color, 120, 600);
+    for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (4 + i * 2.5), 0.9, i % 2 ? '#ffffff' : b.color, 7, i * 0.15);
+  }
+  if (hit(CINE.title)) { beep(90, 0.9, 'square', 0.1, -50); shake = Math.max(shake, 16); }
+  if (b.cine >= CINE_LEN) { // the fight begins
+    b.entered = true; b.intro = 1; b.atkT = 1.2;
+    if (b.hint) hint = { text: b.hint, life: 6 };
+    if (!meta.seenAbyss && net.role !== 'guest') { meta.seenAbyss = true; saveMeta(); }
+  }
+}
 const tentRoot = (b, i) => i / TENT_N * Math.PI * 2 + Math.sin(b.t * 0.3) * 0.25;
 const tentWidth = (b, k) => b.r * 0.24 * (1 - k / (TENT_SEG + 2)) + 3;
 // tentacle i as points from its root on the body to its tip
@@ -3560,6 +3694,7 @@ function updateBoss(b, dt) {
   b.shieldHit = Math.max(0, b.shieldHit - dt);
   b.healT = Math.max(0, (b.healT || 0) - dt);
   if (b.downed) { b.spin += dt * 0.3; return; } // a fallen twin just waits (see updateEncounter)
+  if (b.cine < CINE_LEN) { abyssCineStep(b, dt); return; } // THE ABYSS's entrance
   if (b.drain) updateDrain(b, dt);
 
   if (b.dying > 0) {
@@ -3894,6 +4029,7 @@ function update(dt) {
   padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
   for (const pad of padState) {
     if (!pad) continue;
+    if (state === 'play' && !paused && pad.pressed && skipAbyssIntro()) continue;
     if (state === 'play' && pad.start) { paused = !paused; sel = 0; continue; }
     if (state !== 'play' || paused) { if (pad.nav) moveSel(pad.nav); if (pad.pressed || pad.start) activate(); }
   }
@@ -3963,9 +4099,9 @@ function update(dt) {
     p.power = Math.max(0, p.power - dt);
     p.sapped = Math.max(0, (p.sapped || 0) - dt);
 
-    // auto fire
+    // auto fire (held during THE ABYSS's entrance)
     p.shotT -= dt;
-    if (p.shotT <= 0) {
+    if (p.shotT <= 0 && !abyssCine()) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1); // (a Sapper slows your guns)
@@ -3976,7 +4112,7 @@ function update(dt) {
         for (let i = 0; i < 14; i++) fire(p.x, p.y, i / 14 * Math.PI * 2, p.color, undefined, p);
       beep(880 + p.id * 110, 0.04, 'square', 0.012);
     }
-    if (dronesOf(p)) {
+    if (dronesOf(p) && !abyssCine()) {
       p.droneT -= dt;
       if (p.droneT <= 0) {
         p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25); // (Drone Swarm: twice as fast)
@@ -5010,7 +5146,7 @@ function drawDownedTwin(b) {
 }
 
 // ----- THE ABYSS -----
-// overall scale: warp-in, slow breathing, recoil, flinch, phase-change throb, death shrink
+// overall scale: rising in, slow breathing, recoil, flinch, phase-change throb, death shrink
 function abyssScale(b) {
   let sc = 1 + Math.sin(b.t * 1.4) * 0.035 + b.kick * 0.08 - b.hitKick * 0.04;
   if (!b.entered) sc *= 0.3 + 0.7 * easeOut(b.intro);
@@ -5021,43 +5157,69 @@ function abyssScale(b) {
 // the body's ragged outline: a lumpy, slowly heaving mass
 function abyssBlob(b, r, t) {
   ctx.beginPath();
-  for (let i = 0; i <= 48; i++) {
-    const a = i / 48 * Math.PI * 2;
+  for (let i = 0; i <= 64; i++) {
+    const a = i / 64 * Math.PI * 2;
     const rr = r * (1 + Math.sin(a * 5 + t * 1.7) * 0.06 + Math.sin(a * 9 - t * 2.3) * 0.04 + Math.sin(a * 3 - t * 0.8) * 0.05);
     ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
   }
   ctx.closePath();
 }
-// eyes all over its body: a few at first, more open each phase; they all stare at you
+const rand1 = n => { const h = Math.sin(n * 127.1 + 311.7) * 43758.5453; return h - Math.floor(h); }; // (a repeatable random number for n)
+// one of its eyes: an almond of dark, bloodshot red between two eyelids (open: 0 shut to 1), with a burning iris and a
+// slit pupil looking toward (lx, ly). Used on its body, in the dark around the arena, and in its entrance.
+function abyssEye(x, y, rad, open, lx, ly, opts = {}) {
+  const rim = opts.rim || '#ff1f3d';
+  if (open <= 0.03) { // shut: just the seam of its lids
+    ctx.strokeStyle = rim; ctx.globalAlpha *= 0.6; ctx.lineWidth = Math.max(1, rad * 0.07); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.moveTo(x - rad, y); ctx.quadraticCurveTo(x, y + rad * 0.18, x + rad, y); ctx.stroke(); ctx.globalAlpha /= 0.6;
+    return;
+  }
+  const h = rad * 0.7 * Math.min(1.3, open);
+  const lids = () => { ctx.beginPath(); ctx.moveTo(x - rad, y); ctx.quadraticCurveTo(x, y - h * 1.6, x + rad, y); ctx.quadraticCurveTo(x, y + h * 1.6, x - rad, y); ctx.closePath(); };
+  ctx.save();
+  lids(); glow(rim, opts.glowR ?? rad * 0.6); ctx.fillStyle = '#2a0008'; ctx.fill();
+  ctx.clip(); ctx.shadowBlur = 0;
+  if (rad > 14) { // veins
+    ctx.strokeStyle = 'rgba(255,40,60,0.45)'; ctx.lineWidth = Math.max(1, rad * 0.03); ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const s = i % 2 ? 1 : -1, yy = (i - 2.5) * rad * 0.12; ctx.moveTo(x + s * rad, y + yy * 0.3); ctx.quadraticCurveTo(x + s * rad * 0.7, y + yy, x + s * rad * 0.42, y + yy * 0.6); }
+    ctx.stroke();
+  }
+  const ix = x + lx * rad * 0.35, iy = y + ly * h * 0.35, ir = rad * 0.48, g = ctx.createRadialGradient(ix, iy, 0, ix, iy, ir);
+  g.addColorStop(0, '#ffe2a0'); g.addColorStop(0.35, '#ff3a2a'); g.addColorStop(1, '#5a0010');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ix, iy, ir, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(ix + lx * rad * 0.04, iy, ir * (0.16 + (opts.dilate || 0) * 0.5), ir * 0.86, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.arc(ix - ir * 0.35, iy - ir * 0.4, ir * 0.12, 0, TAU); ctx.fill(); // (a wet glint)
+  ctx.restore();
+  ctx.strokeStyle = rim; ctx.lineWidth = Math.max(1, rad * 0.06); glow(rim, 10); lids(); ctx.stroke(); ctx.shadowBlur = 0;
+}
+// eyes all over its body: a few at first, more snap open each phase. Each blinks on its own, and their gaze darts
+// around (mostly at you); the great eye in the middle never leaves you, and dilates just before it strikes
 const ABYSS_EYES = [[-0.55, -0.45, 0.13], [0.55, -0.45, 0.13], [-0.68, 0.08, 0.1], [0.68, 0.08, 0.1],
   [-0.38, 0.55, 0.09], [0.38, 0.55, 0.09], [0, -0.72, 0.1], [-0.2, -0.62, 0.07], [0.2, -0.62, 0.07]];
 function drawAbyssEyes(b) {
   const t = b.t, sc = abyssScale(b), r = b.r, deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
-  const open = b.dying > 0 ? Math.max(0, 1 - deathP * 1.5) : b.entered ? 1 : b.intro;
-  const small = b.phase >= 3 ? ABYSS_EYES.length : b.phase >= 2 ? 6 : 2;
+  const small = b.phase >= 3 ? ABYSS_EYES.length : b.phase >= 2 ? 6 : 2, awake = t - (b.phaseAt || 0);
   ctx.save(); ctx.translate(b.x, b.y); ctx.scale(sc, sc);
-  const eye = (x, y, rad, k, main) => {
-    const blink = (t * (0.4 + k * 0.07) + k * 0.37) % 4 < 0.12 ? 0.08 : 1;
-    const h = rad * 0.62 * open * blink * (main && b.rage > 0 ? 1.3 : 1);
-    if (h < 0.5) return;
-    glow(b.color, main ? 40 : 18); ctx.fillStyle = b.flash > 0 ? '#ffffff' : main ? '#ff2a3a' : '#d0102a';
-    ctx.beginPath(); ctx.ellipse(x, y, rad, h, 0, 0, Math.PI * 2); ctx.fill();
-
-    // a glowing ring, then a black slit pupil that follows you
-    ctx.shadowBlur = 0; ctx.fillStyle = '#ffb3a0';
-    ctx.beginPath(); ctx.ellipse(x + b.look.x * rad * 0.3, y + b.look.y * h * 0.3, rad * 0.45, Math.min(h, rad * 0.45), 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(x + b.look.x * rad * 0.35, y + b.look.y * h * 0.35, rad * (main ? 0.1 : 0.14), Math.min(h * 0.9, rad * 0.5), 0, 0, Math.PI * 2); ctx.fill();
-  };
-  ABYSS_EYES.slice(0, small).forEach(([ex, ey, er], k) => eye(ex * r, ey * r, er * r, k + 1, false));
-  eye(0, -r * 0.08, r * 0.36, 0, true);
-  // the maw: a ragged mouth of teeth tearing open beneath the great eye
+  ABYSS_EYES.slice(0, small).forEach(([ex, ey, er], k) => {
+    const bp = (t * (0.35 + k * 0.06) + k * 0.37) % 4, blink = bp < 0.2 ? Math.abs(Math.cos(bp / 0.2 * Math.PI)) : 1;
+    const sac = Math.floor(t * 0.8 + k * 1.7), wander = rand1(sac + k * 31) < 0.35, wa = rand1(sac * 7 + k) * TAU;
+    const fresh = k >= (b.phase >= 3 ? 6 : 2) && awake < 0.5 ? awake / 0.5 : 1; // (the newest ones snapping open)
+    const shut = b.dying > 0 ? Math.max(0, 1 - deathP * 3 + k * 0.15) : b.entered ? 1 : b.intro; // (dying, they close one by one)
+    abyssEye(ex * r, ey * r, er * r * 1.15, Math.min(1, shut) * blink * fresh, wander ? Math.cos(wa) * 0.8 : b.look.x, wander ? Math.sin(wa) * 0.8 : b.look.y, { glowR: 14 });
+  });
+  const bp = (t * 0.27) % 5, blink = bp < 0.22 ? Math.abs(Math.cos(bp / 0.22 * Math.PI)) : 1;
+  const dil = b.entered && b.atkT > 0 && b.atkT < 0.5 ? 1 - b.atkT / 0.5 : 0, open = b.dying > 0 ? Math.max(0, 1 - deathP * 1.2) : b.entered ? 1 : b.intro;
+  abyssEye(0, -r * 0.08, r * 0.42, open * blink * (b.rage > 0 ? 1.25 : 1), b.look.x, b.look.y, { dilate: dil, glowR: 40 });
+  // the maw: a ragged mouth of teeth tearing open beneath the great eye, strings of ink stretching between its jaws
   const mawOpen = b.maw > 0 || b.mawN > 0 ? Math.min(1, b.mawN > 0 && b.maw <= 0.32 ? 1 : 1.1 - b.maw) : 0;
   if (mawOpen > 0) {
     const mw = r * 0.55, mh = r * 0.3 * mawOpen, my = r * 0.42;
     glow(b.color, 30); ctx.fillStyle = '#000'; ctx.strokeStyle = b.color; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffe8e0'; ctx.shadowBlur = 0;
+    ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(40,0,10,0.9)'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i < 4; i++) { const x = -mw * 0.55 + i * mw * 0.37; ctx.moveTo(x, my - mh * 0.8); ctx.quadraticCurveTo(x + 4, my + Math.sin(t * 6 + i) * mh * 0.3, x - 2, my + mh * 0.8); }
+    ctx.stroke();
+    ctx.fillStyle = '#ffe8e0';
     for (let i = 0; i < 9; i++) { // fangs, top and bottom
       const x = -mw * 0.85 + i / 8 * mw * 1.7, tw = mw * 0.09;
       ctx.beginPath(); ctx.moveTo(x - tw, my - mh * 0.9); ctx.lineTo(x + tw, my - mh * 0.9); ctx.lineTo(x, my - mh * 0.9 + mh * 0.75); ctx.fill();
@@ -5073,33 +5235,40 @@ function drawAbyss(b) {
   const rim = b.flash > 0 ? '#ffffff' : b.color;
   ctx.save();
   ctx.globalAlpha = b.entered ? 1 : 0.3 + 0.7 * b.intro;
-  // a shadow that swallows the light around it
-  const aura = ctx.createRadialGradient(b.x, b.y, r * 0.5, b.x, b.y, r * 3.2 * sc);
+  // a shadow that swallows the light around it, breathing with it
+  const R = r * (3.2 + Math.sin(t * 1.4) * 0.25) * sc, aura = ctx.createRadialGradient(b.x, b.y, r * 0.5, b.x, b.y, R);
   aura.addColorStop(0, 'rgba(0,0,0,0.85)'); aura.addColorStop(0.6, 'rgba(10,0,4,0.45)'); aura.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(b.x, b.y, r * 3.2 * sc, 0, Math.PI * 2); ctx.fill();
-  // tentacles: a red-rimmed silhouette, then black flesh, suckers and a hooked claw
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, Math.PI * 2); ctx.fill();
+  // black smoke curling up off it
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const ph = (t * 0.22 + i / 8) % 1, x = b.x + Math.sin(i * 2.1 + t * 0.5) * r * 0.7 * (1 + ph), y = b.y - r * 0.5 - ph * r * 2.4, rr = r * (0.22 + ph * 0.55);
+    ctx.fillStyle = `rgba(14,0,6,${0.6 * (1 - ph)})`; ctx.strokeStyle = hexA(b.color, 0.14 * (1 - ph));
+    ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.fill(); ctx.stroke();
+  }
+  // tentacles, as smooth curves: a red-rimmed silhouette, then black flesh, suckers and a hooked claw
   ctx.lineCap = 'round';
   for (let i = 0; i < TENT_N; i++) {
-    const pts = tentPoints(b, i), T = b.tents[i], hot = T[2] === 2 || T[2] === 1;
+    const pts = tentPoints(b, i), T = b.tents[i], hot = T[2] === 2 || T[2] === 1, n = pts.length;
+    const mid = k => [(pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2];
+    const piece = k => { // the stretch around point k: from the midpoint before it, curving through it, to the midpoint after
+      const a = k === 0 ? pts[0] : mid(k - 1), c = k === n - 1 ? pts[k] : mid(k);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.quadraticCurveTo(pts[k][0], pts[k][1], c[0], c[1]);
+    };
     ctx.strokeStyle = hexA(hot ? '#ff4d5d' : rim, hot ? 0.9 : 0.6);
-    for (let k = 1; k < pts.length; k++) {
-      ctx.lineWidth = tentWidth(b, k) + (hot ? 6 : 4);
-      ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
-    }
+    for (let k = 0; k < n; k++) { ctx.lineWidth = tentWidth(b, Math.max(1, k)) + (hot ? 6 : 4); piece(k); ctx.stroke(); }
     ctx.strokeStyle = '#000';
-    for (let k = 1; k < pts.length; k++) {
-      ctx.lineWidth = tentWidth(b, k);
-      ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
-    }
+    for (let k = 0; k < n; k++) { ctx.lineWidth = tentWidth(b, Math.max(1, k)); piece(k); ctx.stroke(); }
     ctx.fillStyle = hexA(b.color, 0.75);
-    for (let k = 2; k < pts.length - 1; k += 2) { ctx.beginPath(); ctx.arc(pts[k][0], pts[k][1], tentWidth(b, k) * 0.16 + 0.8, 0, Math.PI * 2); ctx.fill(); }
-    const [tx, ty] = pts[pts.length - 1], [px, py] = pts[pts.length - 2], ta = Math.atan2(ty - py, tx - px);
+    for (let k = 2; k < n - 1; k += 2) { ctx.beginPath(); ctx.arc(pts[k][0], pts[k][1], tentWidth(b, k) * 0.16 + 0.8, 0, Math.PI * 2); ctx.fill(); }
+    const [tx, ty] = pts[n - 1], [px, py] = pts[n - 2], ta = Math.atan2(ty - py, tx - px);
     ctx.strokeStyle = '#ffd0c8'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + Math.cos(ta) * 9, ty + Math.sin(ta) * 9, tx + Math.cos(ta + 1.9) * 7, ty + Math.sin(ta + 1.9) * 7); ctx.stroke();
   }
   // the body: a heaving black mass with a red rim and pulsing veins
   const jit = b.dying > 0 ? 2 + deathP * 10 : b.rage > 0 ? 6 : 0;
   ctx.translate(b.x + (Math.random() - 0.5) * jit, b.y + (Math.random() - 0.5) * jit); ctx.scale(sc, sc);
+  if (b.phase >= 3) { ctx.fillStyle = '#050002'; ctx.strokeStyle = rim; ctx.lineWidth = 2.5; glow(rim, 18); abyssHorns(b, r); ctx.fill(); ctx.stroke(); }
   glow(rim, 30 + (b.phase || 1) * 8); ctx.fillStyle = '#000'; ctx.strokeStyle = rim; ctx.lineWidth = 3;
   abyssBlob(b, r, t); ctx.fill(); ctx.stroke();
   ctx.shadowBlur = 0; ctx.lineWidth = 1.5;
@@ -5109,6 +5278,15 @@ function drawAbyss(b) {
     ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
     ctx.quadraticCurveTo(Math.cos(a + 0.35) * r * 0.7, Math.sin(a + 0.35) * r * 0.7, Math.cos(a + 0.1) * r * 0.95, Math.sin(a + 0.1) * r * 0.95);
     ctx.stroke();
+  }
+  for (let i = 0; i < 5; i++) { // ink dripping off its underside: a strand stretches, snaps, and the drop falls
+    const ph = (t * 0.45 + i * 0.29) % 1, x = (i - 2) * r * 0.32 + Math.sin(i * 3) * 6, y0 = r * (0.86 - Math.abs(i - 2) * 0.07);
+    const y = ph < 0.35 ? y0 + r * ph * 1.2 : y0 + r * 0.42 + (ph - 0.35) * (ph - 0.35) * r * 6, s = r * (0.03 + Math.min(ph, 0.35) * 0.1);
+    if (ph < 0.35) { ctx.strokeStyle = '#000'; ctx.lineWidth = 3 * (1 - ph * 2); ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y); ctx.stroke(); }
+    ctx.globalAlpha *= ph < 0.35 ? 1 : 1 - (ph - 0.35) / 0.65;
+    ctx.fillStyle = '#000'; ctx.strokeStyle = hexA(b.color, 0.7); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y - s * 1.8); ctx.quadraticCurveTo(x + s, y, x, y + s); ctx.quadraticCurveTo(x - s, y, x, y - s * 1.8); ctx.fill(); ctx.stroke();
+    ctx.globalAlpha = b.entered ? 1 : 0.3 + 0.7 * b.intro;
   }
   if (b.dying > 0) { // splitting apart, light pouring out of the cracks
     ctx.strokeStyle = '#ffffff'; glow(b.color, 25); ctx.lineWidth = 2.5;
@@ -5121,14 +5299,51 @@ function drawAbyss(b) {
   ctx.restore();
   drawAbyssEyes(b);
 }
+// once it fully awakens (phase 3), a crown of black horns tears up out of it (the path of all seven, in its local space)
+function abyssHorns(b, r) {
+  const g = Math.min(1, (b.t - (b.phaseAt || 0)) / 0.8);
+  ctx.beginPath();
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI * 0.86 + i / 6 * Math.PI * 0.72, L = r * (0.45 + (i % 2) * 0.3 + (i === 3 ? 0.3 : 0)) * g, bend = (i - 3) * 0.09;
+    ctx.moveTo(Math.cos(a - 0.13) * r * 0.88, Math.sin(a - 0.13) * r * 0.88);
+    ctx.quadraticCurveTo(Math.cos(a) * (r + L * 0.6), Math.sin(a) * (r + L * 0.6), Math.cos(a + bend) * (r + L), Math.sin(a + bend) * (r + L));
+    ctx.lineTo(Math.cos(a + 0.13) * r * 0.88, Math.sin(a + 0.13) * r * 0.88); ctx.closePath();
+  }
+}
+// a giant hand of shadow reaching in from the side of the screen (side: 1 from the right, -1 from the left) and
+// closing on the spot it marked
+function drawShadowHand(tx, ty, side, age, color) {
+  const reach = age < GRASP_CLOSE ? easeOut(Math.min(1, age / 0.75)) : age < GRASP_CLOSE + 0.35 ? 1 : Math.max(0, 1 - (age - GRASP_CLOSE - 0.35) / 0.4);
+  const curl = Math.max(0, Math.min(1, (age - GRASP_CLOSE + 0.1) / 0.14)), t = performance.now() / 1000;
+  const ex = side > 0 ? W + 80 : -80, ey = ty + 60, a = Math.atan2(ty - ey, tx - ex), ca = Math.cos(a), sa = Math.sin(a);
+  const hx = ex + (tx - ca * GRASP_R * 0.55 - ex) * reach, hy = ey + (ty - sa * GRASP_R * 0.55 - ey) * reach; // (the palm stops just short of the mark)
+  const arm = () => { ctx.beginPath(); ctx.moveTo(ex, ey); for (let i = 1; i <= 8; i++) { const k = i / 8, w = Math.sin(t * 5 + k * 6) * 14 * (1 - k); ctx.lineTo(ex + (hx - ex) * k - sa * w, ey + (hy - ey) * k + ca * w); } };
+  const fingers = () => {
+    ctx.beginPath();
+    for (let f = 0; f < 5; f++) {
+      const thumb = f === 4, fa = a + (thumb ? 1.25 : (f - 1.5) * 0.32) * (1 - curl * 0.6), L = GRASP_R * (thumb ? 0.75 : 1.1);
+      const bx = hx + Math.cos(fa) * GRASP_R * 0.32, by = hy + Math.sin(fa) * GRASP_R * 0.32;
+      const ox = bx + Math.cos(fa) * L, oy = by + Math.sin(fa) * L, cx = tx + Math.cos(fa) * L * 0.12, cy = ty + Math.sin(fa) * L * 0.12; // (open, and closed)
+      ctx.moveTo(bx, by); ctx.quadraticCurveTo(bx + Math.cos(fa) * L * (0.55 + curl * 0.35), by + Math.sin(fa) * L * (0.55 + curl * 0.35), ox + (cx - ox) * curl, oy + (cy - oy) * curl);
+    }
+  };
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  glow(color, 18); ctx.strokeStyle = hexA(color, 0.85);
+  ctx.lineWidth = 30; arm(); ctx.stroke(); ctx.lineWidth = 15; fingers(); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.strokeStyle = '#000';
+  ctx.lineWidth = 25; arm(); ctx.stroke(); ctx.lineWidth = 10; fingers(); ctx.stroke();
+  ctx.fillStyle = '#000'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(hx, hy, GRASP_R * 0.42, GRASP_R * 0.32, a, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
 // warnings for its attacks (also drawn on top of the darkness, so they're always fair)
 function drawAbyssWarnings(b) {
-  const t = performance.now() / 1000;
+  const t = performance.now() / 1000, flick = Math.floor(t * 14) % 2;
   ctx.save(); ctx.lineCap = 'round';
   b.tents.forEach((T, i) => { // where a tentacle is about to lash
     if (T[2] !== 1) return;
     const root = tentRoot(b, i), rx = b.x + Math.cos(root) * b.r * 0.75, ry = b.y + Math.sin(root) * b.r * 0.75;
-    ctx.strokeStyle = b.color; ctx.globalAlpha = 0.35 + (Math.floor(t * 14) % 2) * 0.45; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = b.color; ctx.globalAlpha = 0.35 + flick * 0.45; ctx.lineWidth = 2; ctx.setLineDash([10, 8]);
     ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx + Math.cos(T[0]) * T[4], ry + Math.sin(T[0]) * T[4]); ctx.stroke();
   });
   ctx.setLineDash([]);
@@ -5155,13 +5370,42 @@ function drawAbyssWarnings(b) {
       ctx.beginPath(); ctx.moveTo(x - 9, top + 6); ctx.lineTo(x, top - 14); ctx.lineTo(x + 9, top + 6); ctx.fill();
     }
   }
+  for (const [hx, hy, side, age] of b.hands || []) { // the hands: a closing ring where they'll grab, then the hand itself
+    if (age < 0) continue;
+    if (age < GRASP_CLOSE) {
+      const k = age / GRASP_CLOSE;
+      ctx.globalAlpha = 0.08 + k * 0.15; ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(hx, hy, GRASP_R, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.3 + k * 0.4 + flick * 0.2; ctx.strokeStyle = b.color; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(hx, hy, GRASP_R * (1.5 - k * 0.5), 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1; drawShadowHand(hx, hy, side, age, b.color);
+  }
+  for (const [x, y, age, aim] of b.voidEyes || []) { // eyes in the dark: an aim line that locks, then the beam
+    if (age < 0) continue;
+    const open = age < 0.4 ? age / 0.4 : age > STARE_END - 0.3 ? Math.max(0, (STARE_END - age) / 0.3) : 1;
+    const firing = age >= STARE_FIRE && age < STARE_FIRE + STARE_BEAM, ex = x + Math.cos(aim) * 3000, ey = y + Math.sin(aim) * 3000;
+    if (age > 0.4 && age < STARE_FIRE) {
+      const locked = age >= STARE_LOCK;
+      ctx.globalAlpha = locked ? 0.55 + flick * 0.35 : 0.22; ctx.strokeStyle = b.color; ctx.lineWidth = locked ? 2 : 1; ctx.setLineDash(locked ? [] : [6, 8]);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (firing) {
+      ctx.globalAlpha = 0.55; glow(b.color, 30); ctx.strokeStyle = b.color; ctx.lineWidth = STARE_W * 1.6 + Math.sin(t * 50) * 3;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = STARE_W * 0.45;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke(); ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1; abyssEye(x, y, 26, open, Math.cos(aim), Math.sin(aim), { dilate: firing ? 1 : 0, glowR: 25 });
+  }
   ctx.restore();
 }
-// phase 2+: darkness everywhere except a pool of light around each player
+// phase 2+: darkness everywhere except a pool of light around each player (and the lights fail first, flickering)
 let darkCv = null;
 function drawAbyssDark() {
   const b = bosses.find(o => o.gimmick === 'abyss');
-  if (!b || !(b.dark > 0.01)) return;
+  if (!b) return;
+  if (b.phase === 2 && b.t - (b.phaseAt || 0) < 1.3 && Math.random() < 0.35) { ctx.fillStyle = 'rgba(0,0,0,0.88)'; ctx.fillRect(0, 0, W, H); } // (the lights failing)
+  if (!(b.dark > 0.01)) return;
   darkCv ||= document.createElement('canvas');
   const w = Math.ceil(W), h = Math.ceil(H);
   if (darkCv.width !== w || darkCv.height !== h) { darkCv.width = w; darkCv.height = h; }
@@ -5185,6 +5429,11 @@ function drawAbyssDark() {
     const pts = tentPoints(b, i);
     ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
   }
+  // and the outline of its body (and its horns, once it's awake) looming in the dark
+  const sc = abyssScale(b); ctx.translate(b.x, b.y); ctx.scale(sc, sc);
+  ctx.globalAlpha = 0.5 + Math.sin(b.t * 2.6) * 0.15; glow(b.color, 16); ctx.lineWidth = 2;
+  abyssBlob(b, b.r, b.t); ctx.stroke();
+  if (b.phase >= 3) { abyssHorns(b, b.r); ctx.globalAlpha = 0.8; ctx.stroke(); }
   ctx.restore();
   // what still shows in the dark: its eyes, its warnings, and the red glint of its ink
   drawAbyssEyes(b); // (again, above the dark)
@@ -5192,6 +5441,139 @@ function drawAbyssDark() {
   ctx.save(); ctx.strokeStyle = hexA(b.color, 0.6); ctx.lineWidth = 1.5; ctx.beginPath();
   for (const e of eBullets) { const r = e.r || 5; ctx.moveTo(e.x + r, e.y); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); }
   ctx.stroke(); ctx.restore();
+  if (b.whisper && b.dying <= 0) { // a whisper in the dark, fading in and out
+    const [i, x, y, age] = b.whisper, a = Math.sin(Math.min(1, age / WHISPER_T) * Math.PI);
+    ctx.save(); ctx.globalAlpha = a * 0.6; ctx.fillStyle = '#ff2a3a'; glow('#ff0020', 12);
+    ctx.font = 'italic 16px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(WHISPERS[i] || '', x + (Math.random() - 0.5) * 1.5, y - age * 6 + (Math.random() - 0.5) * 1.5); ctx.restore();
+  }
+}
+// ----- glitches (THE ABYSS's entrance, and when it awakens) -----
+let noiseCv = null;
+function staticNoise(alpha) { // TV static over the whole screen
+  if (!noiseCv) {
+    noiseCv = document.createElement('canvas'); noiseCv.width = noiseCv.height = 160;
+    const n = noiseCv.getContext('2d'), img = n.createImageData(160, 160);
+    for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+    n.putImageData(img, 0, 0);
+  }
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = ctx.createPattern(noiseCv, 'repeat');
+  ctx.translate(-Math.random() * 160, -Math.random() * 160); ctx.fillRect(0, 0, W + 160, H + 160); ctx.restore();
+}
+function screenTear(n, amp) { // slices of the screen shoved sideways
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const cw = cv.width, ch = cv.height, k = cw / W;
+  for (let i = 0; i < n; i++) { const sy = Math.random() * ch, sh = 4 + Math.random() * ch * 0.06; ctx.drawImage(cv, 0, sy, cw, sh, (Math.random() - 0.5) * amp * k, sy, cw, sh); }
+  ctx.restore();
+}
+function glitchBars(n, alpha) { // blocks of corrupted color
+  ctx.save();
+  for (let i = 0; i < n; i++) { ctx.globalAlpha = alpha * Math.random(); ctx.fillStyle = ['#00ffff', '#ff00ff', '#ffffff', '#ff1f3d'][i % 4]; ctx.fillRect(Math.random() * W, Math.random() * H, 20 + Math.random() * W * 0.3, 2 + Math.random() * 10); }
+  ctx.restore();
+}
+// when it fully awakens (phase 3), the screen breaks up for a moment
+function drawAbyssGlitch() {
+  const b = bosses.find(o => o.gimmick === 'abyss' && o.phase >= 3);
+  const k = b ? 1 - (b.t - (b.phaseAt || 0)) / 0.9 : 0;
+  if (k <= 0 || settings.calm) return;
+  screenTear(Math.ceil(k * 8), 80 * k); glitchBars(Math.ceil(k * 6), 0.4 * k); staticNoise(0.25 * k);
+}
+// the entrance itself (drawn over everything; the world and the boss are drawn as usual underneath)
+const CINE_EYES = Array.from({ length: 26 }, (_, i) => { // where the eyes open in the dark: anywhere but the middle
+  let x = rand1(i * 3.1 + 1), y = rand1(i * 7.7 + 2);
+  if (Math.abs(x - 0.5) < 0.22 && Math.abs(y - 0.45) < 0.25) x = x < 0.5 ? x * 0.5 : 0.5 + x * 0.5;
+  return [x, y, 12 + rand1(i * 5.3) * 22];
+});
+function drawAbyssIntro(b) {
+  if (paused) return;
+  const c = b.cine, now = performance.now() / 1000, p = nearestPlayer(W / 2, H / 2) || { x: W / 2, y: H * 0.75 };
+  const look = (x, y) => { const d = Math.hypot(p.x - x, p.y - y) || 1; return [(p.x - x) / d, (p.y - y) / d]; };
+  const calm = settings.calm;
+  ctx.save(); ctx.shadowBlur = 0;
+  if (c < CINE.freeze) { // something is wrong: a flickering line across the screen
+    if (Math.random() < 0.3) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(0, Math.random() * H, W, 1 + Math.random() * 2); }
+  } else if (c < CINE.cut) { // the glitch, building
+    const g = (c - CINE.freeze) / (CINE.cut - CINE.freeze);
+    if (!calm) screenTear(1 + Math.floor(g * 8), 20 + g * 140);
+    glitchBars(Math.floor(2 + g * 10), 0.2 + g * 0.4); staticNoise(0.04 + g * (calm ? 0.15 : 0.4));
+    ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#ff1f3d';
+    for (let i = 0; i < g * 12; i++) ctx.fillText('▓▒░█▚▞'[i % 6].repeat(1 + (i % 4)), Math.random() * W, Math.random() * H);
+  } else {
+    // black, then (as it rises) the black fades away
+    const fade = c < CINE.rise ? 1 : Math.max(0, 1 - (c - CINE.rise) / (CINE.flash - CINE.rise));
+    ctx.globalAlpha = fade; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1;
+    if (c >= CINE.text && c < CINE.eye) { // a dead terminal
+      ctx.font = `${Math.min(20, W / 34)}px monospace`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const melt = Math.max(0, c - (CINE.eye - 0.2)) / 0.2;
+      CINE_LINES.forEach(([line, col, at, cps], i) => {
+        const shown = Math.floor(Math.max(0, c - CINE.text - at) * cps); if (shown <= 0) return;
+        ctx.globalAlpha = 1 - melt; ctx.fillStyle = col;
+        ctx.fillText(line.slice(0, shown) + (shown < line.length && Math.floor(now * 8) % 2 ? '█' : ''), W * 0.08 + (Math.random() - 0.5) * melt * 20, H * 0.36 + i * 30 + melt * melt * 90 * (i + 1));
+      });
+      ctx.globalAlpha = 1;
+    }
+    if (c >= CINE.eye && c < CINE.rise) { // eyes in the dark
+      const shut = c >= CINE.laugh ? Math.max(0, 1 - (c - CINE.laugh) / 0.12) : 1;
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75); // a red glow creeping in from the edges
+      vg.addColorStop(0, 'rgba(120,0,15,0)'); vg.addColorStop(1, `rgba(120,0,15,${0.35 * shut * Math.min(1, (c - CINE.eye) / 1.2)})`);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      if (c >= CINE.eyes) CINE_EYES.forEach(([fx, fy, rad], i) => {
+        const o = Math.max(0, Math.min(1, (c - CINE.eyes - i * 0.05) / 0.25)) * shut;
+        const [lx, ly] = look(fx * W, fy * H); abyssEye(fx * W, fy * H, rad, o, lx * 0.8, ly * 0.8, { glowR: 12 });
+      });
+      const k = (c - CINE.eye) / 1.1, open = (k < 0.3 ? easeOut(k / 0.3) * 0.25 : k < 0.55 ? 0.25 : easeOut(Math.min(1, (k - 0.55) / 0.45)) * 0.75 + 0.25) * shut; // (it struggles open)
+      const R = Math.min(W, H) * 0.3, [lx, ly] = look(W / 2, H * 0.45);
+      abyssEye(W / 2 + (Math.random() - 0.5) * 2, H * 0.45, R, open, lx * 0.7, ly * 0.7, { glowR: 60, dilate: c > CINE.eyes ? 0.15 : 0.6 - k * 0.4 });
+    }
+    if (c >= CINE.laugh && c < CINE.rise + 0.4) { // HA. HA. HA.
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let k = 0; k < 3; k++) {
+        const a = c - (CINE.laugh + 0.05 + k * 0.3); if (a < 0 || a > 0.9) continue;
+        const pop = a < 0.08 ? a / 0.08 * 1.3 : Math.max(1, 1.3 - (a - 0.08) * 2), size = (90 + k * 30) * Math.min(1, W / 700);
+        ctx.save(); ctx.translate(W * (0.3 + k * 0.2) + (Math.random() - 0.5) * 8, H * (0.42 + (k % 2) * 0.12) + (Math.random() - 0.5) * 8); ctx.scale(pop, pop);
+        ctx.globalAlpha = Math.max(0, 1 - a / 0.9); ctx.font = `900 ${size}px system-ui`; glow('#ff0020', 30); ctx.fillStyle = '#ff1f3d'; ctx.fillText('HA', 0, 0); ctx.restore();
+      }
+    }
+    if (c >= CINE.slam && c < CINE.flash) { // tentacles slamming in from every edge (then dragged back into it as it rises)
+      const out = Math.min(1, easeOut((c - CINE.slam) / 0.25)) * (c < CINE.rise ? 1 : Math.max(0, 1 - (c - CINE.rise) / (CINE.flash - CINE.rise)));
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU + 0.2, sx = W / 2 + Math.cos(a) * W, sy = H / 2 + Math.sin(a) * H, L = Math.hypot(W, H) * 0.55 * out;
+        const pts = Array.from({ length: 11 }, (_, k) => { const f = k / 10, w = Math.sin(now * 7 + i + f * 5) * 26 * f; return [sx + (W / 2 - sx) / Math.hypot(W / 2 - sx, H / 2 - sy) * L * f - Math.sin(a) * w, sy + (H / 2 - sy) / Math.hypot(W / 2 - sx, H / 2 - sy) * L * f + Math.cos(a) * w]; });
+        for (const [col, wd] of [['#ff1f3d', 46], ['#000', 38]]) {
+          ctx.strokeStyle = col; ctx.lineWidth = wd * 0.7; ctx.beginPath(); pts.forEach(([x, y], k) => k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+        }
+      }
+    }
+  }
+  if (c >= CINE.title) { // its name
+    const k = c - CINE.title, out = Math.max(0, 1 - Math.max(0, c - (CINE_LEN - 0.5)) / 0.5), text = 'THE ABYSS', size = Math.min(130, W / 6.5);
+    ctx.font = `900 ${size}px system-ui`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const widths = [...text].map(ch => ctx.measureText(ch).width), total = widths.reduce((s, w) => s + w, 0);
+    let x = W / 2 - total / 2;
+    [...text].forEach((ch, i) => {
+      const a = k - i * 0.06, w = widths[i];
+      if (a > 0) {
+        const pop = a < 0.1 ? 2 - a / 0.1 : 1, j = 3 + (Math.random() < 0.05 ? 14 : 0);
+        ctx.save(); ctx.translate(x + w / 2 + (Math.random() - 0.5) * j, H * 0.42 + (Math.random() - 0.5) * j); ctx.scale(pop, pop);
+        ctx.globalAlpha = out * Math.min(1, a / 0.1); glow('#ff0020', 40); ctx.fillStyle = '#ff1f3d'; ctx.fillText(ch, -w / 2, 0);
+        ctx.shadowBlur = 0; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeText(ch, -w / 2, 0); ctx.restore();
+      }
+      x += w;
+    });
+    if (k > 0.7) {
+      ctx.globalAlpha = out * Math.min(1, (k - 0.7) / 0.4); ctx.font = `bold ${Math.min(18, W / 40)}px system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = '#ffd0d6';
+      ctx.fillText('—  T H E   E N D   O F   E V E R Y T H I N G  —', W / 2, H * 0.42 + size * 0.62); ctx.globalAlpha = 1;
+    }
+  }
+  // cinematic bars, sliding in and out
+  const bar = H * 0.08 * Math.min(1, c / 0.4) * Math.min(1, (CINE_LEN - c) / 0.5);
+  ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, bar); ctx.fillRect(0, H - bar, W, bar);
+  if (meta.seenAbyss && net.role !== 'guest' && c < CINE.rise - 0.6) {
+    ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText('ENTER / SPACE: SKIP', W - 16, H - 10);
+  }
+  ctx.restore();
 }
 
 // THE WYRM's body: armored segments from the tail up to the head, each with a glowing scale
@@ -5381,7 +5763,7 @@ function bossPath(b, r, rot, k = 0) {
 
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
-  if (b.style === 'abyss') { drawAbyss(b); return; }
+  if (b.style === 'abyss') { if (!(b.cine < CINE.rise)) drawAbyss(b); return; } // (during its entrance it only appears once it rises)
   if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
   const enraged = isEnraged(b), fury = enraged && b.dying <= 0 && b.entered; // (fury: wearing its rage form)
   const key = shapeOf(b), shape = BOSS_SHAPES[key] || BOSS_SHAPES.hexcore, form = RAGE_FORMS[key] || RAGE_FORMS.generic;
@@ -6565,7 +6947,7 @@ function drawHUD() {
   const narrow = W < 640, compact = bosses.length >= 3;
   const full = narrow ? W - 32 : Math.min(compact ? 560 : 460, W - 360), bw = compact ? (full - 10) / 2 : full;
   const top = narrow ? 14 + players.length * hudRowH() + 8 : 18;
-  bosses.forEach((bo, i) => {
+  bosses.filter(bo => !(bo.cine < CINE_LEN)).forEach((bo, i) => { // (THE ABYSS's bar appears once its entrance is over)
     const bx = compact ? (W - full) / 2 + (i % 2) * (bw + 10) : (W - bw) / 2;
     const by = compact ? top + Math.floor(i / 2) * 28 : top + i * 34, cx = bx + bw / 2;
     let status = '', statusColor = bo.color;
@@ -7943,7 +8325,10 @@ function drawVignette() {
 
 function draw() {
   // ZERO turns the world inside out: invert the canvas colors (a CSS filter, so it costs nothing to draw)
+  const cine = inRun() ? abyssCine()?.cine : undefined, glitching = cine > CINE.freeze && cine < CINE.cut; // (undefined: no entrance going on)
   const inv = inRun() && !settings.calm && bosses.some(b => b.gimmick === 'zero' && b.inv > 0) ? 'invert(1) hue-rotate(180deg)'
+    : glitching && !settings.calm && Math.random() < 0.12 ? 'invert(1)' // (THE ABYSS's entrance: the colors drain, and flash inside out)
+    : cine < CINE.cut ? 'saturate(0.35) contrast(1.15)'
     : inRun() && timeFlow() === 0 ? 'saturate(0.2) sepia(0.35)' : ''; // (CHRONOS's time stop: the world fades like an old photo)
   if (cv.style.filter !== inv) cv.style.filter = inv;
   ctx.shadowBlur = 0;
@@ -7987,6 +8372,7 @@ function draw() {
   else if (state === 'joinCode') drawJoin();
   else if (state === 'lobby') drawLobby();
   else if (state === 'over') drawOver();
+  if (state === 'play') { drawAbyssGlitch(); const cb = abyssCine(); if (cb) drawAbyssIntro(cb); } // (THE ABYSS's entrance covers everything)
   if (sel >= buttons.length) sel = Math.max(0, buttons.length - 1);
 
   if (toast) {
@@ -8217,7 +8603,8 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
-  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special']; // (gimmicks, rage moves)
+  'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special',
+  'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)

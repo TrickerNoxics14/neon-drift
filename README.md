@@ -55,6 +55,20 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Leech:** sprays blood that rushes back into it.
 - **Zero:** deletes half the screen in a checkerboard pattern.
 
+### THE ABYSS
+
+The final boss gets a full entrance. The music dies and the screen glitches until the game seems to crash. A dead terminal types out a warning, then one giant eye opens in the dark, then dozens more. They all close as it laughs, tentacles slam in from the edges, and it rises out of the dark to its own song, **Flamewall**. After you've seen it once, press **Enter**, **Space** or **A** to skip ahead.
+
+It fights in three phases, learning new moves in each:
+- Tentacle lashes, ink rings and eruptions from below.
+- Eyes that open in the dark around the screen and fire beams at you.
+- Giant shadow hands that grab where you are.
+- Black rain with one dry lane drifting across.
+- Shades that hunt you in the dark.
+- In its last phase, a frenzy where every tentacle strikes in turn.
+
+When the lights go out, its eyes glow in the dark and it whispers to you. When it fully awakens, the screen breaks up, a crown of horns tears out of it, and its outline looms over the darkness.
+
 Regular enemies are animated too. They warp in, squash when hit, and break into pieces when destroyed. Ships fly with engine flames, gunners aim their barrels, and slimes blink.
 
 ### Zones
