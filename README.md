@@ -92,7 +92,7 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
 - **Zero:** deletes half the screen in a checkerboard pattern.
-- **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog. His fight plays its song from files that stay on the creator's computer, switching to the version with vocals, in sync, when he turns golden; the public site plays a written-out version instead.)
+- **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog.) His fight plays **Golden Hour**, made by the game's creator: the instrumental, switching to the version with vocals at the very same moment in the song when he turns golden.
 
 ### THE ABYSS
 
