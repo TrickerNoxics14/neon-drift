@@ -208,6 +208,8 @@ A little companion that follows your ship around (Hangar → Skins & Cosmetics �
 
 Clear Boss Rush fast enough for a medal: 🥇 **gold** under 16:00, 🥈 **silver** under 22:00, and 🥉 **bronze** for any clear (when ZERO joins the end of the rush, you get 1:15 extra). Your best medal and time show on the menu when Boss Rush is picked. Gold unlocks the **Champion** skin.
 
+Run times are real time. The run clock used to count every second twice, so times (the run timer, Boss Rush medals and fastest boss kills in the gallery) showed double. Old records were halved to their real times, and any Boss Rush medal your real time had earned was handed out.
+
 ### Golden shards
 
 One golden shard is hidden in each of the 8 regular zones. Each time you visit a zone whose shard you haven't found, there's a chance it drifts across the screen once, faint and twinkling. Fly into it to keep it. Online, a shard found by anyone counts for everyone. The Hangar shows how many you have, and finding all 8 unlocks the **Shardglass** skin.

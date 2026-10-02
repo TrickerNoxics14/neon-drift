@@ -874,7 +874,7 @@ try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta =
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } }, seenAbyss: !!m.seenAbyss,
   abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [],
   mastery: m.mastery && typeof m.mastery === 'object' ? m.mastery : {}, bossLog: m.bossLog && typeof m.bossLog === 'object' ? m.bossLog : {}, ships3: m.ships3 && typeof m.ships3 === 'object' ? m.ships3 : {},
-  goldShards: m.goldShards && typeof m.goldShards === 'object' ? m.goldShards : {}, rush: m.rush && typeof m.rush === 'object' ? m.rush : {} }; } catch (e) {}
+  goldShards: m.goldShards && typeof m.goldShards === 'object' ? m.goldShards : {}, rush: m.rush && typeof m.rush === 'object' ? m.rush : {}, clockFix: m.clockFix | 0 }; } catch (e) {}
 meta.mastery ||= {}; // (mastery XP per ship, by its base id)
 meta.ships3 ||= {}; // (the MK IIIs you own)
 meta.goldShards ||= {}; meta.rush ||= {}; // (golden shards found, by zone; Boss Rush: best medal (1-3) and best time)
@@ -2303,7 +2303,7 @@ function endRun(victory = false) {
   if (victory && run.rush) { // a Boss Rush medal (the extra ZERO fight, once THE ABYSS has been beaten, gets extra time)
     const lv = rushMedal(); run.medal = lv;
     if ((meta.rush.medal | 0) < lv) meta.rush.medal = lv;
-    if (!(meta.rush.best <= time)) meta.rush.best = Math.round(time);
+    if (!(meta.rush.best <= run.clock)) meta.rush.best = Math.round(run.clock);
     if (lv >= 3) unlockAch('rushgold');
   }
   run.victory = victory;
@@ -4798,7 +4798,7 @@ function abyssCineStep(b, dt) {
   }
   if (hit(CINE.title)) { beep(90, 0.9, 'square', 0.1, -50); shake = Math.max(shake, 16); }
   if (b.cine >= CINE_LEN) { // the fight begins
-    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b); glitchBoss(b);
+    b.entered = true; b.intro = 1; b.atkT = 1.2; logBoss(encounter?.name); if (encounter) encounter.t0 ??= run.clock || 0; hardenBoss(b); glitchBoss(b);
     if (b.hint) hint = { text: b.hint, life: 6 };
     if (!meta.seenAbyss && net.role !== 'guest') { meta.seenAbyss = true; saveMeta(); }
   }
@@ -5258,7 +5258,7 @@ function updateBoss(b, dt) {
     b.introRingT -= dt;
     if (b.introRingT <= 0) { b.introRingT = 0.35; fxRing(b.x, b.y, b.r * 2.5, b.r * 0.3, 0.4, b.color, 2); }
     if (b.y >= hoverY) {
-      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= time; hardenBoss(b); glitchBoss(b);
+      b.entered = true; b.intro = 1; logBoss(encounter?.name); if (encounter) encounter.t0 ??= run.clock || 0; hardenBoss(b); glitchBoss(b);
       shake = Math.max(shake, 16); bossRoar(b, true);
       fxRing(b.x, b.y, b.r, b.r * 5, 0.7, b.color, 5); fxRing(b.x, b.y, b.r, b.r * 3.5, 0.5, '#ffffff', 3, 0.1);
       burst(b.x, b.y, b.color, 60, 400);
@@ -5405,7 +5405,7 @@ function hitBoss(b, dmg, fx, fy) {
 // achievements for winning a boss fight (called once, when its last boss is gone)
 function onEncounterBeaten(enc, last) {
   unlockAch('first_boss');
-  logBoss(enc.name, enc.t0 !== undefined ? time - enc.t0 : undefined);
+  logBoss(enc.name, enc.t0 !== undefined ? (run.clock || 0) - enc.t0 : undefined);
   if (run.practice?.hard && meta.bossLog[enc.name]) { meta.bossLog[enc.name].hard = true; saveMeta(); }
   run.coins = (run.coins || 0) + (run.rush ? 60 : 30); // shop money (Boss Rush has few other kills)
   if (!enc.hitTaken) unlockAch('flawless');
@@ -5534,11 +5534,13 @@ function update(dt) {
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
   if (state !== 'play' || paused) { updateParticles(dt); return; }
-  time += dt;
+  // two clocks: the game clock, which has always run at double speed (everything that moves or blinks by it is tuned to
+  // that), and real time, for the times you see: the run timer, fastest boss kills and Boss Rush medals
+  time += dt * 2;
+  run.clock = (run.clock || 0) + dt;
   // how much boss damage the team is putting out per second, smoothed over a few seconds (see firepowerHp)
   run.dpsEst = (run.dpsEst || 0) + ((run.fireAcc || 0) / dt - (run.dpsEst || 0)) * Math.min(1, dt / 5); run.fireAcc = 0;
   const s = run.s;
-  time += dt;
   if (hint) { hint.life -= dt; if (hint.life <= 0) hint = null; }
   if (run.victoryT) { run.victoryT -= dt; if (run.victoryT <= 0) { run.victoryT = 0; endRun(true); return; } }
   hurtFlash = Math.max(0, hurtFlash - dt * 1.8);
@@ -10443,7 +10445,7 @@ function drawOver() {
   if (run.victory) title(run.rush ? 'RUSH CLEARED!' : 'VICTORY!', cy, '#ffe93d', run.rush ? 56 : 72);
   if (run.victory && run.rush) { // the medal, and what the next one needs
     const lv = run.medal || rushMedal(), md = RUSH_MEDALS[lv], next = RUSH_MEDALS[lv + 1];
-    fitText(`${md.icon} ${md.name} MEDAL  ·  ${fmtTime(time)}${next ? `  ·  ${next.name.toLowerCase()} needs under ${fmtTime(rushLimit(lv + 1))}` : ''}`, cy + 36, 16, md.color, 'bold');
+    fitText(`${md.icon} ${md.name} MEDAL  ·  ${fmtTime(run.clock || 0)}${next ? `  ·  ${next.name.toLowerCase()} needs under ${fmtTime(rushLimit(lv + 1))}` : ''}`, cy + 36, 16, md.color, 'bold');
   }
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   if (run.abyssLoss) { ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); fitText('it\'s still waiting.', cy + 34, 13, '#ff1f3d', 'italic'); ctx.restore(); }
@@ -10457,7 +10459,7 @@ function drawOver() {
   ];
   lines.forEach(([t, c, s], i) => fitText(t, cy + 56 + i * 30, s, c, i === 2 ? 'bold' : ''));
   // run stats: time, kills and damage, then the ships
-  const shipsLine = `⏱ ${fmtTime(time)}  ·  ${run.kills || 0} kills  ·  ${fmtBig(run.dmgDone || 0)} damage  ·  ` + players.map(p => (mode > 1 ? `P${p.id + 1} ` : '') + p.ship.name).join('  ·  ');
+  const shipsLine = `⏱ ${fmtTime(run.clock || 0)}  ·  ${run.kills || 0} kills  ·  ${fmtBig(run.dmgDone || 0)} damage  ·  ` + players.map(p => (mode > 1 ? `P${p.id + 1} ` : '') + p.ship.name).join('  ·  ');
   fitText(shipsLine, cy + 140, 13, '#9ab', 'bold');
   const build = UPGRADES.filter(u => run.owned[u.id]).map(u => run.owned[u.id] > 1 ? `${u.name} ×${run.owned[u.id]}` : u.name).join(' · ');
   ctx.font = '12px system-ui';
@@ -10569,7 +10571,18 @@ const RUSH_MEDALS = [null, { name: 'BRONZE', icon: '🥉', color: '#e0955a' }, {
   { name: 'GOLD', icon: '🥇', color: '#ffd23d', under: 16 * 60 }];
 const RUSH_ZERO_TIME = 75; // (extra time when ZERO joins the end of the rush)
 const rushLimit = lv => RUSH_MEDALS[lv].under + (run?.rushZero ? RUSH_ZERO_TIME : 0);
-const rushMedal = () => time <= rushLimit(3) ? 3 : time <= rushLimit(2) ? 2 : 1;
+const rushMedal = () => { const c = run?.clock || 0; return c <= rushLimit(3) ? 3 : c <= rushLimit(2) ? 2 : 1; };
+// Run times used to be counted twice over (the run clock ticked twice a frame), so the records saved before were twice
+// as slow as they really were: halve them, once, and hand out any Boss Rush medal the real time had earned
+if (!meta.clockFix) {
+  for (const r of Object.values(meta.bossLog)) if (r && Number.isFinite(r.best)) r.best = Math.round(r.best * 5) / 10;
+  if (Number.isFinite(meta.rush.best) && meta.rush.medal) {
+    meta.rush.best = Math.round(meta.rush.best / 2);
+    meta.rush.medal = Math.max(meta.rush.medal | 0, meta.rush.best <= RUSH_MEDALS[3].under ? 3 : meta.rush.best <= RUSH_MEDALS[2].under ? 2 : 1);
+    if (meta.rush.medal >= 3) unlockAch('rushgold');
+  }
+  meta.clockFix = 1; saveMeta();
+}
 const curZone = () => zoneDef(run?.zone && (inRun() || state === 'over') ? run.zone : ZONE_FIRST); // (menus are in DEEP SPACE)
 const regularLabel = k => TYPES[k === 'swarm' ? 'swarmer' : k].label;
 
@@ -12331,7 +12344,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.4';
+const BUILD = '2026.10.03.5';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12398,6 +12411,7 @@ const randomCode = () => String(Math.floor(Math.random() * 10 ** CODE_LEN)).padS
 const unlockedShips = () => SHIPS.filter(shipUnlocked);
 
 function leaveOnline(msg) {
+  net.gen = (net.gen || 0) + 1; // (anything still loading for the old room gives up)
   pubStop(); // (my room comes off the public list)
   try { net.peer?.destroy(); } catch (e) {}
   for (const c of net.waiting || []) try { c.close(); } catch (e) {}
@@ -12409,13 +12423,14 @@ function leaveOnline(msg) {
 
 // ----- host -----
 async function hostGame() {
+  const gen = net.gen = (net.gen || 0) + 1;
   Object.assign(net, { role: 'host', conns: [], ctlSeq: 0, slots: hostSlots(), mine: Array.from({ length: net.localN }, (_, k) => k), myId: 0,
     status: 'Connecting to the matchmaking server…', code: '', locked: false, waiting: new Set(),
     public: net.wantPublic ?? false, roomName: randomRoomName() }); // (private unless you ask for public: only friends with the code get in)
   go('lobby');
   try { await loadPeer(); } catch (e) { net.status = 'Could not load the online library — check your internet connection.'; return; }
   const config = await iceConfig();
-  if (net.role !== 'host') return; // (left while loading)
+  if (net.role !== 'host' || net.gen !== gen) return; // (left, or started over, while loading)
   net.ice = config;
   const open = () => {
     const code = randomCode(), peer = new Peer(PEER_PREFIX + code, { config });
@@ -12590,6 +12605,7 @@ function packSnap() {
   const s = run.s;
   return {
     ts: Math.round(performance.now()), // host clock, so guests can place every update on a timeline
+    ck: r1(run.clock || 0), // (the run's real time, for the run timer and medals)
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
     rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd },
@@ -12821,9 +12837,11 @@ const myRoom = () => net.role === 'host' && net.public && net.code && !net.locke
 
 // ----- browsing: knock on every public address, list whoever answers -----
 async function lookStart() {
+  const gen = look.gen = (look.gen || 0) + 1;
   look.starting = true; look.status = 'Connecting to the matchmaking server…';
   try { await loadPeer(); } catch (e) { look.status = 'Could not load the online library — check your internet.'; look.starting = false; look.retry = performance.now() + 5000; return; }
   const config = await iceConfig();
+  if (look.gen !== gen) return; // (stopped, or started over, while loading)
   if (state !== 'browse') { look.starting = false; return; }
   const peer = new Peer({ config });
   Object.assign(look, { peer, ready: false, probes: new Map(), rooms: new Map(), next: [], t0: performance.now() });
@@ -12838,7 +12856,7 @@ async function lookStart() {
   keepAlive(peer);
 }
 function lookStop() {
-  const p = look.peer;
+  const p = look.peer; look.gen = (look.gen || 0) + 1;
   Object.assign(look, { peer: null, starting: false, ready: false, probes: new Map(), rooms: new Map(), next: [] });
   try { p?.destroy(); } catch (e) {}
 }
@@ -12922,7 +12940,7 @@ function applySnap(s) {
   if (net.lastArr) { const gp = arr - net.lastArr; net.gapAvg = (net.gapAvg ?? gp) * 0.9 + gp * 0.1; net.gapDev = (net.gapDev || 0) * 0.9 + Math.abs(gp - net.gapAvg) * 0.1; }
   net.lastArr = arr; net.interp = Math.max(90, Math.min(300, (net.gapAvg || 50) * 1.6 + (net.gapDev || 0) * 3 + 30)); // (bumpier connection: draw a little further back)
   if (state !== s.st) { if (s.st === 'upgrade' || s.st === 'over' || s.st === 'route') sel = 0; state = s.st; menuOpen = false; }
-  paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t;
+  paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t; run.clock = num(s.ck, 0, 1e7, run.clock || 0);
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
   if (s.rs && typeof s.rs === 'object') for (const k of SNAP_STATS) run.s[k] = num(s.rs[k], 0, 1e4, run.s[k]); // (only the stats the HUD needs, as plain numbers)
   Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr, wonStandard: !!s.ws });
@@ -13069,7 +13087,7 @@ function guestFrame(dt) {
     for (const k of pickups) if (k.kind !== 'gold') k.y = k.y0 + 90 * since(k.t0);
   }
   if (state === 'play' && !paused) {
-    time += dt;
+    time += dt * 2; // (the game clock runs at double speed, like the host's: see update)
     for (const e of enemies) { e.t += dt; e.spin += dt * 2; }
     for (const b of bosses) if (!(b.gx?.hang > 0)) b.t += dt; // (a GLITCH that's NOT RESPONDING stays frozen)
     for (const pp of popups) { pp.life -= dt; pp.y -= 45 * dt; }
