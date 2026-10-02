@@ -1489,6 +1489,8 @@ const DOKI_ASKS = [
   ['Will you stay with me... FOREVER?', 2, true], ['Say I\'m CUTE.', 3, true], ['You\'re not scared... are you?', 0, true],
   ['Can you even breathe right now?', 1, true]];
 const DOKI_HEARTS = ['#ff4fa3', '#ff9ccf']; // (enemy bullets in these colors are drawn as hearts, on guests' screens too)
+// where her heart breaks once she's possessed: [down the heart (from its notch at -0.4 to its tip at 0.85), sideways], in heart sizes
+const DOKI_CRACK = [[-0.4, 0], [-0.18, 0.09], [0.04, -0.07], [0.26, 0.08], [0.5, -0.06], [0.68, 0.05], [0.85, 0]];
 const randomOf = a => a[Math.floor(Math.random() * a.length)];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
@@ -3817,8 +3819,10 @@ const GIMMICKS = {
       if (b.pawT > 0) b.pawT -= dt;
       if (!b.entered) return;
       if (!b.possessed && b.doki >= 0.5) { // halfway there, the curse in the doll wakes up
-        b.possessed = true; b.wasEnraged = true; // (the battle music turns into its heavy remake, and she trails red afterimages)
-        b.patterns = DOKI_POSSESSED; b.pattern = 0; b.atkT = 1.4; b.ask = null; b.askT = 3;
+        // her rage form (her heart breaks in two, see BOSS_SHAPES and RAGE_FORMS) grows in; the battle music turns into its
+        // heavy remake, and she trails red afterimages
+        b.possessed = true; b.forceRage = true; b.wasEnraged = true; b.rage = RAGE_TRANSFORM;
+        b.patterns = DOKI_POSSESSED; b.pattern = 0; b.atkT = Math.max(1.4, RAGE_TRANSFORM); b.ask = null; b.askT = 3;
         fxText('THE DOLL IS POSSESSED!', W / 2, H * 0.4, '#ff3d6d', 32, 2.2); shake = Math.max(shake, 24); screenFlash = Math.max(screenFlash, 0.3);
         for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r, b.r * (3 + i * 1.5), 0.6, i % 2 ? '#ffffff' : '#ff3d6d', 5, i * 0.18);
         beep(55, 1.4, 'sawtooth', 0.1, -20); beep(1800, 0.4, 'square', 0.03, -1500);
@@ -3836,7 +3840,7 @@ const GIMMICKS = {
       if (b.doki >= 1) charmDoki(b);
     },
     dmg: b => { b.pout = 0.6; return 0; }, // (anything that hits her just makes her pout)
-    rate: b => b.possessed ? 0.75 : 1,
+    rate: b => b.possessed ? 0.95 : 1, // (possessed counts as enraged too, which already speeds her up)
   },
   abyss: {
     update(b, dt) {
@@ -6475,11 +6479,48 @@ const BOSS_SHAPES = {
     ctx.stroke(); ctx.restore();
   } },
   zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
-  // DOKI DOLL (drawn by drawDoki; this outline is for her afterimages): a round head with cat ears
-  doki: { mode: 'up', eye: [0, -0.28, 0.5], path(r) {
-    const R = r * 0.62, hy = -r * 0.28;
-    ctx.beginPath(); ctx.arc(0, hy, R, 0, TAU);
-    for (const s of [-1, 1]) { ctx.moveTo(s * R * 0.3, hy - R * 0.85); ctx.lineTo(s * R * 0.95, hy - R * 1.45); ctx.lineTo(s * R * 0.92, hy - R * 0.4); }
+  // DOKI DOLL: a stitched patchwork heart with a little bow, beating. Possessed (her rage form), it breaks in two along
+  // a jagged crack, the halves pulling apart around her eye
+  doki: { mode: 'up', eye: [0, 0.02, 1.1], path(r, b, k = 0) {
+    const s = r * 0.95, y = r * 0.05;
+    ctx.beginPath();
+    if (!k) { heartPath(0, y, s); return; }
+    const g = s * k * (0.13 + Math.sin((b?.t || 0) * 3) * 0.03); // (how far apart the halves are)
+    for (const side of [-1, 1]) { // each half: down its own side to the tip, then back up the crack to the notch
+      ctx.moveTo(side * g, y - s * 0.4);
+      ctx.bezierCurveTo(side * (g + s * 0.75), y - s * 1.25, side * (g + s * 1.5), y - s * 0.1, side * g, y + s * 0.85);
+      for (const [cy, cx] of DOKI_CRACK.slice().reverse()) ctx.lineTo(side * g + cx * s, y + cy * s);
+      ctx.closePath();
+    }
+  }, detail(r, b, k = 0) {
+    const s = r * 0.95, y = r * 0.05;
+    ctx.save(); ctx.scale(0.62, 0.62); BOSS_SHAPES.doki.path(r, b, k); ctx.restore(); ctx.stroke(); // (the double neon line)
+    // a patchwork seam across her left side, cross-stitched (torn open, with loose threads, once she's possessed)
+    const seam = [[-0.95, -0.45], [-0.78, -0.12], [-0.62, 0.16], [-0.42, 0.42]];
+    ctx.save(); BOSS_SHAPES.doki.path(r, b, k); ctx.clip(); // (kept inside the heart)
+    ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.85;
+    if (k) ctx.setLineDash([6, 7]);
+    ctx.beginPath(); seam.forEach(([x, yy], i) => ctx[i ? 'lineTo' : 'moveTo'](x * s, y + yy * s)); ctx.stroke(); ctx.setLineDash([]);
+    for (let i = 0; i < seam.length - 1; i++) {
+      const [x0, y0] = seam[i], [x1, y1] = seam[i + 1], mx = (x0 + x1) / 2 * s, my = y + (y0 + y1) / 2 * s, d = s * 0.07;
+      if (k && i % 2) { ctx.beginPath(); ctx.moveTo(mx, my); ctx.quadraticCurveTo(mx - d, my + d * 2, mx - d * 0.5, my + d * 3.5); ctx.stroke(); continue; } // (a loose thread)
+      ctx.beginPath(); ctx.moveTo(mx - d, my - d); ctx.lineTo(mx + d, my + d); ctx.moveTo(mx + d, my - d); ctx.lineTo(mx - d, my + d); ctx.stroke();
+    }
+    ctx.restore();
+    // a little bow, sitting in the dip between the two halves of the heart
+    const by = y - s * 0.46, bw = s * 0.24;
+    ctx.save(); ctx.lineWidth = 2; ctx.fillStyle = k ? 'rgba(90,0,22,0.9)' : 'rgba(255,61,141,0.85)';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, by); ctx.lineTo(sd * bw, by - bw * 0.55); ctx.lineTo(sd * bw, by + bw * 0.55); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(0, by, bw * 0.22, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  },
+  // her heart beats (faster as her meter fills), and her eye's pupil is a little heart
+  scale: b => 1 + Math.max(0, Math.sin((b.t || 0) * (5 + (b.doki || 0) * 5))) ** 6 * 0.07,
+  pupil(coreR, b, fury, blinking) {
+    if (b.charmed) { ctx.fillStyle = '#ff4fa3'; glow('#ff4fa3', 14); ctx.beginPath(); heartPath(0, 0, coreR * 0.55); ctx.fill(); return; } // (smitten)
+    if (b.pout > 0 && !fury) { ctx.scale(1, 0.22); ctx.beginPath(); ctx.arc(0, 0, coreR * 0.5, 0, TAU); ctx.fill(); return; } // (a sulky squint)
+    ctx.scale(fury ? 0.8 : 1, blinking ? 0.1 : 1);
+    ctx.fillStyle = fury ? '#300' : '#5a1040'; ctx.beginPath(); heartPath(0, 0, coreR * 0.42); ctx.fill();
   } },
   // NEMESIS: a giant copy of one of your ships (b.hull), turned to face you, with its engines burning behind it
   nemesis: { mode: 'point', eye: [0.2, 0, 0.55], path(r, b) {
@@ -6543,6 +6584,7 @@ function oracleOpen(b) {
 const headingOf = b => b.style === 'wyrm' && b.body?.length ? Math.atan2(b.y - b.body[0][1], b.x - b.body[0][0]) : (b.faceA || 0);
 function bossRot(b) {
   const m = BOSS_SHAPES[shapeOf(b)]?.mode || 'spin', dieP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
+  if (b.style === 'doki' && b.entered && b.dying <= 0 && b.patterns?.[b.pattern] === 'twirl') return (b.t || 0) * 7; // (DOKI DOLL twirling)
   if (m === 'point') return headingOf(b) + (b.dying > 0 ? b.spin : 0);
   if (m === 'spin') return (b.spin || 0) * (b.side > 0 && shapeOf(b) === 'star' ? -1 : 1); // (the twins turn opposite ways)
   const t = b.t || 0, sway = m === 'swing' ? Math.sin(t * 1.9) * 0.16 : Math.sin(t * 1.2 + (b.slot || 0)) * 0.06;
@@ -6562,106 +6604,9 @@ function heartPath(x, y, s) {
   ctx.bezierCurveTo(x + s * 0.75, y - s * 1.25, x + s * 1.5, y - s * 0.1, x, y + s * 0.85);
   ctx.closePath();
 }
-// DOKI DOLL: a stitched plush cat-girl doll in a frilly dress, with a big bow. Her eyes shine and her blush deepens as her
-// DOKI meter fills. Possessed, her eyes go black and red, a seam tears open across her face and her mouth is stitched shut.
-// Hit by anything, she pouts. Charmed, her eyes turn into hearts and she floats away.
-function drawDoki(b) {
-  const t = b.t || 0, r = b.r, k = b.doki || 0, poss = !!b.possessed && !b.charmed, deathP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
-  const pink = poss ? '#ff3d6d' : '#ff6fd8', R = r * 0.62, hy = -r * 0.28; // (her head: radius and center)
-  let sc = 1 + Math.sin(t * 2.4) * 0.04 + (b.kick || 0) * 0.08;
-  if (!b.entered) sc *= 0.3 + 0.7 * easeOut(b.intro);
-  if (b.appear > 0) sc *= 1 - b.appear * 0.8;
-  if (b.charmed) sc *= 1 + deathP * 0.25;
-  const jit = poss ? 2 + (Math.random() < 0.05 ? 7 : 0) : 0, spin = b.patterns?.[b.pattern] === 'twirl' && b.entered && !b.charmed;
-  ctx.save();
-  ctx.translate(b.x + (Math.random() - 0.5) * jit, b.y + Math.sin(t * 2) * 4 + (Math.random() - 0.5) * jit - (b.charmed ? deathP * 60 : 0));
-  ctx.scale(sc, sc);
-  if (!b.entered) ctx.globalAlpha = 0.3 + 0.7 * b.intro;
-  if (b.charmed) ctx.globalAlpha *= Math.max(0, 1 - Math.max(0, deathP - 0.55) / 0.45); // (fading out as she floats away)
-  // a soft glow (dark red once possessed), and hearts circling her: more as her meter fills
-  const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2.2);
-  g.addColorStop(0, poss ? 'rgba(140,0,30,0.35)' : `rgba(255,111,216,${0.12 + k * 0.2})`); g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, TAU); ctx.fill();
-  const nh = Math.floor(k * 8) + (b.charmed ? 6 : 0);
-  ctx.fillStyle = poss ? '#ff3d6d' : '#ff9ccf'; glow(ctx.fillStyle, 10);
-  for (let i = 0; i < nh; i++) { const a = t * 1.2 + i / Math.max(1, nh) * TAU; ctx.beginPath(); heartPath(Math.cos(a) * r * 1.5, Math.sin(a) * r * 1.2, 5); ctx.fill(); }
-  ctx.rotate(spin ? t * 7 : Math.sin(t * 1.6) * 0.08); // (she sways; during a twirl she spins)
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  const body = 'rgba(42,10,36,0.92)';
-  // her tail, swishing behind her
-  ctx.strokeStyle = pink; ctx.lineWidth = 4; glow(pink, 14);
-  ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.62); ctx.quadraticCurveTo(r * 0.95, r * 0.75, r * 0.8 + Math.sin(t * 3) * r * 0.2, r * 0.15); ctx.stroke();
-  // the frilly dress, with scalloped frills along the hem
-  ctx.fillStyle = body; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(-r * 0.24, r * 0.12); ctx.lineTo(r * 0.24, r * 0.12); ctx.lineTo(r * 0.56, r * 0.8);
-  for (let i = 0; i < 5; i++) { const x0 = r * (0.56 - i * 0.224); ctx.quadraticCurveTo(x0 - r * 0.112, r * 0.98, x0 - r * 0.224, r * 0.8); }
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.6; ctx.beginPath(); ctx.moveTo(-r * 0.4, r * 0.55); ctx.lineTo(r * 0.4, r * 0.55); ctx.stroke(); ctx.globalAlpha /= 0.6; // (a ribbon round the skirt)
-  // stubby arms: waving (one swipes out when she claws)
-  for (const s of [-1, 1]) {
-    const swipe = b.pawT > 0 && b.paw === s ? Math.min(1, b.pawT / 0.35) : 0, a = s * (0.5 + Math.sin(t * 4 + s) * 0.25 + swipe * 1.1);
-    ctx.save(); ctx.translate(s * r * 0.26, r * 0.22); ctx.rotate(a);
-    ctx.beginPath(); ctx.ellipse(0, r * 0.2, r * 0.1, r * 0.22, 0, 0, TAU); ctx.fill(); ctx.stroke();
-    if (swipe) { ctx.lineWidth = 2; for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(c * r * 0.06, r * 0.4); ctx.lineTo(c * r * 0.09, r * 0.58); ctx.stroke(); } } // (claws out)
-    ctx.restore();
-  }
-  // her head, with cat ears
-  ctx.lineWidth = 2.5; ctx.fillStyle = body; ctx.strokeStyle = pink; glow(pink, 18);
-  for (const s of [-1, 1]) {
-    const tw = Math.sin(t * 5 + s) > 0.97 ? 0.15 : 0; // (an ear twitches now and then)
-    ctx.beginPath(); ctx.moveTo(s * R * 0.3, hy - R * 0.85); ctx.lineTo(s * R * (0.95 + tw), hy - R * (1.45 - tw)); ctx.lineTo(s * R * 0.92, hy - R * 0.4); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.save(); ctx.fillStyle = hexA(pink, 0.4); ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.moveTo(s * R * 0.45, hy - R * 0.8); ctx.lineTo(s * R * (0.86 + tw), hy - R * (1.25 - tw)); ctx.lineTo(s * R * 0.82, hy - R * 0.55); ctx.closePath(); ctx.fill(); ctx.restore();
-  }
-  ctx.beginPath(); ctx.arc(0, hy, R, 0, TAU); ctx.fill(); ctx.stroke();
-  // a big bow on her right ear
-  ctx.save(); ctx.translate(R * 0.75, hy - R * 0.95); ctx.rotate(0.3 + Math.sin(t * 3) * 0.08);
-  ctx.fillStyle = poss ? '#5a0016' : '#ff3d8d'; ctx.strokeStyle = poss ? '#ff3d6d' : '#ffd6ec'; ctx.lineWidth = 1.5;
-  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s * R * 0.42, -R * 0.2); ctx.lineTo(s * R * 0.42, R * 0.22); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.1, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.restore();
-  // the doll's seam: neat cross-stitches down one side... torn wide open across her face once she's possessed
-  ctx.shadowBlur = 0; ctx.strokeStyle = hexA(pink, 0.7); ctx.lineWidth = 1.3;
-  ctx.beginPath(); ctx.arc(0, hy, R * 0.88, -2.2, -1.2); ctx.stroke();
-  for (let i = 0; i < 5; i++) { const a = -2.2 + i * 0.25, x = Math.cos(a) * R * 0.88, y = hy + Math.sin(a) * R * 0.88; ctx.beginPath(); ctx.moveTo(x - 3, y - 3); ctx.lineTo(x + 3, y + 3); ctx.moveTo(x + 3, y - 3); ctx.lineTo(x - 3, y + 3); ctx.stroke(); }
-  if (poss) {
-    ctx.strokeStyle = '#ff1f3d'; ctx.lineWidth = 2.5; glow('#ff1f3d', 14);
-    ctx.beginPath(); ctx.moveTo(-R * 0.85, hy - R * 0.5); ctx.lineTo(-R * 0.35, hy - R * 0.25); ctx.lineTo(-R * 0.1, hy - R * 0.45); ctx.lineTo(R * 0.25, hy - R * 0.1); ctx.lineTo(R * 0.7, hy - R * 0.3); ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-  // her eyes: shiny (blinking, looking at you), hearts when she's charmed, > < when she pouts, black and red when possessed
-  const blink = (t % 3.6) < 0.12 && !poss, lx = (b.look?.x || 0) * R * 0.06, ly = (b.look?.y || 0) * R * 0.05;
-  for (const s of [-1, 1]) {
-    const ex = s * R * 0.4 + lx, ey = hy + R * 0.02 + ly;
-    if (b.charmed) { ctx.fillStyle = '#ff4fa3'; glow('#ff4fa3', 12); ctx.beginPath(); heartPath(ex, ey, R * 0.15); ctx.fill(); ctx.shadowBlur = 0; continue; }
-    if (b.pout > 0 && !poss) { ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex - s * R * 0.14, ey - R * 0.1); ctx.lineTo(ex + s * R * 0.06, ey); ctx.lineTo(ex - s * R * 0.14, ey + R * 0.1); ctx.stroke(); continue; }
-    if (blink) { ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ex - R * 0.14, ey); ctx.quadraticCurveTo(ex, ey + R * 0.08, ex + R * 0.14, ey); ctx.stroke(); continue; }
-    ctx.fillStyle = poss ? '#000' : '#ffffff'; ctx.beginPath(); ctx.ellipse(ex, ey, R * 0.16, R * 0.22, 0, 0, TAU); ctx.fill();
-    if (poss) { glow('#ff1f3d', 16); ctx.fillStyle = '#ff1f3d'; ctx.beginPath(); ctx.arc(ex + lx * 0.5, ey + ly * 0.5, R * (0.07 + (Math.random() < 0.1 ? 0.03 : 0)), 0, TAU); ctx.fill(); ctx.shadowBlur = 0; }
-    else {
-      const ig = ctx.createLinearGradient(ex, ey - R * 0.18, ex, ey + R * 0.18);
-      ig.addColorStop(0, '#5a1a7a'); ig.addColorStop(1, '#ff6fd8');
-      ctx.fillStyle = ig; ctx.beginPath(); ctx.ellipse(ex + lx * 0.6, ey + R * 0.02 + ly * 0.6, R * 0.12, R * 0.17, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex - R * 0.04, ey - R * 0.07, R * 0.05, 0, TAU); ctx.arc(ex + R * 0.05, ey + R * 0.06, R * 0.025, 0, TAU); ctx.fill(); // (two glints)
-    }
-  }
-  // blush (deeper as her meter fills), whiskers, and her mouth
-  if (!poss) { ctx.fillStyle = `rgba(255,90,170,${0.25 + k * 0.55})`; for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * R * 0.58, hy + R * 0.3, R * 0.15, R * 0.07, 0, 0, TAU); ctx.fill(); } }
-  ctx.strokeStyle = hexA(pink, 0.6); ctx.lineWidth = 1.2;
-  for (const s of [-1, 1]) for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(s * R * 0.75, hy + R * 0.25 + i * R * 0.08); ctx.lineTo(s * R * 1.12, hy + R * 0.2 + i * R * 0.16); ctx.stroke(); }
-  ctx.strokeStyle = poss ? '#ff3d6d' : '#ffd6ec'; ctx.lineWidth = 2;
-  const my = hy + R * 0.42;
-  if (poss) { // stitched shut
-    ctx.beginPath(); ctx.moveTo(-R * 0.25, my); ctx.lineTo(R * 0.25, my); ctx.stroke(); ctx.lineWidth = 1.5;
-    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * R * 0.1, my - R * 0.07); ctx.lineTo(i * R * 0.1, my + R * 0.07); ctx.stroke(); }
-  } else if (b.pout > 0) { ctx.beginPath(); ctx.arc(0, my + R * 0.08, R * 0.09, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); } // (a little frown)
-  else { ctx.beginPath(); ctx.arc(-R * 0.07, my - R * 0.03, R * 0.07, 0.1, Math.PI - 0.1); ctx.arc(R * 0.07, my - R * 0.03, R * 0.07, 0.1, Math.PI - 0.1); ctx.stroke(); } // (a cat smile, :3)
-  ctx.restore();
-}
 
 function drawBoss(b) {
   if (b.downed) { drawDownedTwin(b); return; }
-  if (b.style === 'doki') { drawDoki(b); return; }
   if (b.style === 'abyss') { if (!(b.cine < CINE.rise)) drawAbyss(b); return; } // (during its entrance it only appears once it rises)
   if (b.style === 'wyrm') drawWyrmBody(b); // (the head is drawn like any other boss)
   const enraged = isEnraged(b), fury = enraged && b.dying <= 0 && b.entered; // (fury: wearing its rage form)
@@ -6682,14 +6627,17 @@ function drawBoss(b) {
   if (b.rage > 0) sc *= 1 + Math.sin(b.rage * 30) * 0.07 + (1 - b.rage / RAGE_TRANSFORM) * 0.12; // (swelling up as it transforms)
   if (b.special?.k === 'crunch') sc *= 1 + Math.min(0.5, (b.special.n || 0) * 0.012); // (THE SINGULARITY swells with every bullet it swallows)
   if (fury && form.scale) sc *= form.scale(b, k, tr); // (some rage forms throb in their own way)
-  if (b.dying > 0) sc *= 1 - deathP * 0.2;
-  const jitter = b.dying > 0 ? 2 + deathP * 8 : b.rage > 0 ? 6 : aiming ? 4 : enraged ? 1.5 : 0;
+  if (shape.scale) sc *= shape.scale(b); // (and some shapes always do: DOKI DOLL's heartbeat)
+  // dying: it shrinks and shakes itself apart (DOKI DOLL, charmed, instead swells a little and floats up, fading away)
+  if (b.dying > 0) sc *= b.charmed ? 1 + deathP * 0.25 : 1 - deathP * 0.2;
+  const jitter = b.charmed ? 0 : b.dying > 0 ? 2 + deathP * 8 : b.rage > 0 ? 6 : aiming ? 4 : enraged ? 1.5 : 0;
 
   ctx.save();
-  ctx.translate(b.x + (Math.random() - 0.5) * jitter, b.y + (Math.random() - 0.5) * jitter - b.hitKick * 4);
+  ctx.translate(b.x + (Math.random() - 0.5) * jitter, b.y + (Math.random() - 0.5) * jitter - b.hitKick * 4 - (b.charmed ? deathP * 60 : 0));
   if (b.style === 'phantom') ctx.globalAlpha = Math.max(0.2, 0.7 + Math.sin(t * 7) * 0.2 - (Math.random() < 0.04 ? 0.4 : 0));
   if (!b.entered) ctx.globalAlpha = 0.3 + 0.7 * b.intro;
-  if (b.dying > 0 && Math.random() < deathP * 0.3) ctx.globalAlpha = 0.35;
+  if (b.charmed) ctx.globalAlpha *= Math.max(0, 1 - Math.max(0, deathP - 0.55) / 0.45);
+  else if (b.dying > 0 && Math.random() < deathP * 0.3) ctx.globalAlpha = 0.35;
   if (b.phased > 0) ctx.globalAlpha *= 0.08 + Math.random() * 0.12; // (NEMESIS phased out: a flicker of static)
   const sp = b.special;
   if (sp?.k === 'haunt' && sp.t < HAUNT_T * 2) ctx.globalAlpha *= Math.max(0.08, 1 - (sp.t % HAUNT_T) / HAUNT_T); // (PHANTOM fading out before it jumps)
@@ -6714,7 +6662,7 @@ function drawBoss(b) {
   ctx.restore();
 
   // cracks spreading across the shell as it dies
-  if (b.dying > 0) {
+  if (b.dying > 0 && !b.charmed) {
     ctx.strokeStyle = '#ffffff'; glow('#ffffff', 20); ctx.lineWidth = 2;
     for (const k of b.cracks) {
       const L = b.r * k.len * Math.min(1, deathP * 1.6);
@@ -6743,13 +6691,16 @@ function drawBoss(b) {
     const core = b.dying > 0 ? '#ffffff' : enraged ? '#ff4d4d' : '#ffffff';
     glow(core, 40 + windup * 30); ctx.fillStyle = core;
     ctx.beginPath(); ctx.arc(0, 0, coreR, 0, Math.PI * 2); ctx.fill();
-    if (b.dying <= 0) {
+    if (b.dying <= 0 || b.charmed) {
       const blinking = (t % 3.7) < 0.12;
       ctx.shadowBlur = 0; ctx.fillStyle = enraged ? '#300' : '#111';
       ctx.translate(b.look.x * coreR * 0.45, b.look.y * coreR * 0.45);
-      if (fury) ctx.scale(0.38, blinking ? 0.1 : 1.25); // enraged: a demon's slit pupil
-      else ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
-      ctx.beginPath(); ctx.arc(0, 0, coreR * 0.45, 0, Math.PI * 2); ctx.fill();
+      if (shape.pupil) shape.pupil(coreR, b, fury, blinking); // (a shape can have its own pupil: DOKI DOLL's is a heart)
+      else {
+        if (fury) ctx.scale(0.38, blinking ? 0.1 : 1.25); // enraged: a demon's slit pupil
+        else ctx.scale(1, blinking ? 0.1 : aiming || b.rage > 0 ? 0.55 : 1); // narrows to a glare when about to charge
+        ctx.beginPath(); ctx.arc(0, 0, coreR * 0.45, 0, Math.PI * 2); ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -6935,6 +6886,19 @@ function drawBossDecor(b, layer, c, enraged) {
         if (b.stopW > 0) { ctx.globalAlpha *= 0.5 + Math.sin(t * 30) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2); ctx.stroke(); }
       }
       break;
+    case 'doki': { // hearts circling her (more as her meter fills, a crowd once she's charmed), and claw marks when she swipes
+      if (layer === 'back') {
+        const n = Math.floor((b.doki || 0) * 8) + (b.charmed ? 6 : 0), col = enraged && !b.charmed ? '#ff3d6d' : '#ff9ccf';
+        ctx.fillStyle = col; glow(col, 10);
+        for (let i = 0; i < n; i++) { const a = t * 1.2 + i / Math.max(1, n) * TAU; ctx.beginPath(); heartPath(Math.cos(a) * r * 1.55, Math.sin(a) * r * 1.25, r * 0.09); ctx.fill(); }
+      } else if (b.pawT > 0) {
+        const k = Math.min(1, b.pawT / 0.35), sd = b.paw || 1, A = ctx.globalAlpha;
+        ctx.globalAlpha = A * k; ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 3; ctx.lineCap = 'round'; glow('#ff6fd8', 16);
+        for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(sd * r * 0.95, i * r * 0.28, r * 0.55, sd > 0 ? 2.4 : -0.75, sd > 0 ? 3.9 : 0.75); ctx.stroke(); }
+        ctx.globalAlpha = A;
+      }
+      break;
+    }
     case 'zero': { // glitching: offset cyan/magenta copies of its outline, plus orbiting cube fragments
       const j = (enraged ? 5 : 3) + (Math.random() < 0.08 ? 12 : 0);
       if (layer === 'back') {
@@ -7103,6 +7067,19 @@ const RAGE_FORMS = {
       ctx.beginPath(); for (let i = 0; i < 7; i++) { const x = -w + i * w * 2 / 6; ctx.moveTo(x, y - w * 0.1); ctx.lineTo(x * 0.92, y - w * (i % 2 ? 0.45 : 0.8)); } ctx.stroke();
     } },
 
+  doki: { // POSSESSED: her heart breaks in two (see BOSS_SHAPES.doki), dark red inside; a red haze, a glow along the crack, and
+    // drops of red falling from the break
+    back(b, k, tr, r) {
+      rageHaze(r, r * 2.1, '150,0,30', 0.4 * k);
+      for (let i = 0; i < 3; i++) { const ph = (b.t * 0.7 + i * 0.33) % 1; ctx.globalAlpha = k * (1 - ph); drip(Math.sin(i * 5.1) * r * 0.12, r * 0.85 + ph * r * 1.3, r * 0.06, '#ff1f3d'); }
+    },
+    shell(b, k, tr, r) { // a red glow running down the crack between the halves
+      const s = r * 0.95, y = r * 0.05;
+      ctx.strokeStyle = '#ff1f3d'; glow('#ff1f3d', 22); ctx.lineWidth = 2 + k * 2; ctx.globalAlpha = 0.5 + Math.sin(b.t * 9) * 0.25;
+      ctx.beginPath(); DOKI_CRACK.forEach(([cy, cx], i) => ctx[i ? 'lineTo' : 'moveTo'](cx * s, y + cy * s)); ctx.stroke();
+    },
+    fill: () => 'rgba(64,0,16,0.9)',
+  },
   nemesis: { // PLAYER ZERO: it glitches into copies of itself in every player's color, and its hull burns a deep red
     back(b, k, tr, r) {
       ctx.rotate(bossRot(b)); ctx.lineWidth = 2; ctx.shadowBlur = 0;
