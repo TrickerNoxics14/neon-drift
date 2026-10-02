@@ -25,13 +25,19 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-10 ship classes, all free (each with a stronger MK II and MK III to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+10 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 42 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 11 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · 43 achievements · online quick chat (1–4) · an original soundtrack (below)
 
-### MK II and MK III
+### MK II to MK V
 
-Every ship is free. Each one also has a **MK II** (a stronger version with gold trim) and, once you own that, a **MK III** (prism-violet trim, a second pair of pods and two orbiting crystals). The MK III has everything the MK II has, plus +20% damage, 10% faster fire, +1 life, and an ability that recharges 20% faster. Pick the version on the ship screen (press **V** to switch between them). Own every MK III for the **Armada** trophy.
+Every ship is free. Each one also has a **MK II** (a stronger version with gold trim), and after that **MK III**, **MK IV** and **MK V**, bought in order with shards. Each one keeps everything the MK II has and pushes it further:
+
+- **MK III:** +20% damage, 10% faster fire, +1 life, ability 20% faster. Prism-violet trim and 2 orbiting crystals.
+- **MK IV:** +40% damage, 15% faster fire, +1 life, +5% speed, ability 30% faster. Mint trim and 3 crystals.
+- **MK V:** +65% damage, 20% faster fire, +2 lives, +10% speed, ability 40% faster. Rainbow trim and 4 crystals.
+
+Pick the version on the ship screen (press **V** to cycle through them). Own every MK III for the **Armada** trophy, and any MK V for **Fully Loaded**.
 
 ### Ship abilities
 

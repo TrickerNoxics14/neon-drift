@@ -1070,6 +1070,7 @@ const ACHIEVEMENTS = [
   { id: 'evolve',      cat: 'build', name: 'Final Form',          reward: 150, desc: 'Evolve your ship into its final form (18 upgrades in one run).' },
   { id: 'fleet',       cat: 'ship', name: 'Fleet Admiral',        reward: 100, desc: 'Own the MK II of every ship.', progress: () => [SHIPS.filter(mk2Owned).length, SHIPS.length] },
   { id: 'armada',      cat: 'ship', name: 'Armada',               reward: 300, desc: 'Own the MK III of every ship.', progress: () => [SHIPS.filter(mk3Owned).length, SHIPS.length] },
+  { id: 'mk5',         cat: 'ship', name: 'Fully Loaded',         reward: 250, desc: 'Own a MK V.', progress: () => [SHIPS.some(b => tierOwned(b, 4)) ? 1 : 0, 1] },
   { id: 'master',      cat: 'ship', name: 'Master Pilot',         reward: 200, desc: 'Reach mastery 5 with any ship.', progress: () => [Math.max(...SHIPS.map(s => masteryLv(s.id))), MASTERY_MAX] },
   { id: 'versatile',   cat: 'ship', name: 'Versatile',            reward: 150, desc: 'Defeat bosses with 4 different ships (all-time).', progress: () => [Object.keys(meta.stats.bossShips).length, 4] },
 ];
@@ -1759,33 +1760,42 @@ const mk2Cache = {};
 function shipById(id) {
   const base = SHIPS.find(s => s.id === id);
   if (base) return base;
-  const b3 = typeof id === 'string' && id.endsWith('3') && SHIPS.find(s => s.id === id.slice(0, -1));
-  if (b3) return mk2Cache[id] ||= mk3Of(b3);
+  const b3 = typeof id === 'string' && /[345]$/.test(id) && SHIPS.find(s => s.id === id.slice(0, -1));
+  if (b3) return mk2Cache[id] ||= mkOf(b3, +id.slice(-1));
   const b2 = typeof id === 'string' && id.endsWith('2') && SHIPS.find(s => s.id === id.slice(0, -1));
   if (!b2) return SHIPS[0];
   return mk2Cache[id] ||= { ...b2, id, base: b2.id, name: b2.name + ' MK II', mod: b2.mk2.mod, stats: b2.mk2.stats, trait: b2.mk2.trait, mk2: true };
 }
-// MK III ("medic3"): the MK II, pushed further: +20% damage, fires 10% faster, +1 life, and its ability recharges 20% faster
-// (it counts as a MK II for everything else, like its ability's strength). Bought once its MK II is owned.
-const PRISM = '#c9a0ff', MK3_DMG = 1.2, MK3_FIRE = 0.9, MK3_CD = 0.8;
-const mk3Cost = base => base.mk2.cost * 2 + 200;
-function mk3Of(b) {
-  const m = b.mk2.mod, st = b.mk2.stats, cap = v => Math.min(5, v + 1);
-  return { ...b, id: b.id + '3', base: b.id, name: b.name + ' MK III', mk2: true, mk3: true,
-    mod: { ...m, dmg: (m.dmg || 1) * MK3_DMG, fireRate: (m.fireRate || 1) * MK3_FIRE, lives: (m.lives || 0) + 1 },
-    stats: { speed: st.speed, power: cap(st.power), armor: cap(st.armor) },
-    trait: 'Everything the MK II has, plus +20% damage, 10% faster fire, +1 life and a faster ability.' };
+// MK III, IV and V ("medic3" to "medic5"): the MK II, pushed further each time. They count as a MK II for everything
+// else (like how strong its ability is), and each one is bought in order, once the one before it is owned
+const PRISM = '#c9a0ff';
+const MK_UP = { // by MK number: damage, fire rate, extra lives, ability cooldown and speed multipliers, trim color, price
+  3: { dmg: 1.2,  fire: 0.9,  lives: 1, cd: 0.8, speed: 1,    color: PRISM,     cost: c => c * 2 + 200 },
+  4: { dmg: 1.4,  fire: 0.85, lives: 1, cd: 0.7, speed: 1.05, color: '#5dffc8', cost: c => c * 3 + 500 },
+  5: { dmg: 1.65, fire: 0.8,  lives: 2, cd: 0.6, speed: 1.1,  color: '#ffffff', cost: c => c * 4 + 1000 }, // (MK V's trim shifts through the rainbow)
+};
+const MK_NAME = ['MK I', 'MK II', 'MK III', 'MK IV', 'MK V']; // (by tier, 0-4)
+const mkCost = (base, t) => t === 0 ? 0 : t === 1 ? base.mk2.cost : MK_UP[t + 1].cost(base.mk2.cost);
+function mkOf(b, n) {
+  const u = MK_UP[n], m = b.mk2.mod, st = b.mk2.stats, up = v => Math.min(5, v + (n >= 4 ? 2 : 1)), pc = x => Math.round(x * 100);
+  return { ...b, id: b.id + n, base: b.id, name: `${b.name} ${MK_NAME[n - 1]}`, mk2: true, mk: n,
+    mod: { ...m, dmg: (m.dmg || 1) * u.dmg, fireRate: (m.fireRate || 1) * u.fire, lives: (m.lives || 0) + u.lives, speed: (m.speed || 1) * u.speed },
+    stats: { speed: Math.min(5, st.speed + (n >= 4 ? 1 : 0)), power: up(st.power), armor: up(st.armor) },
+    trait: `Everything the MK II has, plus +${pc(u.dmg - 1)}% damage, ${pc(1 - u.fire)}% faster fire, +${u.lives} ${u.lives > 1 ? 'lives' : 'life'}${u.speed > 1 ? `, +${pc(u.speed - 1)}% speed` : ''} and a ${pc(1 - u.cd)}% faster ability.` };
 }
 const mk2Owned = base => !!meta.ships[base.id];
-const mk3Owned = base => !!meta.ships3[base.id];
-const tierOwned = (base, t) => t === 0 || (t === 1 ? mk2Owned(base) : mk2Owned(base) && mk3Owned(base));
-const tierId = (base, t) => base.id + (t ? String(t + 1) : ''); // (0: MK I, 1: MK II, 2: MK III)
-const tierOf = s => s.mk3 ? 2 : s.mk2 === true ? 1 : 0;
-const hullTier = s => s.mk3 ? 3 : s.mk2 === true; // (what drawHull takes)
+const mkLv = base => { const v = meta.ships3[base.id]; return v === true ? 3 : Math.min(5, v | 0); }; // (the highest MK past II owned)
+const mk3Owned = base => mk2Owned(base) && mkLv(base) >= 3;
+const tierOwned = (base, t) => t === 0 || (mk2Owned(base) && (t === 1 || mkLv(base) >= t + 1));
+const topTier = base => [4, 3, 2, 1].find(t => tierOwned(base, t)) ?? 0;
+const tierId = (base, t) => base.id + (t ? String(t + 1) : ''); // (0: MK I, 1: MK II, ... 4: MK V)
+const tierOf = s => s.mk ? s.mk - 1 : s.mk2 === true ? 1 : 0;
+const hullTier = s => s.mk || s.mk2 === true; // (what drawHull takes)
+const tierColor = t => t >= 2 ? MK_UP[t + 1].color : '#ffe93d';
 const dronesOf = p => run.s.drones + (p.ship.mod.drones || 0); // Wing Drone upgrades + the Carrier's built-in drones
-const shipUnlocked = s => s.mk3 ? !!meta.ships3[s.base] && !!meta.ships[s.base] : s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
+const shipUnlocked = s => s.mk ? tierOwned(SHIPS.find(b => b.id === s.base), s.mk - 1) : s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
 // every ship (and every owned MK II) — what the online lobby's quick-cycle goes through
-const flyableShips = () => SHIPS.flatMap(b => [0, 1, 2].filter(t => tierOwned(b, t)).map(t => shipById(tierId(b, t))));
+const flyableShips = () => SHIPS.flatMap(b => [0, 1, 2, 3, 4].filter(t => tierOwned(b, t)).map(t => shipById(tierId(b, t))));
 const maxLivesOf = p => curse('glass') ? 1 : Math.max(1, run.s.maxLives + (p.ship.mod.lives || 0)); // (GLASS CANNON curse: one life each)
 let lastShips = ['striker', 'striker', 'striker', 'striker'];
 try { const l = JSON.parse(localStorage.getItem('neonDriftShips')); if (Array.isArray(l)) lastShips = l.concat(lastShips).slice(0, 4); } catch (e) {}
@@ -1818,7 +1828,7 @@ const AB_START = 0.35; // (a run starts with abilities 65% charged)
 const shipBase = p => p.ship.base || p.ship.id;
 const abilityOf = p => ABILITIES[shipBase(p)] || ABILITIES.striker;
 const abTier = p => p.ship.mk2 === true ? 1 : 0;
-const abCdOf = p => abilityOf(p).cd[abTier(p)] * (p.ship.mk3 ? MK3_CD : 1) * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
+const abCdOf = p => abilityOf(p).cd[abTier(p)] * (p.ship.mk ? MK_UP[p.ship.mk].cd : 1) * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
 const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
 const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1); // (Wraiths are faster while phased)
 // which keys fire each control scheme's ability
@@ -2052,22 +2062,23 @@ function openShipSelect(m, online = false, k = 0) { // (k: online, which of the 
 }
 function rememberVariant(id) { const s = shipById(id); if (s.mk2 === true) shipPick.mk2[s.base] = tierOf(s); }
 // which version of a ship is chosen on the select screen (0: MK I, 1: MK II, 2: MK III): the one picked, or the best one owned
-const pickTier = base => shipPick.mk2[base.id] ?? (tierOwned(base, 2) ? 2 : tierOwned(base, 1) ? 1 : 0);
+const pickTier = base => shipPick.mk2[base.id] ?? topTier(base);
 const wantsMk2 = base => pickTier(base) > 0;
-function toggleVariant(base, t) { shipPick.mk2[base.id] = t ?? (pickTier(base) + 1) % 3; beep(600, 0.06, 'triangle', 0.04); }
+function toggleVariant(base, t) { shipPick.mk2[base.id] = t ?? (pickTier(base) + 1) % 5; beep(600, 0.06, 'triangle', 0.04); }
 function pickShip(i) {
   const base = SHIPS[i];
   if (!base) return;
   shipPick.view = i;
   const t = pickTier(base);
-  if (!tierOwned(base, t)) { // buying the MK II or MK III (a MK III needs its MK II first)
-    const name = t === 2 ? 'MK III' : 'MK II', cost = t === 2 ? mk3Cost(base) : base.mk2.cost;
-    if (t === 2 && !mk2Owned(base)) { showToast('Buy the MK II first'); beep(110, 0.15, 'square', 0.05); return; }
+  if (!tierOwned(base, t)) { // buying a MK II to V (in order: each needs the one before it)
+    const name = MK_NAME[t], cost = mkCost(base, t);
+    if (t >= 2 && !tierOwned(base, t - 1)) { showToast(`Buy the ${MK_NAME[t - 1]} first`); beep(110, 0.15, 'square', 0.05); return; }
     if (meta.shards >= cost) {
-      meta.shards -= cost; (t === 2 ? meta.ships3 : meta.ships)[base.id] = true; saveMeta();
+      meta.shards -= cost; if (t === 1) meta.ships[base.id] = true; else meta.ships3[base.id] = t + 1; saveMeta();
       showToast(`${base.name} ${name} UNLOCKED!`); beep(660, 0.3, 'triangle', 0.08, 660);
       if (SHIPS.every(mk2Owned)) unlockAch('fleet');
       if (SHIPS.every(mk3Owned)) unlockAch('armada');
+      if (t === 4) unlockAch('mk5');
     } else { showToast(`Need ◆ ${cost} for the ${name} — or fly the free MK I`); beep(110, 0.15, 'square', 0.05); }
     return;
   }
@@ -5533,9 +5544,10 @@ const HULLS = {
 // mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
 // mk2 === 3: the MK III model — bigger still, with prism-violet trim, a second pair of pods and two crystals orbiting it
 function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
-  const h = HULLS[shape] || HULLS.striker, mk3 = mk2 === 3, GOLD = mk3 ? PRISM : '#ffe93d';
+  const h = HULLS[shape] || HULLS.striker, mk = mk2 >= 3 ? mk2 : 0, mk3 = mk >= 3,
+    GOLD = mk === 5 ? RAINBOW[Math.floor(performance.now() / 250) % RAINBOW.length] : mk3 ? MK_UP[mk].color : '#ffe93d';
   ctx.save();
-  if (mk2) ctx.scale(mk3 ? 1.2 : 1.12, mk3 ? 1.2 : 1.12);
+  if (mk2) { const k = mk3 ? 1.2 + (mk - 3) * 0.05 : 1.12; ctx.scale(k, k); }
   glow('#ff9d3d', 20); ctx.fillStyle = '#ff9d3d';
   for (const [fx, fy, w] of h.flames) {
     const f = 10 + Math.random() * 8 + thrust * 12 + (mk2 ? 6 : 0);
@@ -5545,7 +5557,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
   if (mk2) { // glowing pods on the wingtips
     const tip = h.pts.reduce((a, b) => Math.abs(b[0]) > Math.abs(a[0]) ? b : a);
     glow(GOLD, 14); ctx.fillStyle = GOLD;
-    if (mk3) for (const sx of [-1, 1]) { const tt = performance.now() / 1000, a = tt * 2.4 + (sx > 0 ? Math.PI : 0), cx = Math.cos(a) * 26, cy = Math.sin(a) * 9 + 2; // (the orbiting crystals)
+    if (mk3) for (let c = 0; c < mk - 1; c++) { const tt = performance.now() / 1000, a = tt * 2.4 + c / (mk - 1) * Math.PI * 2, cx = Math.cos(a) * 26, cy = Math.sin(a) * 9 + 2; // (the orbiting crystals)
       ctx.beginPath(); ctx.moveTo(cx, cy - 5); ctx.lineTo(cx + 2.5, cy); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx - 2.5, cy); ctx.closePath(); ctx.fill(); }
     for (const sx of [-1, 1]) {
       const x = Math.abs(tip[0]) * sx, y = tip[1] - 2;
@@ -9079,7 +9091,7 @@ function drawShips() {
   if (sel < SHIPS.length) sp.view = sel;
   const base = SHIPS[sp.view ?? 0], tier = pickTier(base), two = tier > 0, owned2 = tierOwned(base, tier);
   const view = shipById(tierId(base, tier)); // the version being looked at
-  const TIER_NAME = ['MK I', 'MK II', 'MK III'], TIER_COST = [0, base.mk2.cost, mk3Cost(base)], TIER_COLOR = [pc, '#ffe93d', PRISM];
+  const TIER_NAME = MK_NAME, TIER_COST = [0, 1, 2, 3, 4].map(t => mkCost(base, t)), TIER_COLOR = [pc, 1, 2, 3, 4].map((c, t) => t ? tierColor(t) : c);
 
   title(sp.mode > 1 ? `P${pl + 1} — CHOOSE YOUR SHIP` : 'CHOOSE YOUR SHIP', 52, sp.mode > 1 ? pc : '#7df9ff', 40);
   const ctrl = sp.online ? 'Mouse / WASD / Arrow keys' : CONTROLS[sp.mode][pl].map(k => CONTROL_NAMES[k]).join(' / ');
@@ -9092,11 +9104,11 @@ function drawShips() {
   SHIPS.forEach((s, i) => {
     // center a partly-filled last row
     const row = Math.floor(i / cols), inRow = Math.min(cols, SHIPS.length - row * cols), rowX = gx + (cols - inRow) * (iw + gap) / 2;
-    const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), has2 = mk2Owned(s), has3 = has2 && mk3Owned(s), st = tierOwned(s, pickTier(s)) ? pickTier(s) : 0, showing2 = st > 0;
+    const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), has2 = mk2Owned(s), top = topTier(s), st = tierOwned(s, pickTier(s)) ? pickTier(s) : 0, showing2 = st > 0;
     buttons.push({ x, y, w: iw, h: ih, action: () => pickShip(i) });
-    panel(x, y, iw, ih, st === 2 ? PRISM : showing2 ? '#ffe93d' : pc, sel === i);
+    panel(x, y, iw, ih, showing2 ? tierColor(st) : pc, sel === i);
     ctx.save(); ctx.translate(x + iw / 2, y + ih * 0.42); ctx.scale(iw / 70, iw / 70);
-    drawHull(s.shape, pc, 0, st === 2 ? 3 : showing2, mySkin);
+    drawHull(s.shape, pc, 0, st >= 2 ? st + 1 : showing2, mySkin);
     ctx.restore();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = '#dfe8ff';
@@ -9104,7 +9116,7 @@ function drawShips() {
     const mlv = masteryLv(s.id); // (its mastery stars)
     ctx.font = `${Math.max(7, Math.min(9, iw / 11))}px system-ui`; ctx.fillStyle = mlv >= MASTERY_MAX ? '#ffd23d' : '#a89a6a';
     ctx.fillText('★'.repeat(mlv) + '☆'.repeat(MASTERY_MAX - mlv), x + iw / 2, y + ih - 24);
-    if (has2) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = has3 ? PRISM : '#ffe93d'; ctx.textAlign = 'right'; ctx.fillText(has3 ? 'MK III' : 'MK II', x + iw - 6, y + 10); ctx.textAlign = 'center'; }
+    if (has2) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = tierColor(top); ctx.textAlign = 'right'; ctx.fillText(MK_NAME[top], x + iw - 6, y + 10); ctx.textAlign = 'center'; }
     // which earlier players already took this ship
     const takers = sp.picks.map((id, j) => shipById(id) && (id === s.id || id === s.id + '2' || id === s.id + '3') ? `P${j + 1}` : null).filter(Boolean);
     if (takers.length) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#ffe93d'; ctx.textAlign = 'left'; ctx.fillText(takers.join(' '), x + 6, y + 10); }
@@ -9142,19 +9154,19 @@ function drawShips() {
   traitLines.forEach((l, j) => ctx.fillText(l, tx, py + 104 + j * 15));
   // its ability (with the MK II's cooldown when that's the one being looked at)
   const ab = ABILITIES[base.id], ay = py + 108 + traitLines.length * 15;
-  ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui'; ctx.fillText(`ABILITY: ${ab.name}  ·  every ${Math.round(ab.cd[two ? 1 : 0] * (tier === 2 ? MK3_CD : 1) * 10) / 10}s`, tx, ay);
+  ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui'; ctx.fillText(`ABILITY: ${ab.name}  ·  every ${Math.round(ab.cd[two ? 1 : 0] * (tier >= 2 ? MK_UP[tier + 1].cd : 1) * 10) / 10}s`, tx, ay);
   ctx.fillStyle = '#9ab'; ctx.font = '11px system-ui';
   wrap(ab.desc, tw).slice(0, 2).forEach((l, j) => ctx.fillText(l, tx, ay + 16 + j * 13));
 
-  // MK I / MK II / MK III switch (V cycles through them)
-  const bw = Math.min(360, W - 32), bx = (W - bw) / 2, hw = (bw - 16) / 3, ty = py + ph + 10;
-  [0, 1, 2].forEach(k => button(`${tier === k ? '● ' : ''}${TIER_NAME[k]}${k === 0 ? ' · FREE' : tierOwned(base, k) ? '' : ` ◆${TIER_COST[k]}`}`, bx + k * (hw + 8), ty, hw, 34,
+  // MK I to MK V switch (V cycles through them; 🔒 = not bought yet)
+  const bw = Math.min(440, W - 32), bx = (W - bw) / 2, hw = (bw - 24) / 5, ty = py + ph + 10;
+  [0, 1, 2, 3, 4].forEach(k => button(`${tier === k ? '● ' : ''}${TIER_NAME[k]}${tierOwned(base, k) ? '' : ' 🔒'}`, bx + k * (hw + 6), ty, hw, 34,
     tier === k ? TIER_COLOR[k] : '#667', () => toggleVariant(base, k)));
 
   // confirm / buy, and back
   const by = ty + 44;
-  const needs2 = tier === 2 && !mk2Owned(base), cost = TIER_COST[tier], afford = !needs2 && meta.shards >= cost;
-  const label = locked ? (needs2 ? 'BUY THE MK II FIRST' : afford ? `BUY ${TIER_NAME[tier]}  ◆ ${cost}` : `${TIER_NAME[tier]} — NEED ◆ ${cost}`)
+  const needs2 = tier >= 2 && !tierOwned(base, tier - 1), cost = TIER_COST[tier], afford = !needs2 && meta.shards >= cost;
+  const label = locked ? (needs2 ? `BUY THE ${TIER_NAME[tier - 1]} FIRST` : afford ? `BUY ${TIER_NAME[tier]}  ◆ ${cost}` : `${TIER_NAME[tier]} — NEED ◆ ${cost}`)
     : sp.online ? `FLY THE ${view.name}` : pl < sp.mode - 1 ? `PICK ${view.name}  ›  P${pl + 2}` : `LAUNCH AS ${view.name}`;
   button(label, bx, by, bw, 44, locked ? (afford ? TIER_COLOR[tier] : '#667') : accent, () => pickShip(sp.view ?? 0));
   button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + 52, bw, 38, '#9ab', shipSelectBack);
@@ -10594,7 +10606,7 @@ const TYPE_LIST = Object.keys(TYPES);
 // numbers must be real numbers in range, ships and cosmetics must exist, and list indexes must be in the list.
 const okIdx = (v, n) => Number.isInteger(v) && v >= 0 && v < n;
 const num = (v, lo, hi, def = lo) => typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
-const SHIP_IDS = new Set(SHIPS.flatMap(s => s.mk2 ? [s.id, s.id + '2', s.id + '3'] : [s.id]));
+const SHIP_IDS = new Set(SHIPS.flatMap(s => s.mk2 ? [s.id, s.id + '2', s.id + '3', s.id + '4', s.id + '5'] : [s.id]));
 const cleanShip = id => SHIP_IDS.has(id) ? id : 'striker';
 function cleanCos(c) {
   const o = { ...COS_DEFAULT };
