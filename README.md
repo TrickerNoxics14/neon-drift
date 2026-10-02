@@ -25,7 +25,7 @@ If joining doesn't work: make sure you both refreshed the page (Ctrl+F5) so you 
 
 ## Features
 
-11 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 curses ·
 Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 46 achievements · online quick chat (1–4) · an original soundtrack (below)
 
@@ -54,8 +54,9 @@ Every ship has one ability on a cooldown (the MK II's is stronger and comes back
 - **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
 - **Gunslinger — Fan the Hammer:** empties the whole cylinder at the closest enemy at double damage, then reloads instantly. (The Gunslinger fires 6 heavy rounds fast, then has to reload.)
 - **Bomber — Megaton:** drops one huge, slow bomb that blasts everything around it and blows away enemy bullets. (The Bomber fires slow bombs that explode on whatever they touch, hitting everything nearby.)
+- **Summoner — Legion:** your ring of drones doubles for a few seconds, and fires twice as fast. (The Summoner has no guns of its own: a ring of drones aims at enemies for it, and upgrades that add shots add drones instead.)
 
-Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst, Speed Loader and Payload. A ship's card only shows up when someone is flying that ship.
+Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst, Speed Loader, Payload and Overseer. A ship's card only shows up when someone is flying that ship.
 
 ### Ship mastery
 
@@ -94,13 +95,13 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **Null Seraph:** crosses beams of light over each player. Its health running out isn't the end: it comes back as the golden **SERAPH OF SIX WINGS**.
 - **Void Lancer:** charges three times in a row.
 - **Stormcaller:** sends a wall of lightning across the screen with one safe lane.
-- **The Hive:** fires homing stingers.
+- **The Hive:** fires homing stingers. Bring it down and the hive cracks open: **THE QUEEN** bursts out, a giant bee with a crown, and sends out bees of her own.
 - **Phantom:** teleports right next to you.
 - **Echo:** summons a mirror image that copies its attacks.
-- **Chronos:** rewinds time so its bullets fly back.
+- **Chronos:** rewinds time so its bullets fly back. Bring it down and it shatters into **THE HOURGLASS**, its sand running out with its health, pouring sand down the screen with one gap to slip through.
 - **The Wyrm:** breathes fire. Bring it down and it sheds its skin, rising again as the **BONE WYRM**, a skeleton burning with green ghost fire.
 - **The Architect:** closes walls in from both sides.
-- **The Oracle:** sweeps a giant beam across a marked arc.
+- **The Oracle:** sweeps a giant beam across a marked arc. Bring it down and it opens **A HUNDRED EYES** all around it, and they shoot at you.
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
 - **Zero:** deletes half the screen in a checkerboard pattern.
@@ -155,7 +156,7 @@ The whole game is a single file: `index.html`.
 
 ### Second lives
 
-Some bosses don't stay down. When THE WYRM or NULL SERAPH runs out of health, it stops, clears the screen, and comes back in a super form with 60% of its health. It can't be hurt while it transforms, and afterwards it takes less damage and attacks faster.
+Some bosses don't stay down. When THE WYRM, NULL SERAPH, THE HIVE, CHRONOS or THE ORACLE runs out of health, it stops, clears the screen, and comes back in a super form with 60% of its health. It can't be hurt while it transforms, and afterwards it takes less damage and attacks faster. The Hive, Chronos and the Oracle each get a new attack in their second life, too.
 
 ### Boss gallery
 

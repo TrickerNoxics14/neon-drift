@@ -1010,7 +1010,7 @@ const masteryXp = id => meta.mastery?.[id] | 0;
 const masteryLv = id => MASTERY_XP.filter(x => masteryXp(id) >= x).length;
 // colors of each ship's Signature trail
 const SIGNATURE = { striker: ['#7df9ff', '#ffffff'], interceptor: ['#5dffc8', '#3d9dff'], juggernaut: ['#ffb13d', '#ff6a2d'], scatter: ['#ff5dc8', '#ffe93d'],
-  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'], bomber: ['#ff6a2d', '#ffe93d'] };
+  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'], bomber: ['#ff6a2d', '#ffe93d'], summoner: ['#c08dff', '#7df9ff'] };
 function drawSignatureTrail(p, pts, [c1, c2], t) {
   ctx.save(); ctx.lineCap = 'round'; glow(c1, 12);
   for (let i = 1; i < pts.length; i++) { // two twisting ribbons
@@ -1176,6 +1176,7 @@ const UPGRADES = [
   { id: 'abm_medic', name: 'Guardian Pulse',   r: 'rare', max: 1, ship: 'medic',       desc: 'MEDIC: Lifeline also makes the whole team untouchable for 2s', apply: s => s.abm_medic = 1 },
   { id: 'abm_wraith', name: 'Phantom Blades',  r: 'rare', max: 1, ship: 'wraith',      desc: 'WRAITH: while phased, enemies you fly through get shredded', apply: s => s.abm_wraith = 1 },
   { id: 'abm_carrier', name: 'Hive Mind',      r: 'rare', max: 1, ship: 'carrier',     desc: 'CARRIER: Swarm launches twice as many missiles', apply: s => s.abm_carrier = 1 },
+  { id: 'abm_summoner', name: 'Overseer', r: 'rare', max: 1, ship: 'summoner', desc: 'SUMMONER: drone shots pierce one more enemy, and Legion lasts 2s longer', apply: s => s.abm_summoner = 1 },
   { id: 'abm_bomber', name: 'Payload', r: 'rare', max: 1, ship: 'bomber', desc: 'BOMBER: every explosion is 35% bigger, and Megaton wipes every enemy bullet off the screen', apply: s => s.abm_bomber = 1 },
   { id: 'abm_gunslinger', name: 'Speed Loader', r: 'rare', max: 1, ship: 'gunslinger', desc: 'GUNSLINGER: reloads twice as fast, and Fan the Hammer fires 3 more rounds', apply: s => s.abm_gunslinger = 1 },
   { id: 'abm_berserker',name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
@@ -1436,6 +1437,7 @@ addEventListener('keydown', e => {
     if (num >= 1 && num <= SHIPS.length) { sel = num - 1; buttons[sel]?.action(); }
     if (e.code === 'Digit0' && SHIPS.length >= 10) { sel = 9; buttons[9]?.action(); } // (the 10th ship)
     if (e.code === 'Minus' && SHIPS.length >= 11) { sel = 10; buttons[10]?.action(); } // (and the 11th)
+    if (e.code === 'Equal' && SHIPS.length >= 12) { sel = 11; buttons[11]?.action(); } // (and the 12th)
     if (e.code === 'Escape') shipSelectBack();
     if (e.code === 'KeyV') toggleVariant(SHIPS[shipPick.view ?? 0]);
   }
@@ -1788,6 +1790,12 @@ const SHIPS = [
     mod: { shots: -1, dmg: 5, fireRate: 3.2, blast: 70, bombs: true, speed: 0.92 },
     mk2: { cost: 300, stats: { speed: 3, power: 5, armor: 3 }, trait: 'Bigger blasts, heavier bombs, and it fires a bit faster.',
       mod: { shots: -1, dmg: 5.8, fireRate: 3.0, blast: 85, bombs: true, speed: 0.96 } } },
+  // no guns of its own: a ring of drones that aim at enemies for it (see dronesOf, and the drones in update)
+  { id: 'summoner', name: 'SUMMONER', tag: 'Drone master', shape: 'summoner',
+    stats: { speed: 3, power: 3, armor: 3 }, trait: 'No guns: a ring of 4 drones that aim at enemies for you. Upgrades that add shots add drones instead.',
+    mod: { noGuns: true, drones: 4, dmg: 0.8 },
+    mk2: { cost: 300, stats: { speed: 3, power: 4, armor: 3 }, trait: 'A ring of 5 drones that hit harder.',
+      mod: { noGuns: true, drones: 5, dmg: 0.85 } } },
 ];
 // a ship id is the base id ("medic") or the MK II ("medic2")
 const mk2Cache = {};
@@ -1826,7 +1834,8 @@ const tierId = (base, t) => base.id + (t ? String(t + 1) : ''); // (0: MK I, 1: 
 const tierOf = s => s.mk ? s.mk - 1 : s.mk2 === true ? 1 : 0;
 const hullTier = s => s.mk || s.mk2 === true; // (what drawHull takes)
 const tierColor = t => t >= 2 ? MK_UP[t + 1].color : '#ffe93d';
-const dronesOf = p => run.s.drones + (p.ship.mod.drones || 0); // Wing Drone upgrades + the Carrier's built-in drones
+// Wing Drone upgrades + the Carrier's (or SUMMONER's) built-in drones. A SUMMONER's extra shots are extra drones, and LEGION doubles its ring
+const dronesOf = p => { const m = p.ship.mod; return run.s.drones + (m.drones || 0) + (m.noGuns ? Math.max(0, run.s.shots - 2) + (abActive(p, 'summoner') ? m.drones : 0) : 0); };
 const shipUnlocked = s => s.mk ? tierOwned(SHIPS.find(b => b.id === s.base), s.mk - 1) : s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
 // every ship (and every owned MK II) — what the online lobby's quick-cycle goes through
 const flyableShips = () => SHIPS.flatMap(b => [0, 1, 2, 3, 4].filter(t => tierOwned(b, t)).map(t => shipById(tierId(b, t))));
@@ -1856,6 +1865,7 @@ const ABILITIES = {
   wraith:      { name: 'SHADOW STEP', cd: [10, 7],  dur: [1.8, 2.4], desc: 'Phase out on demand, and move 60% faster while phased.' },
   carrier:     { name: 'SWARM',       cd: [9, 7],   desc: 'Launches a swarm of homing missiles (8, or 12 for the MK II).' },
   berserker:   { name: 'RAMPAGE',     cd: [22, 16], dur: [5, 5], desc: 'Double damage and faster fire for 5s, and you smash through enemies you ram.' },
+  summoner:    { name: 'LEGION',      cd: [16, 12], dur: [5, 6], desc: 'Your ring doubles for a few seconds: twice the drones, firing twice as fast.' },
   bomber:      { name: 'MEGATON',     cd: [12, 9],  desc: 'Drops one huge, slow bomb that blasts everything around it and blows away enemy bullets.' },
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
 };
@@ -1960,6 +1970,10 @@ function useAbility(p, dx = 0, dy = 0) {
     const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
+  } else if (id === 'summoner') { // LEGION: the ring doubles and fires twice as fast while it lasts (see dronesOf; Overseer: 2s longer)
+    if (abm('summoner')) p.abOn += 2;
+    fxRing(p.x, p.y, 10, 80, 0.4, p.color, 4); burst(p.x, p.y, p.color, 24, 220);
+    [523, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.05), i * 70));
   } else if (id === 'bomber') { // MEGATON: one huge, slow bomb (Payload: it wipes every enemy bullet off the screen)
     fire(p.x, p.y - 18, -Math.PI / 2, '#ffffff', 'bomb', p);
     const b = bullets[bullets.length - 1];
@@ -2991,15 +3005,16 @@ function fire(x, y, a, color, kind, p) {
     * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()); // (RAMPAGE, the GLASS CANNON curse, evolved ships)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
-    pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0),
+    pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0) + (m.noGuns && abm('summoner') ? 1 : 0),
     bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : kind === 'bomb' ? 5 : 0),
     missile: kind === 'missile', rail: kind === 'rail', owner: p ? p.id : -1,
     ...(kind === 'bomb' ? { bomb: true, fuse: BOMB_FUSE, blast: (m.blast || 70) * (abm('bomber') ? 1.35 : 1) + s.explosive * 12 } : {}) });
 }
 
+const droneRing = (p, n = dronesOf(p)) => p.ship.mod.noGuns ? 46 + Math.max(0, n - 6) * 3 : 42; // (a SUMMONER's ring widens as it grows)
 function dronePos(p, k) {
-  const a = time * 2.5 + k / dronesOf(p) * Math.PI * 2;
-  return { x: p.x + Math.cos(a) * 42, y: p.y + Math.sin(a) * 42 };
+  const n = dronesOf(p), a = time * 2.5 + k / n * Math.PI * 2, R = droneRing(p, n);
+  return { x: p.x + Math.cos(a) * R, y: p.y + Math.sin(a) * R };
 }
 function bladePos(p, k, n) {
   const a = time * 3.2 + k / n * Math.PI * 2;
@@ -3452,8 +3467,9 @@ function fxRing(x, y, from, to, life, color, w = 3, delay = 0) {
 }
 function fxGhost(b, life = 0.35) { // an afterimage of a boss (in its own shape)
   const rot = r2(bossRot(b)), shape = shapeOf(b), t = r2(b.t || 1);
-  netRec(['g', Math.round(b.x), Math.round(b.y), rot, b.sides, b.r, b.color, life, shape, t]);
-  bossFx.ghosts.push({ x: b.x, y: b.y, rot, sides: b.sides, r: b.r, color: b.color, life, max: life, shape, t });
+  const sup = b.super ? 1 : 0; // (a second life's afterimages are in its new shape)
+  netRec(['g', Math.round(b.x), Math.round(b.y), rot, b.sides, b.r, b.color, life, shape, t, sup]);
+  bossFx.ghosts.push({ x: b.x, y: b.y, rot, sides: b.sides, r: b.r, color: b.color, life, max: life, shape, t, super: !!sup });
 }
 function fxText(text, x, y, color, size = 28, life = 1.6) {
   netRec(['t', text, Math.round(x), Math.round(y), color, size, life]);
@@ -3827,7 +3843,54 @@ const ASCENDS = {
     shed(b) { for (const [x, y] of b.body || []) burst(x, y, '#ff9d3d', 10, 220); } }, // (its old skin flies off in burning flakes)
   seraph: { title: 'SERAPH OF SIX WINGS', color: '#fff3b8', ghost: '#ffe98a', hp: 0.6, armor: 0.85, rate: 0.85, say: 'BEHOLD.',
     shed(b) { for (let i = 0; i < 6; i++) fxRing(b.x, b.y, b.r, b.r * (2 + i), 0.8, i % 2 ? '#ffffff' : '#ffe98a', 4, i * 0.08); } },
+  // THE HIVE breaks open and its queen bursts out (see the hive's shape): she sends out bees of her own every few seconds
+  hive: { title: 'THE QUEEN', color: '#ffc93d', ghost: '#ffe93d', hp: 0.6, armor: 0.85, rate: 0.85, say: 'THE HIVE CRACKS...',
+    shed(b) { shatterFx(b.x, b.y, '#d4ff3d', 6, b.r, 0); burst(b.x, b.y, '#ffc23d', 60, 380); },
+    update(b, dt) {
+      if ((b.beeT = (b.beeT ?? 3) - dt) > 0) return;
+      b.beeT = 7;
+      if (enemies.filter(e => e.type === 'swarmer').length >= 12) return;
+      for (let i = 0; i < 3; i++) { const e = makeEnemy('swarmer', b.x + (i - 1) * b.r * 0.7, b.y + b.r * 0.6); e.vy *= 0.8; }
+      beep(260, 0.4, 'sawtooth', 0.04, 120); // (a buzz)
+    } },
+  // CHRONOS shatters into a giant hourglass, its sand running out with its health: every few seconds sand pours down from
+  // the top of the screen, with one gap to slip through
+  chronos: { title: 'THE HOURGLASS', color: '#bfe8ff', ghost: '#ffd27a', hp: 0.6, armor: 0.85, rate: 0.85, say: 'TIME RUNS OUT.',
+    shed(b) { shatterFx(b.x, b.y, '#ffd9a0', 12, b.r, 0); burst(b.x, b.y, '#ffffff', 50, 420); },
+    update(b, dt) {
+      if ((b.sandT = (b.sandT ?? 3) - dt) > 0 || timeFlow() === 0) return;
+      b.sandT = 6.5;
+      const n = Math.max(8, Math.round(W / 70)), p = nearestPlayer(W / 2, H), gap = p ? Math.round(p.x / W * (n - 1)) + (Math.random() < 0.5 ? -1 : 1) : 2;
+      for (let i = 0; i < n; i++) {
+        if (Math.abs(i - gap) <= 1) continue; // (the gap: three grains wide)
+        for (let j = 0; j < 3; j++) eBullets.push({ x: (i + 0.5) / n * W + (Math.random() - 0.5) * 12, y: -10 - j * 26, vx: 0, vy: 125 * BOSS_BULLET_SPEED, r: 4, color: '#ffd27a', src: b });
+      }
+      beep(1200, 0.5, 'sine', 0.02, -900); // (sand hissing)
+    } },
+  // THE ORACLE opens a hundred eyes all around it (see oracleEyes): every few seconds some of them fire at whoever is closest
+  oracle: { title: 'THE HUNDRED EYES', color: '#ffb8ff', ghost: '#ff8dff', hp: 0.6, armor: 0.85, rate: 0.85, say: 'I SEE EVERYTHING.',
+    shed(b) { for (const [x, y] of oracleEyes(b).filter((_, i) => i % 6 === 0)) burst(b.x + x, b.y + y, '#ff8dff', 6, 140); fxRing(b.x, b.y, b.r, b.r * 3.4, 0.8, '#ff8dff', 4); },
+    update(b, dt) {
+      if ((b.gazeT = (b.gazeT ?? 2) - dt) > 0) return;
+      b.gazeT = 3;
+      const eyes = oracleEyes(b);
+      for (let i = 0; i < 6; i++) {
+        const [ex, ey] = eyes[Math.floor(Math.random() * eyes.length)], x = b.x + ex, y = b.y + ey, p = nearestPlayer(x, y);
+        if (!p) continue;
+        const a = Math.atan2(p.y - y, p.x - x), sp = 170 * BOSS_BULLET_SPEED;
+        eBullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 4, color: '#ff8dff', src: b });
+        if (bossFx.rings.length < 40) fxRing(x, y, 2, 12, 0.25, '#ff8dff', 2);
+      }
+    } },
 };
+// THE HUNDRED EYES: where each of its little eyes is, around it (three slowly turning rings, the same on every screen)
+function oracleEyes(b) {
+  const out = [];
+  [18, 30, 42].forEach((n, j) => {
+    for (let i = 0; i < n; i++) { const a = i / n * TAU + (b.t || 0) * (j % 2 ? -0.15 : 0.12), R = b.r * (1.9 + j * 0.62); out.push([Math.cos(a) * R, Math.sin(a) * R * 0.78]); }
+  });
+  return out;
+}
 const ascendOf = b => b.gimmick !== 'sonnet' && !b.shape && ASCENDS[b.style]; // (not team bosses that borrow its look)
 function startAscend(b) { // instead of dying: it stops, floats to the top, and nothing can hurt it until it comes back
   b.hp = 1; b.xf = 0; b.charge = null; b.special = null;
@@ -3921,7 +3984,7 @@ let dokiChips = [];
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
 // NEMESIS: which of its attacks copies each ship's ability, how long it takes to copy one, and how long it stays phased out
-const NEMESIS_COPY = { bomber: 'nova', gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
+const NEMESIS_COPY = { summoner: 'missiles', bomber: 'nova', gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
 const NEMESIS_COPY_T = 1.2, NEMESIS_PHASE = 1;
 const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
 const JUDGE_WARN = 2.4, JUDGE_R = 75;     // THE ORACLE's judgment: warning time, safe circle radius
@@ -4911,6 +4974,7 @@ function updateBoss(b, dt) {
   const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
   if (gim === 'hold') return;
   if (updateAscend(b, dt)) return;
+  if (b.super && b.dying <= 0) ascendOf(b)?.update?.(b, dt); // (a second life's own new attack)
   const fury = b.rageMove && b.wasEnraged ? updateRageMove(b, dt, tgt) : null;
   if (fury === 'hold') return;
 
@@ -5219,7 +5283,7 @@ function update(dt) {
     // auto fire (held during THE ABYSS's entrance, and around DOKI DOLL: see holstered)
     p.shotT -= dt;
     if (p.reloadT > 0 && (p.reloadT -= dt) <= 0) { p.ammo = m.cylinder; beep(1600, 0.05, 'square', 0.03); } // (GUNSLINGER: reloaded, click)
-    if (p.shotT <= 0 && !holstered() && !(p.reloadT > 0)) {
+    if (p.shotT <= 0 && !holstered() && !(p.reloadT > 0) && !m.noGuns) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
@@ -5239,8 +5303,13 @@ function update(dt) {
     if (dronesOf(p) && !holstered()) {
       p.droneT -= dt;
       if (p.droneT <= 0) {
-        p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25); // (Drone Swarm: twice as fast)
-        for (let k = 0; k < dronesOf(p); k++) { const d = dronePos(p, k); fire(d.x, d.y - 6, -Math.PI / 2, '#ffffff', undefined, p); }
+        // (a SUMMONER's drones are its only guns: they fire faster with its fire rate, power-ups and LEGION, and they aim)
+        const own = m.noGuns, rate = own ? s.fireDelay / 0.14 * (m.fireRate || 1) * (p.power > 0 ? 0.6 : 1) * (abActive(p, 'summoner') ? 0.5 : 1) * (p.sapped > 0 ? 1.7 : 1) : 1;
+        p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25) * rate; // (Drone Swarm: twice as fast)
+        for (let k = 0; k < dronesOf(p); k++) {
+          const d = dronePos(p, k), tg = own ? nearestTarget(d.x, d.y, 520) : null;
+          fire(d.x, d.y - 6, tg ? Math.atan2(tg.y - d.y, tg.x - d.x) : -Math.PI / 2, own ? p.color : '#ffffff', undefined, p);
+        }
       }
     }
     if (m.heal) { // Medic: patch up whoever is most hurt (MK II: everyone who's hurt), including yourself
@@ -5633,6 +5702,7 @@ const HULLS = {
   medic:   { pts: [[0, -16], [12, -7], [13, 8], [5, 14], [-5, 14], [-13, 8], [-12, -7]], flames: [[-5, 13, 4], [5, 13, 4]], cross: true },
   wraith:  { pts: [[0, -20], [6, -6], [16, 4], [8, 2], [5, 14], [0, 8], [-5, 14], [-8, 2], [-16, 4], [-6, -6]], flames: [[0, 9, 3]], cockpit: [[0, -11], [2.5, -2], [-2.5, -2]] },
   carrier: { pts: [[-7, -16], [7, -16], [11, -8], [19, -6], [19, 10], [11, 14], [-11, 14], [-19, 10], [-19, -6], [-11, -8]], flames: [[-12, 13, 4], [0, 13, 4], [12, 13, 4]], cockpit: [[-4, -10], [4, -10], [4, -3], [-4, -3]] },
+  summoner: { pts: [[0, -15], [5, -9], [11, -12], [14, -2], [10, 8], [4, 12], [0, 9], [-4, 12], [-10, 8], [-14, -2], [-11, -12], [-5, -9]], flames: [[0, 10, 4]], cockpit: [[0, -8], [3, 1], [-3, 1]], halo: true },
   payload: { pts: [[0, -14], [6, -10], [21, 1], [21, 8], [9, 9], [5, 14], [-5, 14], [-9, 9], [-21, 8], [-21, 1], [-6, -10]], flames: [[-6, 12, 4], [6, 12, 4]], cockpit: [[0, -8], [3, -1], [-3, -1]], bombBay: true },
   revolver: { pts: [[-2.5, -24], [2.5, -24], [3, -10], [8, -8], [17, 6], [15, 12], [6, 9], [0, 13], [-6, 9], [-15, 12], [-17, 6], [-8, -8], [-3, -10]], flames: [[0, 12, 5]], cockpit: [[0, -4], [4, 4], [-4, 4]], cylinder: true },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
@@ -5716,6 +5786,7 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
     ctx.beginPath(); for (const [x, y] of h.pts) ctx.lineTo(x * 0.62, y * 0.62 + 1); ctx.closePath(); ctx.stroke();
   }
   ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.globalAlpha *= 0.7;
+  if (h.halo) for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + t * 2; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, 2 + Math.sin(a) * 7, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the SUMMONER's three little orbiting sparks)
   if (h.bombBay) for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * 11, 5, 2.4, 0, Math.PI * 2); ctx.fill(); } // (the BOMBER's two bomb bays)
   if (h.cylinder) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; ctx.beginPath(); ctx.arc(Math.cos(a) * 9, 6 + Math.sin(a) * 3.5, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the revolver's cylinder, across its wings)
   if (h.cross) {
@@ -5830,10 +5901,15 @@ function drawShip(p) {
   drawAbilityState(p);
   if (p.phaseOn > 0) { ctx.save(); ctx.strokeStyle = hexA(p.color, 0.5); ctx.lineWidth = 1.5; ctx.setLineDash([4, 6]); ctx.lineDashOffset = time * 40; ctx.beginPath(); ctx.arc(p.x, p.y, 24, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
   if (p.shield) { glow(p.color, 20); ctx.strokeStyle = 'rgba(125,249,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 26, 0, Math.PI * 2); ctx.stroke(); }
-  for (let k = 0; k < dronesOf(p); k++) {
+  const own = p.ship.mod.noGuns, nd = dronesOf(p);
+  if (own && nd) { ctx.save(); ctx.shadowBlur = 0; ctx.strokeStyle = hexA(p.color, 0.2); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, droneRing(p, nd), 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+  for (let k = 0; k < nd; k++) {
     const d = dronePos(p, k);
     ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(time * 4);
-    glow('#ffffff', 12); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-5, -5, 10, 10);
+    if (own) { // a SUMMONER's drones: little crystals in its own color
+      glow(p.color, 14); ctx.strokeStyle = p.color; ctx.fillStyle = hexA(p.color, 0.3); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(5, 0); ctx.lineTo(0, 7); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else { glow('#ffffff', 12); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-5, -5, 10, 10); }
     ctx.restore();
   }
   if (run.s.blades) { // spinning shuriken blades
@@ -7012,12 +7088,26 @@ const BOSS_SHAPES = {
     }
     ctx.closePath();
   } },
-  hive: { mode: 'up', eye: [0, -0.08, 1], path(r) { // a domed beehive, the entrance at the bottom
+  hive: { mode: 'up', eye: [0, -0.08, 1], eyeOf: b => b.super ? [0, -0.78, 0.75] : null, path(r, b) { // a domed beehive, the entrance at the bottom
+    if (b?.super) { // THE QUEEN: a head, a thorax and a long striped abdomen ending in a stinger
+      ctx.beginPath();
+      ctx.ellipse(0, 0.42 * r, 0.5 * r, 0.62 * r, 0, 0, TAU);
+      ctx.moveTo(0.36 * r, -0.3 * r); ctx.ellipse(0, -0.3 * r, 0.36 * r, 0.27 * r, 0, 0, TAU);
+      ctx.moveTo(0.27 * r, -0.78 * r); ctx.arc(0, -0.78 * r, 0.27 * r, 0, TAU);
+      ctx.moveTo(-0.11 * r, 1.0 * r); ctx.lineTo(0, 1.32 * r); ctx.lineTo(0.11 * r, 1.0 * r);
+      return;
+    }
     ctx.beginPath(); ctx.moveTo(-0.92 * r, 0.82 * r); ctx.lineTo(0.92 * r, 0.82 * r);
     ctx.bezierCurveTo(1.18 * r, 0.05 * r, 0.85 * r, -1.08 * r, 0, -1.12 * r);
     ctx.bezierCurveTo(-0.85 * r, -1.08 * r, -1.18 * r, 0.05 * r, -0.92 * r, 0.82 * r);
     ctx.closePath();
-  }, detail(r) { // woven bands around the dome, and the dark entrance
+  }, detail(r, b) { // woven bands around the dome, and the dark entrance
+    if (b?.super) { // the stripes across her abdomen
+      ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0.42 * r, 0.5 * r, 0.62 * r, 0, 0, TAU); ctx.clip();
+      ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(20,12,0,0.75)';
+      for (const y of [0.05, 0.4, 0.75]) ctx.fillRect(-0.6 * r, y * r, 1.2 * r, 0.16 * r);
+      ctx.restore(); return;
+    }
     ctx.save(); BOSS_SHAPES.hive.path(r); ctx.clip(); ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.55; ctx.beginPath();
     for (const y of [-0.62, -0.25, 0.12, 0.48]) { ctx.moveTo(-1.2 * r, y * r); ctx.quadraticCurveTo(0, (y + 0.14) * r, 1.2 * r, y * r); }
     ctx.stroke(); ctx.restore();
@@ -7037,10 +7127,27 @@ const BOSS_SHAPES = {
     }
     ctx.closePath();
   } },
-  chronos: { mode: 'swing', eye: [0, 0, 0.9], path(r) { // a pocket watch, swinging on its chain
+  chronos: { mode: 'swing', eye: [0, 0, 0.9], eyeOf: b => b.super ? [0, 0, 0.7] : null, path(r, b) { // a pocket watch, swinging on its chain
+    if (b?.super) { // THE HOURGLASS: two glass bulbs meeting at a narrow waist, between two caps
+      ctx.beginPath();
+      ctx.moveTo(-0.72 * r, -1.0 * r); ctx.lineTo(0.72 * r, -1.0 * r); ctx.quadraticCurveTo(0.72 * r, -0.32 * r, 0.1 * r, 0);
+      ctx.quadraticCurveTo(0.72 * r, 0.32 * r, 0.72 * r, 1.0 * r); ctx.lineTo(-0.72 * r, 1.0 * r); ctx.quadraticCurveTo(-0.72 * r, 0.32 * r, -0.1 * r, 0);
+      ctx.quadraticCurveTo(-0.72 * r, -0.32 * r, -0.72 * r, -1.0 * r); ctx.closePath();
+      ctx.rect(-0.92 * r, -1.2 * r, 1.84 * r, 0.2 * r); ctx.rect(-0.92 * r, 1.0 * r, 1.84 * r, 0.2 * r);
+      return;
+    }
     ctx.beginPath(); ctx.arc(0, 0, 0.95 * r, -Math.PI / 2 + 0.16, Math.PI * 1.5 - 0.16);
     ctx.lineTo(-0.13 * r, -1.14 * r); ctx.lineTo(0.13 * r, -1.14 * r); ctx.closePath();
-  }, detail(r) { // its crown and ring, and the hour marks
+  }, detail(r, b) { // its crown and ring, and the hour marks
+    if (b?.super) { // its sand: the top runs out as its health does, and the bottom fills up, with a thin stream falling between
+      const f = Math.max(0, Math.min(1, b.hp / b.max)), t = b.t || 0;
+      ctx.save(); BOSS_SHAPES.chronos.path(r, b); ctx.clip(); ctx.shadowBlur = 0; ctx.fillStyle = '#ffd27a';
+      const top = -0.08 * r - f * 0.9 * r; ctx.fillRect(-r, top, 2 * r, -0.04 * r - top);
+      const bot = 1.0 * r - (1 - f) * 0.9 * r; ctx.fillRect(-r, bot, 2 * r, 1.0 * r - bot);
+      ctx.fillStyle = '#fff0c0';
+      for (let i = 0; i < 6; i++) { const y = ((t * 1.6 + i / 6) % 1) * (bot - 0.02 * r); ctx.fillRect(-0.02 * r, y, 0.04 * r, 0.06 * r); }
+      ctx.restore(); return;
+    }
     ctx.beginPath(); ctx.arc(0, -1.24 * r, 0.12 * r, 0, TAU); ctx.moveTo(0.2 * r, -1.52 * r); ctx.arc(0, -1.52 * r, 0.2 * r, 0, TAU); ctx.stroke();
     ctx.beginPath();
     for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, r1 = r * (i % 3 ? 0.76 : 0.66); ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.lineTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85); }
@@ -7376,7 +7483,7 @@ function drawBoss(b) {
   }
 
   // its eye, wherever its shape keeps it: it follows you, and blinks now and then
-  const [ox, oy, es] = shape.eye, ex = (Math.cos(rot) * ox - Math.sin(rot) * oy) * b.r, ey = (Math.sin(rot) * ox + Math.cos(rot) * oy) * b.r;
+  const [ox, oy, es] = shape.eyeOf?.(b) || shape.eye, ex =(Math.cos(rot) * ox - Math.sin(rot) * oy) * b.r, ey = (Math.sin(rot) * ox + Math.cos(rot) * oy) * b.r;
   const pulse = 1 + Math.sin(t * (enraged ? 12 : 5)) * 0.12;
   const coreR = b.r * 0.25 * es * pulse * (1 + windup * 0.7 + b.kick * 0.3) * (1 + deathP);
   if (!(fury && form.noEye) && !shape.hideEye?.(b)) { // (some shapes hide it now and then: SONNET's spinning ball)
@@ -7569,6 +7676,10 @@ function drawBossDecor(b, layer, c, enraged) {
       if (layer === 'front') { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2); ctx.fill(); }
       break;
     case 'chronos': // the watch's two hands (which stop when time does; its hour marks are part of its shape)
+      if (b.super) { // (THE HOURGLASS has no hands: just the warning ring before it stops time)
+        if (layer === 'front' && b.stopW > 0) { ctx.globalAlpha *= 0.5 + Math.sin(t * 30) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2); ctx.stroke(); }
+        break;
+      }
       if (layer === 'front') {
         let tt = b.stop > 0 ? b._frozenT ??= t : (b._frozenT = undefined, t);
         if (enraged && b.wasEnraged) tt = b.rage > 0 ? t * 30 : -t * 3; // (TIME UNBOUND: spinning wildly, then running backwards)
@@ -7863,9 +7974,26 @@ const RAGE_FORMS = {
         ctx.globalAlpha = A * k; ctx.fillStyle = '#ffe93d'; ctx.beginPath(); ctx.ellipse(x, y, 3.5, 2.2, a, 0, TAU); ctx.fill();
         if (Math.floor(b.t * 30 + i) % 2) { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(x - 1, y - 3.5, 2, 2); } // (beating wings)
       }
+      if (b.super) { // THE QUEEN's two pairs of wings, a blur of beating
+        ctx.globalAlpha = A; ctx.strokeStyle = '#fff3b0'; ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1.5; glow('#ffe93d', 10);
+        const beat = 0.75 + Math.abs(Math.sin(b.t * 32)) * 0.25;
+        for (const s of [-1, 1]) for (const [ang, len] of [[-0.45, 1.15], [0.2, 0.85]]) { // (a big pair angled up, a small pair below)
+          ctx.save(); ctx.translate(s * 0.25 * r, -0.36 * r); ctx.rotate(s > 0 ? ang : Math.PI - ang); ctx.scale(1, beat);
+          ctx.beginPath(); ctx.ellipse(len * r * 0.5, 0, len * r * 0.5, 0.2 * r, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
+        }
+        return;
+      }
       for (let i = 0; i < 2; i++) { const ph = (b.t * 0.6 + i * 0.5) % 1; ctx.globalAlpha = A * k * (1 - ph); drip((i - 0.5) * 0.2 * r, 0.88 * r + ph * 0.9 * r, 0.06 * r, '#ffc23d'); }
     },
     front(b, k, tr, r) {
+      if (b.super) { // THE QUEEN's antennae, curling out from under her crown
+        ctx.strokeStyle = '#ffe93d'; ctx.fillStyle = '#ffe93d'; ctx.lineWidth = 2; glow('#ffd23d', 10);
+        for (const s of [-1, 1]) {
+          const tx = s * 0.55 * r, ty = -1.36 * r + Math.sin(b.t * 4 + s) * 0.04 * r;
+          ctx.beginPath(); ctx.moveTo(s * 0.12 * r, -0.98 * r); ctx.quadraticCurveTo(s * 0.2 * r, -1.35 * r, tx, ty); ctx.stroke();
+          ctx.beginPath(); ctx.arc(tx, ty, 0.06 * r, 0, TAU); ctx.fill();
+        }
+      }
       const y = -1.12 * r - 0.05 * r * Math.sin(b.t * 3), w = 0.42 * r, h = 0.34 * r * k;
       ctx.fillStyle = '#ffd23d'; ctx.strokeStyle = '#fff3b0'; glow('#ffd23d', 16); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(-w, y); ctx.lineTo(-w, y - h * 0.6); ctx.lineTo(-w * 0.5, y - h * 0.25); ctx.lineTo(0, y - h); ctx.lineTo(w * 0.5, y - h * 0.25); ctx.lineTo(w, y - h * 0.6); ctx.lineTo(w, y); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -7950,6 +8078,21 @@ const RAGE_FORMS = {
     } },
 
   oracle: { // ALL-SEEING: its eyelids snap wide open (see oracleOpen), it turns bloodshot, a third eye opens above it, and its little eyes swell up red (see its decor)
+    back(b, k, tr, r) { // THE HUNDRED EYES: rings of little eyes all around it, opening one after another, each blinking on its own and watching you
+      if (!b.super) return;
+      const eyes = oracleEyes(b), open = Math.min(1, tr * 1.2), A = ctx.globalAlpha;
+      ctx.shadowBlur = 0;
+      eyes.forEach(([x, y], i) => {
+        if (i / eyes.length > open) return;
+        const blink = ((b.t + i * 0.37) % (2.5 + (i % 5) * 0.4)) < 0.12 ? 0.15 : 1, w = 5 + (i % 3), h = (2.8 + (i % 2)) * blink;
+        ctx.globalAlpha = A * 0.85; ctx.fillStyle = '#ffe8ff'; ctx.strokeStyle = '#ff8dff'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(x, y, w, h, 0, 0, TAU); ctx.fill(); ctx.stroke();
+        if (blink < 1) return;
+        ctx.fillStyle = '#ff2a8a'; ctx.beginPath(); ctx.arc(x + b.look.x * w * 0.35, y + b.look.y * h * 0.35, h * 0.75, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x + b.look.x * w * 0.35, y + b.look.y * h * 0.35, h * 0.35, 0, TAU); ctx.fill();
+      });
+      ctx.globalAlpha = A;
+    },
     shell(b, k, tr, r) {
       ctx.save(); BOSS_SHAPES.oracle.path(r, b); ctx.clip();
       ctx.strokeStyle = '#ff2a3a'; ctx.lineWidth = 1.5; ctx.shadowBlur = 0; ctx.globalAlpha *= 0.8 * k; ctx.beginPath();
@@ -8496,7 +8639,7 @@ function drawBossFx(layer) {
       const p = g.life / g.max;
       ctx.save(); ctx.translate(g.x, g.y); ctx.scale(1 + (1 - p) * 0.25, 1 + (1 - p) * 0.25);
       ctx.globalAlpha = p * 0.45; ctx.strokeStyle = g.color; ctx.lineWidth = 2; glow(g.color, 15);
-      bossPath({ shape: g.shape, sides: g.sides, t: g.t }, g.r, g.rot); ctx.stroke();
+      bossPath({ shape: g.shape, sides: g.sides, t: g.t, super: g.super }, g.r, g.rot); ctx.stroke();
       ctx.restore();
     }
     return;
@@ -11078,7 +11221,7 @@ function packSnap() {
     ts: Math.round(performance.now()), // host clock, so guests can place every update on a timeline
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
-    rs: { maxLives: s.maxLives, drones: s.drones, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd },
+    rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
@@ -11460,7 +11603,7 @@ function replayEvent(ev) {
     case 'r': if (bossFx.rings.length < 120) fxRing(ev[1], ev[2], ev[3], ev[4], num(ev[5], 0, 10, 0.5), ev[6], ev[7], num(ev[8], 0, 10, 0)); break;
     case 't': if (bossFx.texts.length < 40) fxText(String(ev[1]).slice(0, 80), ev[2], ev[3], ev[4], num(ev[5], 6, 120, 28), num(ev[6], 0, 10, 1.6)); break;
     case 'g': if (bossFx.ghosts.length < 60) bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: num(ev[4], 3, 16, 6), r: ev[5], color: ev[6],
-      life: num(ev[7], 0, 5, 0.5), max: num(ev[7], 0.01, 5, 0.5), shape: ev[8], t: ev[9] }); break;
+      life: num(ev[7], 0, 5, 0.5), max: num(ev[7], 0.01, 5, 0.5), shape: ev[8], t: ev[9], super: ev[10] === 1 }); break;
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
     case 's': beep(num(ev[1], 20, 8000, 440), num(ev[2], 0.01, 3, 0.1), OSC_TYPES.includes(ev[3]) ? ev[3] : 'square', num(ev[4], 0, 0.2, 0.05), num(ev[5], -8000, 8000, 0)); break;
     case 'o': showToast(String(ev[1]).slice(0, 120)); break;
