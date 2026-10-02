@@ -212,6 +212,15 @@ const SONGS = {
     B: { chords: '6 4 1 5 6 4 7 5^', ins: 'guitar', dr: 'drive', gt: 'strum', mel: [
       '6-------q---e---', '4-------6---q---', 'q-------e---w---', 'w-------7---5---',
       '6-------q---e---', '4-------6---r---', '7-------w---e---', '5---------------'] } } },
+  // DOKI DOLL: her own song, a recording (doki.mp3, played like THE ABYSS's: see playRecorded); the notes below are what
+  // plays if the file can't be loaded (or until it has)
+  doki: { name: 'Doki Doki', file: 'doki.mp3', loop: [0.07, 184.7], gain: 2.2, bpm: 150, root: 48, scale: 'major', lead: 72, battle: true, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 4 5 1 6 4 5', ins: 'bell', dr: 'drive', gt: 'strum', mel: [
+      '5.3.5.q.5.3.1...', '6.4.6.q.6.4.1...', '4.6.q.6.4.2.6...', '5.7.w.7.5.2.7...',
+      '5.3.5.q.5.3.1...', '6.4.6.q.6.4.1...', '4.6.q.w.q.6.4.6.', '5-------7---w---'] },
+    B: { chords: '4 5 3 6 4 5 1 1', ins: 'synth', dr: 'drive', gt: 'chug', mel: [
+      'q-------6---4---', 'w-------7---5---', 'e-------w---q---', 'q-------6---3---',
+      'q-------6---4---', 'w-------7---w---', 'e---w---q---7---', 'q---------------'] } } },
   // team bosses: a fast rival fight where the guitar and the flute trade the tune
   rival: { name: 'Rival Clash', bpm: 160, root: 47, scale: 'minor', lead: 71, battle: true, form: ['A', 'B'], parts: {
     A: { chords: '1 1 6 7 1 1 6 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
@@ -334,7 +343,7 @@ function zoneSong(zone) {
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
   ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'],
-  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['victory', 'Victory'], ['gameover', 'Game over']];
+  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
   half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.9 },
@@ -352,7 +361,9 @@ function startMusic() {
 }
 function scheduleMusic() {
   if (!ac || ac.state !== 'running') { if (rec.el && !rec.el.paused) rec.el.pause(); return; } // (a recorded song waits while the tab is away)
-  if (run?.zone === ZONE_LAST) prepRecorded(SONGS.abyss); // (THE ABYSS waits in the last zone: start loading its song early)
+  // start loading a boss's recorded song early: DOKI DOLL's once a run is one pink coin away (or she's here), THE ABYSS's in the last zone
+  if (run && ((!run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) || bosses.some(b => b.gimmick === 'doki'))) prepRecorded(SONGS.doki);
+  else if (run?.zone === ZONE_LAST) prepRecorded(SONGS.abyss);
   if (inRun() && abyssCine()?.cine < CINE.rise) { stopRecorded(); music.next = ac.currentTime + 0.05; return; } // (its entrance: dead silence until it rises)
   const want = wantedSong();
   if (recordedOk(want)) { // a recorded song: the band sits out while it plays
@@ -411,7 +422,7 @@ function wantedSong() {
   if (state === 'route') return 'starmap';
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
-  if (bosses.some(b => b.gimmick === 'doki') || warn?.doki) return zoneSong(run.zone); // (DOKI DOLL: her own song is on hold)
+  if (bosses.some(b => b.gimmick === 'doki') || warn?.doki) return 'doki';
   if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
   if (bosses.some(b => b.secret) || warn?.name === '???') return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
@@ -1512,6 +1523,18 @@ const DOKI_ASKS = [
 const DOKI_HEARTS = ['#ff4fa3', '#ff9ccf']; // (enemy bullets in these colors are drawn as hearts, on guests' screens too)
 // where her heart breaks once she's possessed: [down the heart (from its notch at -0.4 to its tip at 0.85), sideways], in heart sizes
 const DOKI_CRACK = [[-0.4, 0], [-0.18, 0.09], [0.04, -0.07], [0.26, 0.08], [0.5, -0.06], [0.68, 0.05], [0.85, 0]];
+// one side of her heart as points (side -1: left, 1: right), from the notch at the top to the tip at the bottom, in heart
+// sizes: the heart's curve, with a cat ear standing up out of the top of the lobe
+function dokiSide(side) {
+  const bz = (t, a, b, c, d) => (1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d;
+  const pt = t => [side * bz(t, 0, 0.75, 1.5, 0), bz(t, -0.4, -1.25, -0.1, 0.85)];
+  const pts = [pt(0), pt(0.05), pt(0.1), [side * 0.6, -1.3], pt(0.42)]; // (up to the lobe, then the ear)
+  for (let i = 1; i <= 18; i++) pts.push(pt(0.42 + 0.58 * i / 18)); // (and round the lobe, down to the tip)
+  return pts;
+}
+const DOKI_SIDES = [dokiSide(-1), dokiSide(1)];
+// how far apart the two halves of her heart are (0 until she's possessed: k is how far into her rage form she is)
+const dokiGap = (s, b, k) => k ? s * k * (0.13 + Math.sin((b?.t || 0) * 3) * 0.03) : 0;
 const randomOf = a => a[Math.floor(Math.random() * a.length)];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
@@ -6524,30 +6547,39 @@ const BOSS_SHAPES = {
     ctx.stroke(); ctx.restore();
   } },
   zero: { mode: 'up', eye: [0, 0, 1], path: r => poly(r / 3, [[-3, -2], [-2, -2], [-2, -3], [1, -3], [1, -2], [3, -2], [3, 1], [2, 1], [2, 3], [-1, 3], [-1, 2], [-3, 2]]) }, // a broken, pixelated cube
-  // DOKI DOLL: a stitched patchwork heart with a little bow, beating. Possessed (her rage form), it breaks in two along
-  // a jagged crack, the halves pulling apart around her eye
+  // DOKI DOLL: a stitched patchwork heart with cat ears and a little bow, beating. Possessed (her rage form), it breaks in
+  // two along a jagged crack, the halves (an ear each) pulling apart around her eye. Her staff and tail: see drawBossDecor
   doki: { mode: 'up', eye: [0, 0.02, 1.1], path(r, b, k = 0) {
-    const s = r * 0.95, y = r * 0.05;
+    const s = r * 0.95, y = r * 0.05, g = dokiGap(s, b, k);
     ctx.beginPath();
-    if (!k) { heartPath(0, y, s); return; }
-    const g = s * k * (0.13 + Math.sin((b?.t || 0) * 3) * 0.03); // (how far apart the halves are)
-    for (const side of [-1, 1]) { // each half: down its own side to the tip, then back up the crack to the notch
-      ctx.moveTo(side * g, y - s * 0.4);
-      ctx.bezierCurveTo(side * (g + s * 0.75), y - s * 1.25, side * (g + s * 1.5), y - s * 0.1, side * g, y + s * 0.85);
+    const [L, R] = DOKI_SIDES;
+    if (!k) { // the whole heart: down the left side from the notch to the tip, then back up the right side
+      L.forEach(([x, yy], i) => ctx[i ? 'lineTo' : 'moveTo'](x * s, y + yy * s));
+      for (let i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i][0] * s, y + R[i][1] * s);
+      ctx.closePath(); return;
+    }
+    for (const [side, P] of [[-1, L], [1, R]]) { // broken in two: each half is its own side, then back up the crack to the notch
+      P.forEach(([x, yy], i) => ctx[i ? 'lineTo' : 'moveTo'](side * g + x * s, y + yy * s));
       for (const [cy, cx] of DOKI_CRACK.slice().reverse()) ctx.lineTo(side * g + cx * s, y + cy * s);
       ctx.closePath();
     }
   }, detail(r, b, k = 0) {
-    const s = r * 0.95, y = r * 0.05;
+    const s = r * 0.95, y = r * 0.05, g = dokiGap(s, b, k);
     ctx.save(); ctx.scale(0.62, 0.62); BOSS_SHAPES.doki.path(r, b, k); ctx.restore(); ctx.stroke(); // (the double neon line)
+    // the insides of her ears, pink
+    ctx.save(); ctx.fillStyle = k ? 'rgba(150,0,40,0.55)' : 'rgba(255,111,216,0.45)'; ctx.shadowBlur = 0;
+    for (const side of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(side * (g + 0.34 * s), y - 0.66 * s); ctx.lineTo(side * (g + 0.6 * s), y - 1.12 * s); ctx.lineTo(side * (g + 0.72 * s), y - 0.62 * s); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
     // a patchwork seam across her left side, cross-stitched (torn open, with loose threads, once she's possessed)
     const seam = [[-0.95, -0.45], [-0.78, -0.12], [-0.62, 0.16], [-0.42, 0.42]];
     ctx.save(); BOSS_SHAPES.doki.path(r, b, k); ctx.clip(); // (kept inside the heart)
     ctx.lineWidth = 1.5; ctx.globalAlpha *= 0.85;
     if (k) ctx.setLineDash([6, 7]);
-    ctx.beginPath(); seam.forEach(([x, yy], i) => ctx[i ? 'lineTo' : 'moveTo'](x * s, y + yy * s)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); seam.forEach(([x, yy], i) => ctx[i ? 'lineTo' : 'moveTo'](x * s - g, y + yy * s)); ctx.stroke(); ctx.setLineDash([]); // (on the left half)
     for (let i = 0; i < seam.length - 1; i++) {
-      const [x0, y0] = seam[i], [x1, y1] = seam[i + 1], mx = (x0 + x1) / 2 * s, my = y + (y0 + y1) / 2 * s, d = s * 0.07;
+      const [x0, y0] = seam[i], [x1, y1] = seam[i + 1], mx = (x0 + x1) / 2 * s - g, my = y + (y0 + y1) / 2 * s, d = s * 0.07;
       if (k && i % 2) { ctx.beginPath(); ctx.moveTo(mx, my); ctx.quadraticCurveTo(mx - d, my + d * 2, mx - d * 0.5, my + d * 3.5); ctx.stroke(); continue; } // (a loose thread)
       ctx.beginPath(); ctx.moveTo(mx - d, my - d); ctx.lineTo(mx + d, my + d); ctx.moveTo(mx + d, my - d); ctx.lineTo(mx - d, my + d); ctx.stroke();
     }
@@ -6642,6 +6674,80 @@ function bossPath(b, r, rot, k = 0) {
   ctx.save(); ctx.rotate(rot); s.path(r, b, k); ctx.restore();
 }
 
+// DOKI DOLL's tail: it curls out from behind her lower left and swishes, with a ribbon and a little gold bell near the tip
+// (drawn around her middle, behind her)
+const bzPt = (t, a, b, c, d) => (1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d;
+function drawDokiTail(b, r, t, poss) {
+  const s = r * 0.95, sw = Math.sin(t * 2.6), x0 = -0.45 * s, y0 = r * 0.05 + 0.4 * s;
+  const P = [[x0, y0], [-1.35 * s, y0 + 0.6 * s], [-1.8 * s, y0 - 0.2 * s + sw * s * 0.15], [-1.4 * s + sw * s * 0.3, y0 - 0.9 * s]];
+  const at = k => [bzPt(k, P[0][0], P[1][0], P[2][0], P[3][0]), bzPt(k, P[0][1], P[1][1], P[2][1], P[3][1])];
+  const col = poss ? '#ff3d6d' : '#ff6fd8', w = r * 0.15;
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(...P[0]); ctx.bezierCurveTo(...P[1], ...P[2], ...P[3]);
+  ctx.strokeStyle = col; glow(col, 14); ctx.lineWidth = w; ctx.stroke(); // (a neon outline...)
+  ctx.shadowBlur = 0; ctx.strokeStyle = poss ? '#2a0008' : '#1c0618'; ctx.lineWidth = w - 5; ctx.stroke(); // (...around a dark middle)
+  // the ribbon and the bell, a little way from the tip
+  const [bx, by] = at(0.74), [bx2, by2] = at(0.8), ang = Math.atan2(by2 - by, bx2 - bx);
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(ang);
+  ctx.fillStyle = poss ? '#6a0018' : '#ff3d8d'; ctx.strokeStyle = poss ? '#ff3d6d' : '#ffd6ec'; ctx.lineWidth = 1.5;
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-r * 0.07, sd * r * 0.16); ctx.lineTo(r * 0.07, sd * r * 0.16); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  ctx.restore();
+  const bell = r * 0.085, swing = Math.sin(t * 5.2) * 0.4; // (the bell dangles and swings)
+  ctx.save(); ctx.translate(bx, by + r * 0.05); ctx.rotate(swing);
+  ctx.strokeStyle = poss ? '#8a6a10' : '#ffe93d'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, bell * 0.8); ctx.stroke();
+  glow('#ffd23d', poss ? 4 : 12); ctx.fillStyle = poss ? '#8a6a10' : '#ffd23d';
+  ctx.beginPath(); ctx.arc(0, bell * 1.8, bell, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = '#5a3a00'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-bell * 0.6, bell * 1.95); ctx.lineTo(bell * 0.6, bell * 1.95); ctx.stroke(); // (its slit)
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(-bell * 0.35, bell * 1.45, bell * 0.25, 0, TAU); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+// DOKI DOLL's magical-girl staff: it floats at her right side, bobbing, and swings its star at you when she attacks (during
+// her twirl she spins it around herself). A cat-faced star on top with a little bow, ribbon stripes down the shaft, and a
+// heart on the end. Possessed, the star turns red and glares
+function drawDokiStaff(b, r, t, poss) {
+  const twirl = b.patterns?.[b.pattern] === 'twirl' && b.entered && b.dying <= 0, L = r * 2;
+  let x, y, a; // (where its middle is, and its tilt: 0 is upright)
+  if (twirl) { const ang = t * 7; x = Math.cos(ang) * r * 1.5; y = Math.sin(ang) * r * 1.25; a = ang + Math.PI / 2; }
+  else {
+    x = r * 1.4; y = r * 0.1 + Math.sin(t * 2.1) * r * 0.08;
+    const rest = 0.3 + Math.sin(t * 1.7) * 0.08, aim = Math.atan2(b.look?.x || 0, -(b.look?.y ?? 1)), k = Math.min(1, (b.kick || 0) * 1.4);
+    a = rest + angleDiff(aim, rest) * k; // (it points at you as she fires)
+  }
+  const sc = poss ? '#ff3d6d' : '#ffe93d', R = r * 0.3, hy = -L / 2 - R * 0.55;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.lineCap = 'round';
+  // the shaft, with ribbon stripes, and a heart on the end
+  ctx.strokeStyle = poss ? '#ff3d6d' : '#ff9ccf'; glow(ctx.strokeStyle, 12); ctx.lineWidth = r * 0.075;
+  ctx.beginPath(); ctx.moveTo(0, L / 2); ctx.lineTo(0, -L / 2); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.strokeStyle = poss ? '#5a0016' : '#ffffff'; ctx.lineWidth = 2;
+  for (let i = 1; i < 6; i++) { const yy = -L / 2 + i * L / 6; ctx.beginPath(); ctx.moveTo(-r * 0.04, yy + r * 0.04); ctx.lineTo(r * 0.04, yy - r * 0.04); ctx.stroke(); }
+  ctx.fillStyle = poss ? '#ff3d6d' : '#ff4fa3'; glow(ctx.fillStyle, 10); ctx.beginPath(); heartPath(0, L / 2 + r * 0.05, r * 0.09); ctx.fill();
+  // a little bow just under the star
+  ctx.fillStyle = poss ? '#6a0018' : '#ffe93d'; ctx.shadowBlur = 0;
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, -L / 2); ctx.lineTo(sd * r * 0.16, -L / 2 - r * 0.07); ctx.lineTo(sd * r * 0.16, -L / 2 + r * 0.07); ctx.closePath(); ctx.fill(); }
+  // the star, with a cat's face: happy (^ ^ and a little cat mouth), or glaring once she's possessed
+  ctx.save(); ctx.translate(0, hy); ctx.rotate(Math.sin(t * 2.4) * 0.12);
+  ctx.beginPath(); for (let i = 0; i < 10; i++) { const ang = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? R * 0.48 : R; ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr); } ctx.closePath();
+  ctx.fillStyle = sc; glow(sc, 22); ctx.fill(); ctx.strokeStyle = poss ? '#ffb0bb' : '#fff3b0'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.shadowBlur = 0; ctx.strokeStyle = poss ? '#2a0008' : '#5a3a00'; ctx.lineWidth = Math.max(1.5, R * 0.09);
+  if (poss) { // angry slanted eyes, and a flat mouth
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * R * 0.42, -R * 0.12); ctx.lineTo(sd * R * 0.14, R * 0.02); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(-R * 0.14, R * 0.3); ctx.lineTo(R * 0.14, R * 0.3); ctx.stroke();
+  } else {
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.arc(sd * R * 0.26, R * 0.06, R * 0.12, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); } // (^ ^)
+    ctx.beginPath(); ctx.arc(-R * 0.08, R * 0.24, R * 0.08, 0.2, Math.PI - 0.2); ctx.arc(R * 0.08, R * 0.24, R * 0.08, 0.2, Math.PI - 0.2); ctx.stroke(); // (a cat's mouth)
+  }
+  ctx.restore();
+  // twinkles around the star now and then
+  ctx.strokeStyle = '#ffffff'; glow(sc, 10); ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    const tw = Math.max(0, Math.sin(t * 3.3 + i * 2.1)), sx = Math.cos(i * 2.3) * R * 1.5, sy = hy + Math.sin(i * 2.3) * R * 1.3, z = R * 0.35 * tw;
+    if (z < 1) continue;
+    ctx.beginPath(); ctx.moveTo(sx - z, sy); ctx.lineTo(sx + z, sy); ctx.moveTo(sx, sy - z); ctx.lineTo(sx, sy + z); ctx.stroke();
+  }
+  ctx.restore();
+}
 // a heart about 2s wide, centered on (x, y) (adds to the current path)
 function heartPath(x, y, s) {
   ctx.moveTo(x, y + s * 0.85);
@@ -6931,12 +7037,17 @@ function drawBossDecor(b, layer, c, enraged) {
         if (b.stopW > 0) { ctx.globalAlpha *= 0.5 + Math.sin(t * 30) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2); ctx.stroke(); }
       }
       break;
-    case 'doki': { // hearts circling her (more as her meter fills, a crowd once she's charmed), and claw marks when she swipes
+    case 'doki': { // hearts circling her (more as her meter fills, a crowd once she's charmed), her tail and staff, and claw marks
+      const poss = enraged && !b.charmed;
       if (layer === 'back') {
-        const n = Math.floor((b.doki || 0) * 8) + (b.charmed ? 6 : 0), col = enraged && !b.charmed ? '#ff3d6d' : '#ff9ccf';
+        const n = Math.floor((b.doki || 0) * 8) + (b.charmed ? 6 : 0), col = poss ? '#ff3d6d' : '#ff9ccf';
         ctx.fillStyle = col; glow(col, 10);
         for (let i = 0; i < n; i++) { const a = t * 1.2 + i / Math.max(1, n) * TAU; ctx.beginPath(); heartPath(Math.cos(a) * r * 1.55, Math.sin(a) * r * 1.25, r * 0.09); ctx.fill(); }
-      } else if (b.pawT > 0) {
+        drawDokiTail(b, r, t, poss);
+      } else {
+        drawDokiStaff(b, r, t, poss);
+      }
+      if (layer === 'front' && b.pawT > 0) {
         const k = Math.min(1, b.pawT / 0.35), sd = b.paw || 1, A = ctx.globalAlpha;
         ctx.globalAlpha = A * k; ctx.strokeStyle = '#ffd6ec'; ctx.lineWidth = 3; ctx.lineCap = 'round'; glow('#ff6fd8', 16);
         for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(sd * r * 0.95, i * r * 0.28, r * 0.55, sd > 0 ? 2.4 : -0.75, sd > 0 ? 3.9 : 0.75); ctx.stroke(); }
@@ -8241,7 +8352,7 @@ function drawJukebox() {
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 102;
   SONG_LIST.forEach(([id, where], i) => {
     const x = x0 + (i % cols) * (bw + gap), y = y0 + Math.floor(i / cols) * (bh + gap), on = music.song === id;
-    const locked = (id === 'zero' && !meta.ach.omega) || (id === 'nemesis' && !meta.ach.zero); // (the secret bosses' songs stay secret until you could meet them)
+    const locked = (id === 'zero' && !meta.ach.omega) || (id === 'nemesis' && !meta.ach.zero) || (id === 'doki' && !meta.ach.doki); // (the secret bosses' songs stay secret until you could meet them)
     buttons.push({ x, y, w: bw, h: bh, action: () => { if (locked) beep(110, 0.15, 'square', 0.05); else music.pick = id; } });
     panel(x, y, bw, bh, on ? '#c08dff' : '#3a3f5a', sel === i);
     // where it plays on the right, the name on the left (squeezed if they'd overlap)
