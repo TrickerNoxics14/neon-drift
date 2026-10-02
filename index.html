@@ -3656,6 +3656,11 @@ const BOSS_ATTACKS = {
     }
     b.atkT = (enraged ? 1.9 : 2.5) * rate; beep(240, 0.25, 'sawtooth', 0.05, -80);
   },
+  glitchmove(b, enraged, rate, target) { // a GLITCH variant borrows one of ZERO's moves
+    const k = randomOf(['pixels', 'paste', 'lag']);
+    if (k === 'pixels') fxText('DEAD PIXELS', b.x, Math.max(40, b.y - b.r - 34), '#ff00ff', 20, 1);
+    BOSS_ATTACKS[k](b, enraged, rate, target);
+  },
   steal(b, enraged, rate, target) { // ZERO: STOLEN: a copy of another boss's attack, wearing that boss's face for a moment
     const [a, d] = randomOf(zeroSteals());
     b.stolen = { shape: shapeOf(d), t: ZERO_STOLEN_T };
@@ -4288,12 +4293,6 @@ const GIMMICKS = {
           fxText(F.title + '!', W / 2, H * 0.4, F.color, 36, 2);
         }
         return 'hold';
-      }
-      if (b.lagT > 0) { // LAG SPIKE: its bullets hang... then jump ahead to where they should be
-        if ((b.lagT -= dt) <= 0) {
-          for (const e of eBullets) if (e.src === b && e.lag) { e.vx = e.lag[0]; e.vy = e.lag[1]; e.x += e.vx * LAG_SKIP; e.y += e.vy * LAG_SKIP; e.lag = null; }
-          shake = Math.max(shake, 8); beep(80, 0.25, 'square', 0.07, 400);
-        }
       }
       if (b.zform >= 3 && b.entered && !b.charge && !b.special && (b.skipT = (b.skipT ?? 3) - dt) <= 0) { // FATAL ERROR: it skips around
         b.skipT = 2.5 + Math.random() * 2;
@@ -4973,7 +4972,7 @@ function updateBoss(b, dt) {
       screenFlash = 1;
       for (let i = 0; i < 3; i++) fxRing(b.x, b.y, b.r * 0.5, b.r * (4 + i * 2), 0.8 + i * 0.2, i === 1 ? '#ffffff' : b.color, 6 - i * 1.5, i * 0.12);
       if (!b.charmed) shatterFx(b.x, b.y, b.color, b.sides, b.r, b.spin);
-      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : b.gimmick === 'zero' ? 'PROCESS TERMINATED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
+      fxText(b.charmed ? '♥ CHARMED ♥' : b.final ? 'THE ABYSS IS SILENCED' : b.gimmick === 'zero' ? 'PROCESS TERMINATED' : b.glitch ? 'CORRUPTED' : 'DESTROYED', b.x, b.y, '#ffffff', b.final ? 30 : 34, 2);
       bosses = bosses.filter(o => o !== b);
       // the last boss of an encounter drops the full set; a partner that falls first drops one pickup
       const drops = bosses.length ? [['power', 'shield', 'life'][Math.floor(Math.random() * 3)]] : ['power', 'shield', 'life'];
@@ -5044,6 +5043,7 @@ function updateBoss(b, dt) {
   }
 
   const hoverY = Math.min(170, H * 0.22);
+  if (!b.entered) glitchBoss(b); // (a GLITCH variant: from the moment it starts to warp in)
   if (!b.entered) {
     // warp in: grows from a point while pulsing rings
     b.y += 90 * dt;
@@ -5082,6 +5082,10 @@ function updateBoss(b, dt) {
   if (updateAscend(b, dt)) return;
   if (b.super && b.dying <= 0) ascendOf(b)?.update?.(b, dt); // (a second life's own new attack)
   if (b.glitch) updateGlitchBoss(b, dt); // (a GLITCH variant skips around)
+  if (b.lagT > 0 && (b.lagT -= dt) <= 0) { // LAG SPIKE wears off: its bullets jump ahead to where they should be
+    for (const e of eBullets) if (e.src === b && e.lag) { e.vx = e.lag[0]; e.vy = e.lag[1]; e.x += e.vx * LAG_SKIP; e.y += e.vy * LAG_SKIP; e.lag = null; }
+    shake = Math.max(shake, 8); beep(80, 0.25, 'square', 0.07, 400);
+  }
   const fury = b.rageMove && b.wasEnraged ? updateRageMove(b, dt, tgt) : null;
   if (fury === 'hold') return;
 
@@ -5484,7 +5488,8 @@ function update(dt) {
   spawnT -= dt;
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
-    spawnEnemy();
+    const seq0 = enemyIdSeq; spawnEnemy();
+    if (glitchWorld()) for (const e of enemies) if (e.id > seq0) e.glitch = true; // (GLITCH variants of every enemy)
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][mode] / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
@@ -5626,6 +5631,7 @@ function update(dt) {
     e.healFx = Math.max(0, (e.healFx || 0) - dt); e.guardedT = Math.max(0, (e.guardedT || 0) - dt);
     e.x += e.vx * edt; e.y += e.vy * edt;
     ENEMY_AI[e.type]?.(e, edt);
+    if (e.glitch) glitchEnemy(e, edt);
     for (const b of bullets) {
       if (b.dead || e.dead || TYPES[e.type].ghost || b.hits.includes(e) || distToSeg(e.x, e.y, b.px ?? b.x, b.py ?? b.y, b.x, b.y) >= e.r + 4 + b.size) continue;
       if (b.bomb) { bombBlast(b); continue; } // (BOMBER: it blows up on whatever it touches, shields and all)
@@ -6167,7 +6173,21 @@ function enemyFlame(x, y, w, k = 1) { // a flickering engine flame
   ctx.fillStyle = 'rgba(255,240,180,0.85)'; ctx.beginPath(); ctx.moveTo(x - w * 0.45, y); ctx.lineTo(x, y - L * 0.55); ctx.lineTo(x + w * 0.45, y); ctx.fill();
   ctx.restore();
 }
+// GLITCH enemies: they flicker, wear cyan and magenta frames, and every few seconds twitch and skip a little way sideways
+const GLITCH_PINNED = new Set(['segment', 'serpent', 'linker', 'decoy']); // (these stay put: they're tied to something else)
+function glitchEnemy(e, dt) {
+  if (GLITCH_PINNED.has(e.type)) return;
+  if (e.gwarn > 0) { if ((e.gwarn -= dt) <= 0) { burst(e.x, e.y, '#ff00ff', 5, 140); e.x = Math.max(20, Math.min(W - 20, e.x + (Math.random() - 0.5) * 150)); burst(e.x, e.y, '#00ffff', 5, 140); } }
+  else if ((e.gT = (e.gT ?? 2 + Math.random() * 4) - dt) <= 0) { e.gT = 3 + Math.random() * 4; e.gwarn = 0.35; }
+}
 function drawEnemy(e) {
+  if (e.glitch) { // (a GLITCH enemy: flickering, in a cyan and magenta frame that jitters wildly just before it skips)
+    if (Math.random() < 0.05) return;
+    const j = e.gwarn > 0 ? 3 + Math.random() * 4 : 2, s = e.r + 4;
+    ctx.save(); ctx.lineWidth = 1.5; ctx.shadowBlur = 0; ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = '#00ffff'; ctx.strokeRect(e.x - s - j, e.y - s, s * 2, s * 2); ctx.strokeStyle = '#ff00ff'; ctx.strokeRect(e.x - s + j, e.y - s + 1, s * 2, s * 2);
+    ctx.restore();
+  }
   if (e.type === 'shell' || e.type === 'puddle') return; // (drawn under everything, in drawEnemyTelegraph)
   if (e.type === 'meteor') { if (e.state === 'go') drawMeteor(e); return; }
   if (e.type === 'bolt') return; // (drawn in drawEnemyTelegraph)
@@ -8572,7 +8592,18 @@ function drawRageMove(b) {
 
 // shockwaves, afterimages, shattered debris and pop-up text
 // gimmick visuals: shields, heat gauges, halos, rifts, lightning... (drawn in world space)
+// a loading bar under a boss as it arrives (ZERO, and every GLITCH variant), and while ZERO reboots between forms
+function drawLoadBar(b) {
+  const w = 170, x = b.x - w / 2, y = Math.max(b.y, 0) + b.r + 44, p = b.entered ? 1 - b.reboot / ZERO_REBOOT : Math.min(1, b.intro || 0);
+  const label = b.entered ? `REBOOTING ${ZERO_FORMS[b.zform]?.title || ''}...` : `LOADING ${(b.gimmick === 'zero' ? 'ZERO' : glitchName(b.name)).replace(/ /g, '_')}.EXE...`;
+  ctx.save(); ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, 10);
+  ctx.fillStyle = Math.random() < 0.1 ? '#ff00ff' : '#e8f4ff'; ctx.fillRect(x + 2, y + 2, (w - 4) * p * (Math.random() < 0.08 ? 0.5 : 1), 6);
+  ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#e8f4ff';
+  ctx.fillText(`${label} ${Math.floor(p * 100)}%`, b.x + (Math.random() < 0.06 ? 6 : 0), y - 4);
+  ctx.restore();
+}
 function drawGimmick(b) {
+  if (b.dying <= 0 && !b.final && (b.gimmick === 'zero' || b.glitch) && (!b.entered || b.reboot > 0)) drawLoadBar(b);
   if (!b.gimmick || b.dying > 0 || !b.entered) return;
   const t = performance.now() / 1000;
   ctx.save(); ctx.lineCap = 'round';
@@ -8742,14 +8773,6 @@ function drawGimmick(b) {
       break;
     }
     case 'zero':
-      if (!b.entered || b.reboot > 0) { // its loading bar as it arrives, and its reboot between forms
-        const w = 170, x = b.x - w / 2, y = Math.max(b.y, 0) + b.r + 44, p = b.entered ? 1 - b.reboot / ZERO_REBOOT : Math.min(1, b.intro);
-        ctx.save(); ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.strokeStyle = '#e8f4ff'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, 10);
-        ctx.fillStyle = Math.random() < 0.1 ? '#ff00ff' : '#e8f4ff'; ctx.fillRect(x + 2, y + 2, (w - 4) * p * (Math.random() < 0.08 ? 0.5 : 1), 6);
-        ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-        ctx.fillText(b.entered ? `REBOOTING ${ZERO_FORMS[b.zform]?.title || ''}... ${Math.floor(p * 100)}%` : `LOADING ZERO.EXE... ${Math.floor(p * 100)}%`, b.x + (Math.random() < 0.06 ? 6 : 0), y - 4);
-        ctx.restore();
-      }
       if (b.grid) { // the beam grid: flickering guides, then solid white beams
         const g = b.grid, live = g.t >= GRID_WARN, k = Math.min(1, g.t / GRID_WARN);
         ctx.strokeStyle = '#ffffff'; ctx.fillStyle = '#ffffff';
@@ -10395,6 +10418,7 @@ const glitchName = s => s.replace(/[AEIO]/g, c => ({ A: '4', E: '3', I: '1', O: 
 function glitchBoss(b) {
   if (!glitchWorld() || b.glitch) return;
   b.glitch = true; if (!b.title) b.title = glitchName(b.name);
+  if (!b.final && b.gimmick !== 'doki' && b.gimmick !== 'zero' && b.patterns) b.patterns = b.patterns.flatMap((p, i) => i % 3 === 2 ? [p, 'glitchmove'] : [p]); // (and ZERO's glitch moves, now and then)
 }
 function updateGlitchBoss(b, dt) {
   if (b.dying > 0 || b.final || b.gimmick === 'doki' || b.charge || b.special || b.run || b.xf >= 0 || b.split || b.downed) return;
@@ -11497,7 +11521,7 @@ function packSnap() {
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
-      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0]),
+      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.glitch ? 1 : 0]),
     ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color, l.flare ? 1 : 0]),
@@ -11803,7 +11827,7 @@ function applySnap(s) {
     const type = TYPE_LIST[a[0]], id = a[21], old = byId.get(id);
     const e = Object.assign(old || { x: a[1], y: a[2] }, { type, vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9],
       spin: a[10], aimA: a[11], state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17],
-      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined });
+      dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined, glitch: a[23] === 1 });
     let tr = net.etr.get(id); if (!tr) net.etr.set(id, tr = newTrack());
     trackPush(tr, s.ts, [a[1], a[2]]); seen.add(id);
     return e;
