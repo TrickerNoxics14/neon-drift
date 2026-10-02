@@ -1,4 +1,4 @@
-# Neon Drift
+# Project-ND
 
 A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or online co-op for up to 8 friends.
 
@@ -81,7 +81,7 @@ Before a run, press **X** on the menu (or in an online lobby, as the host) to sw
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
-THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight. The secret bosses have recorded songs too: **Death** for the first one (`zero.mp3`), and **Doki Doki** for the pink one (`doki.mp3`).
+THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight. The secret bosses have recorded songs too: **Death** for the first one (`zero.mp3`), and **Doki Doki** for the pink one (`doki.mp3`). The Glitch Sector plays **Normal World** (`glitch.mp3`).
 
 Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for those three recordings, all the music is played live by the browser from notes written in the code.
 
@@ -141,7 +141,7 @@ Every run travels through space, zone by zone. You always start in **Deep Space*
 - **Derelict Fleet:** old turrets shoot at everything, enemies included.
 - **Prism Reach:** prisms split every shot in three, yours and theirs.
 
-**The Glitch Sector:** a secret zone that starts showing up on the route map once you've beaten ZERO. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. It has two songs of its own, **Corrupted Data** and **Stack Overflow**.
+**The Glitch Sector:** a secret zone. Beat THE ABYSS in a Standard run and press the (very glitchy) **CONTINUE INTO ENDLESS** button, and Endless starts right there. Once you've beaten ZERO, it can also show up on the route map. The screen tears (a warned strip shifts everything in it sideways), enemies flicker and teleport, and **INPUT ERROR** flips your left and right for a few seconds. Its last fight is always ZERO, at home. Its song is **Normal World**, made by the game's creator.
 
 **Elite zones:** from cycle 2 of Endless, every zone gets a second hazard on top of its own:
 - **Deep Space:** Starfall, with falling stars down marked columns.

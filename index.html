@@ -6,7 +6,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#05050f">
-<title>Neon Drift</title>
+<title>Project-ND</title>
 <style>
   html, body { margin: 0; height: 100%; background: #05050f; overflow: hidden; font-family: system-ui, sans-serif; color: #fff;
     overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
@@ -308,7 +308,7 @@ const SONGS = {
       'e-------q---6---', 'w-------7---4---', 'q-------5---3---', '5---------------',
       'e-------6---q---', 'r-------w---7---', 't-------w---5---', '5---------------'] } } },
   // GLITCH SECTOR: stuttering, repeating synth lines (like a scratched record) in a dark key
-  glitch: { name: 'Corrupted Data', bpm: 132, root: 41, scale: 'phrygian', lead: 65, form: ['A', 'B'], parts: {
+  glitch: { name: 'Normal World', file: 'glitch.mp3', loop: [0.06, 141.38], gain: 1.37, bpm: 132, root: 41, scale: 'phrygian', lead: 65, form: ['A', 'B'], parts: {
     A: { chords: '1 2 1 7 1 2 6 5^', ins: 'synth', dr: 'groove', gt: 'chug', arp: 1, mel: [
       '1.1.1.q.1.1.2.1.', '2.2.2.w.2.2.3.2.', '1.1.1.q.1.1.2.1.', '7.7.7.e.5...3...',
       '1.1.1.q.1.1.2.1.', '2.2.2.w.2.2.3.2.', '6.6.6.q.6...4...', '5-------5.5.5.5.'] },
@@ -364,7 +364,7 @@ for (const song of Object.values(SONGS)) for (const sec of Object.values(song.pa
     return out;
   });
 }
-const ZONE_SONGS = { glitch: ['glitch', 'glitch2'], deep: ['deep', 'deep2'], belt: ['belt', 'belt2'], nebula: ['nebula', 'nebula2'], rings: ['rings', 'rings2'],
+const ZONE_SONGS = { glitch: ['glitch'], deep: ['deep', 'deep2'], belt: ['belt', 'belt2'], nebula: ['nebula', 'nebula2'], rings: ['rings', 'rings2'],
   corona: ['corona', 'corona2'], derelict: ['derelict', 'derelict2'], prism: ['prism', 'prism2'], horizon: ['horizon', 'horizon2'] };
 // which of a zone's two songs plays there (picked per run, and again each Endless cycle; online, the host's pick)
 function zoneSong(zone) {
@@ -374,7 +374,7 @@ function zoneSong(zone) {
 // the Music Room's list, in order, with where each song plays
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
-  ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'], ['glitch', 'Glitch Sector'], ['glitch2', 'Glitch Sector'],
+  ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'], ['glitch', 'Glitch Sector'], ['glitch2', 'Glitch Sector (extra)'],
   ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['sonnet', 'SONNET'], ['supersonnet', 'SUPER SONNET'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses', 'gallery'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
@@ -398,6 +398,7 @@ function scheduleMusic() {
   if (run && !run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) prepRecorded(SONGS.doki);
   if (run?.zone === ZONE_LAST) { prepRecorded(SONGS.abyss); if (meta.ach.omega && (run.endless || run.rush)) prepRecorded(SONGS.zero); }
   if (bosses.some(b => b.gimmick === 'sonnet')) prepRecorded(SONGS.supersonnet); // (ready for the moment he turns golden)
+  if (run?.zone === 'glitch' || run?.warp?.to === 'glitch' || run?.zoneEnd === 'glitch') prepRecorded(SONGS.glitch); // (the GLITCH SECTOR's song, ready as you fly in)
   if (inRun() && abyssCine()?.cine < CINE.rise) { stopRecorded(); music.next = ac.currentTime + 0.05; return; } // (its entrance: dead silence until it rises)
   const want = wantedSong();
   if (recordedOk(want)) { // a recorded song: the band sits out while it plays
@@ -1546,6 +1547,7 @@ let bosses = [], encounter = null, bossWarn = 0, bossCount = 0;
 const SECTOR_TIME = 20;
 const BOSS_EVERY = 2; // a boss arrives at sector 2, 4, 6...
 const BOSS_ATTACK_SLOWDOWN = 1.3; // >1 = bosses attack less often
+const SOLO_EASE = 1.18; // (playing alone, bosses wait 18% longer between attacks)
 const BOSS_BULLET_SPEED = 0.85;  // <1 = slower boss bullets
 const BOSSES = [
   // every solo boss has a gimmick (see GIMMICKS) that changes how you have to fight it
@@ -1608,7 +1610,7 @@ const DOKI_BOSS = { name: 'DOKI DOLL', style: 'doki', color: '#ff6fd8', sides: 8
 const DOKI_POSSESSED = ['hearts', 'tantrum', 'charge', 'paws', 'yarn', 'kisses', 'tantrum', 'twirl'];
 const PINK_DROP = 0.006, PINK_NEED = 3; // (chance per kill of a pink coin; coins needed)
 // how much each thing moves her meter (0-1), how long she waits for an answer, how close counts as a graze
-const DOKI_GRAZE = 0.007, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 5, GRAZE_R = 20;
+const DOKI_GRAZE = 0.009, DOKI_RIGHT = 0.16, DOKI_WRONG = 0.08, DOKI_IGNORED = 0.04, DOKI_HURT = 0.05, DOKI_ASK_T = 5, GRAZE_R = 20;
 // [what she asks, four answers (keys 1-4, or click one), which answer charms her, only once she's possessed (the creepy ones)]
 const DOKI_ASKS = [
   ['Do you think I\'m cute?~', ['You\'re adorable!', 'Not really.', 'Who even are you?', 'I\'m kind of busy...'], 0],
@@ -1713,7 +1715,7 @@ function encounterDef(n) {
 }
 // the GLITCH SECTOR's last fight is always ZERO, at home (once you've beaten it, it's waiting for you there)
 const glitchZeroDue = () => run.zone === 'glitch' && !run.rush && !run.practice && !run.dokiNext && !run.nemesisNext && !run.secretNext
-  && bossCount % BOSSES_PER_ZONE === 0 && encounterDef(bossCount).single !== undefined && !BOSSES[encounterDef(bossCount).single].final;
+  && bossCount % BOSSES_PER_ZONE === 0 && !(encounterDef(bossCount).single !== undefined && BOSSES[encounterDef(bossCount).single].final);
 function encounterInfo(n) {
   if (run.nemesisNext) return { name: '???', nemesis: true };
   if (run.dokiNext) return { name: '???', doki: true };
@@ -2253,7 +2255,7 @@ function continueEndless() {
   for (const p of players) { if (!p.alive && !p.gone) revive(p, alive[0]); p.inv = 2; }
   paused = false; eBullets = []; lasers = [];
   const m = startNextCycle();
-  run.zoneEnd = ZONE_FIRST; // out of the dark, back to the start of the route
+  run.zoneEnd = 'glitch'; run.route = []; // (out of the dark... and straight into the GLITCH SECTOR, the first zone of Endless)
   openUpgrade(`ENDLESS BEGINS — NEW MUTATOR: ${m.name}`, true);
 }
 
@@ -3632,7 +3634,7 @@ const BOSS_ATTACKS = {
   // ----- THE ABYSS -----
   lash(b, enraged, rate) { // tentacles lock onto players (red warning line), then whip out at them
     const targets = living(); if (!targets.length) return;
-    const n = (b.phase || 1) + (enraged ? 1 : 0);
+    const n = (b.phase || 1) + 1 + (enraged ? 1 : 0); // (always at least two, so you can see the tentacles are coming)
     for (let i = 0; i < n; i++) abyssLash(b, targets[i % targets.length], i >= targets.length);
     b.atkT = 1.5 * rate;
   },
@@ -3662,7 +3664,7 @@ const BOSS_ATTACKS = {
     const n = 1 + (b.phase || 1) * 2;
     for (let i = 0; i < n; i++) {
       const side = (i + Math.floor(Math.random() * 4)) % 4, along = 0.1 + Math.random() * 0.8;
-      const [x, y] = [[W * along, 34], [W - 34, H * (0.15 + along * 0.7)], [W * along, H - 34], [34, H * (0.15 + along * 0.7)]][side];
+      const [x, y] = [[W * along, 96], [W - 40, H * (0.22 + along * 0.6)], [W * along, H - 48], [40, H * (0.22 + along * 0.6)]][side]; // (clear of the health bar and the corner text, so you always see them open)
       b.voidEyes.push([Math.round(x), Math.round(y), r2(-i * 0.2), 0, ps[i % ps.length].id]);
     }
     b.atkT = 2.6 * rate; beep(300, 0.7, 'sine', 0.04, -220);
@@ -3756,22 +3758,22 @@ const BOSS_ATTACKS = {
   },
   // ----- DOKI DOLL: everything is cute, and everything is made to be grazed -----
   hearts(b, enraged, rate) { // a ring of hearts in the shape of one big heart, swelling outward
-    const n = b.possessed ? 30 : 24, sp = 9 * BOSS_BULLET_SPEED * (b.possessed ? 1.2 : 1);
+    const n = b.possessed ? 24 : 20, sp = 9 * BOSS_BULLET_SPEED * (b.possessed ? 1.2 : 1);
     for (let i = 0; i < n; i++) {
       const t = i / n * TAU, hx = 16 * Math.sin(t) ** 3, hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
       dokiShot(b, b.x, b.y, hx * sp, hy * sp, 7, DOKI_HEARTS[0]);
     }
-    b.atkT = 1.5 * rate; beep(880, 0.2, 'sine', 0.05, 440);
+    b.atkT = 1.9 * rate; beep(880, 0.2, 'sine', 0.05, 440);
   },
   paws(b, enraged, rate, target) { // a cat-paw swipe: three claw marks of bullets raking across where you are
     if (!target) return;
     const side = b._pawSide = -(b._pawSide || 1), a0 = Math.atan2(target.y - b.y, target.x - b.x);
-    for (let c = -1; c <= 1; c++) for (let k = 0; k < 6; k++) {
-      const a = a0 + c * 0.13 + side * (k - 2.5) * 0.06, sp = (190 + k * 22) * BOSS_BULLET_SPEED;
+    for (let c = -1; c <= 1; c++) for (let k = 0; k < 5; k++) {
+      const a = a0 + c * 0.16 + side * (k - 2) * 0.06, sp = (190 + k * 22) * BOSS_BULLET_SPEED;
       dokiShot(b, b.x + side * b.r * 0.6, b.y + b.r * 0.3, Math.cos(a) * sp, Math.sin(a) * sp, 5, '#ffd6ec');
     }
     b.paw = side; b.pawT = 0.35; // (her paw swipes out: see drawDoki)
-    b.atkT = 0.9 * rate; beep(600, 0.12, 'triangle', 0.05, -300);
+    b.atkT = 1.5 * rate; beep(600, 0.12, 'triangle', 0.05, -300);
   },
   yarn(b, enraged, rate) { // balls of yarn that bounce around the screen, shedding bits of thread
     const n = b.possessed ? 3 : 2;
@@ -3791,12 +3793,12 @@ const BOSS_ATTACKS = {
   twirl(b, enraged, rate) { // she twirls around, flinging a spiral of hearts
     b.aim += 0.42;
     for (const o of [0, Math.PI]) { const a = b.aim + o, sp = 190 * BOSS_BULLET_SPEED; dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, DOKI_HEARTS[o ? 1 : 0]); }
-    b.atkT = 0.1 * rate;
+    b.atkT = 0.17 * rate;
   },
   tantrum(b, enraged, rate) { // possessed (or answered wrong): she screams, and a ring bursts out of her, with one gap
-    const gap = Math.random() * TAU, n = 26, sp = 200 * BOSS_BULLET_SPEED;
-    for (let i = 0; i < n; i++) { const a = i / n * TAU; if (Math.abs(angleDiff(a, gap)) > 0.35) dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, '#ff3d6d'); }
-    shake = Math.max(shake, 6); b.atkT = 0.55 * rate; beep(140, 0.2, 'sawtooth', 0.06, -60);
+    const gap = Math.random() * TAU, n = 22, sp = 185 * BOSS_BULLET_SPEED;
+    for (let i = 0; i < n; i++) { const a = i / n * TAU; if (Math.abs(angleDiff(a, gap)) > 0.5) dokiShot(b, b.x, b.y, Math.cos(a) * sp, Math.sin(a) * sp, 6, '#ff3d6d'); }
+    shake = Math.max(shake, 6); b.atkT = 1.1 * rate; beep(140, 0.2, 'sawtooth', 0.06, -60);
   },
   // ----- SONNET: speed, rings and sonic booms -----
   spindash(b, enraged, rate, target) { // he revs up as a spinning ball in a cloud of dust (the line shows where), then blasts at you
@@ -4480,7 +4482,7 @@ function abyssHazards(b, dt) {
 const CINE = { freeze: 0.6, cut: 2.0, text: 2.25, eye: 5.9, eyes: 7.4, laugh: 8.7, slam: 9.0, rise: 9.7, flash: 10.6, title: 11.0, end: 12.8 };
 const CINE_LEN = CINE.end;
 const CINE_LINES = [ // [text, color, when it starts (after CINE.text), how fast it types (characters a second)]
-  ['> SIGNAL LOST', '#8fa3b8', 0, 40], ['> REBOOTING NEON DRIFT...', '#8fa3b8', 0.6, 40], ['> ERROR: SOMETHING IS IN THE CODE', '#ffb0bb', 1.35, 40], ['> it sees you.', '#ff1f3d', 2.35, 13]];
+  ['> SIGNAL LOST', '#8fa3b8', 0, 40], ['> REBOOTING PROJECT-ND...', '#8fa3b8', 0.6, 40], ['> ERROR: SOMETHING IS IN THE CODE', '#ffb0bb', 1.35, 40], ['> it sees you.', '#ff1f3d', 2.35, 13]];
 const abyssCine = () => bosses.find(b => b.cine < CINE_LEN);
 function skipAbyssIntro() {
   const b = abyssCine();
@@ -4928,7 +4930,7 @@ function updateBoss(b, dt) {
 
   const enraged = isEnraged(b);
   // BOSS_ATTACK_SLOWDOWN spaces attacks out; enraging and repeat loops speed them up only a little
-  const rate = BOSS_ATTACK_SLOWDOWN / (1 + 0.2 * mut('hellfire')) * (b.atkMult || 1) * (enraged ? 0.8 : 1) * Math.max(0.75, 1 - b.loop * 0.08)
+  const rate = BOSS_ATTACK_SLOWDOWN / (1 + 0.2 * mut('hellfire')) * (mode === 1 && !net.playing ? SOLO_EASE : 1) * (b.atkMult || 1) * (enraged ? 0.8 : 1) * Math.max(0.75, 1 - b.loop * 0.08)
     * Math.max(0.72, 1 - ((bossCount - 1) % BOSS_CYCLE) * 0.04) // later fights in a cycle attack faster
     * (GIMMICKS[b.gimmick]?.rate?.(b) ?? 1) * (b.super && ascendOf(b) ? ascendOf(b).rate : 1);
   b.spin += dt * (enraged ? 1.8 : 0.9);
@@ -5689,6 +5691,25 @@ function panel(x, y, w, h, color, selected) {
   ctx.restore();
 }
 
+// a button that glitches: it twitches, jumps around now and then, splits into magenta and cyan ghosts and scrambles its
+// label (the way into Endless after THE ABYSS, which leads straight into the GLITCH SECTOR)
+const glitchBtn = { dx: 0, dy: 0, t: 0 };
+function glitchButton(label, x, y, w, h, color, action) {
+  const now = performance.now() / 1000, g = glitchBtn;
+  if (now > g.t) {
+    const jump = Math.random() < 0.25;
+    g.dx = jump ? (Math.random() - 0.5) * Math.min(160, W * 0.3) : (Math.random() - 0.5) * 6;
+    g.dy = jump ? (Math.random() - 0.5) * 50 : (Math.random() - 0.5) * 4;
+    g.t = now + (jump ? 0.12 + Math.random() * 0.25 : 0.05 + Math.random() * 0.1);
+  }
+  const gx = x + g.dx, gy = y + g.dy;
+  ctx.save(); ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ff3df2'; ctx.strokeRect(gx - 5, gy + 2, w, h); ctx.strokeStyle = '#7df9ff'; ctx.strokeRect(gx + 5, gy - 2, w, h);
+  ctx.restore();
+  const shown = Math.random() < 0.15 ? [...label].map(c => c !== ' ' && Math.random() < 0.35 ? '█▓#%&01'[Math.floor(Math.random() * 7)] : c).join('') : label;
+  button(shown, gx, gy, w, h, Math.random() < 0.1 ? '#7df9ff' : color, action);
+  if (Math.random() < 0.25) { ctx.save(); ctx.fillStyle = Math.random() < 0.5 ? 'rgba(125,249,255,0.3)' : 'rgba(255,61,242,0.3)'; ctx.fillRect(gx - 12 + Math.random() * 24, gy + Math.random() * h, w, 2 + Math.random() * 3); ctx.restore(); }
+}
 function button(label, x, y, w, h, color, action) {
   const i = buttons.length;
   buttons.push({ x, y, w, h, action });
@@ -9248,7 +9269,7 @@ function drawMenuMarks() {
 }
 // the title, mid-glitch: torn into cyan and magenta, letters corrupted — and now and then, it says something else
 function drawGlitchTitle(y) {
-  const word = marks.glitchWord ? 'IT SEES YOU' : [...'NEON DRIFT'].map(c => c !== ' ' && Math.random() < 0.3 ? '█▓#%&'[Math.floor(Math.random() * 5)] : c).join('');
+  const word = marks.glitchWord ? 'IT SEES YOU' : [...'PROJECT-ND'].map(c => c !== ' ' && Math.random() < 0.3 ? '█▓#%&'[Math.floor(Math.random() * 5)] : c).join('');
   let px = Math.min(72, W / 8);
   do { ctx.font = `900 ${px}px system-ui`; px--; } while (px > 12 && ctx.measureText(word).width > W - 32);
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalCompositeOperation = 'lighter';
@@ -9261,7 +9282,7 @@ function drawGlitchTitle(y) {
 function drawMenu() {
   const top = Math.max(160, H / 2 - 170), haunted = markLv() > 0;
   drawMenuMarks();
-  if (haunted && marks.glitch > 0) drawGlitchTitle(top - 90); else title('NEON DRIFT', top - 90);
+  if (haunted && marks.glitch > 0) drawGlitchTitle(top - 90); else title('PROJECT-ND', top - 90);
   if (haunted && marks.word) { // the subtitle whispers instead
     ctx.save(); ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2); ctx.globalAlpha = Math.min(1, marks.word.t * 2, (2.4 - marks.word.t) * 2);
     fitText(marks.word.text, top - 40, 16, '#ff1f3d', 'italic'); ctx.restore();
@@ -9867,8 +9888,8 @@ function drawOver() {
   const again = run.victory && !run.rush ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
   // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
   if (run.victory && !run.rush && net.role !== 'guest') {
-    button('CONTINUE INTO ENDLESS  [E]', bx, by, bw, 44, '#ff9a3d', continueEndless);
-    fitText('Keep your ships, upgrades and score', by + 58, 12, '#c9a07a');
+    glitchButton('CONTINUE INTO ENDLESS  [E]', bx, by, bw, 44, '#ff3df2', continueEndless); // (something is wrong past the end...)
+    fitText(Math.random() < 0.06 ? 'S0METH1NG IS W4ITING' : 'Keep your ships, upgrades and score', by + 58, 12, '#c9a07a');
     by += 76;
   }
   if (net.role === 'guest') { // online: the host decides what's next
