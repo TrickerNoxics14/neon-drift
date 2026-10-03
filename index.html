@@ -9619,7 +9619,7 @@ function drawHUD() {
 const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'],
   ['calm', 'REDUCED FLASHING'], ['fps', 'SHOW FPS'], ['lowfx', 'PERFORMANCE MODE']];
 function toggleFullscreen() {
-  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
+  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch (e) {} // (phones: fullscreen also turns the game sideways, where the browser allows it)
 }
 // all the settings toggles (two columns on wide screens); returns the y just below them
 function settingsButtons(y) {
@@ -12334,6 +12334,13 @@ function draw() {
   drawAchBanner();
   if (settings.fps) { ctx.save(); ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = fps < 40 ? '#ff5a70' : '#5dff7a'; ctx.fillText(`${Math.round(fps)} FPS`, W / 2, H - 8); ctx.restore(); }
   if (gv) ctx.restore();
+  // a phone held upright, playing a wide host's game: the world is tiny in the middle, so ask to turn it sideways (drawn in the empty bars)
+  if (guestView() && window.innerHeight > window.innerWidth * 1.1 && net.hostW > net.hostH) {
+    ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 20px system-ui'; ctx.fillStyle = '#7df9ff'; ctx.fillText('📱↻  Turn your phone sideways', window.innerWidth / 2, net.vy / 2);
+    ctx.font = '14px system-ui'; ctx.fillStyle = '#9ab'; ctx.fillText('(and tap ⛶ for fullscreen)', window.innerWidth / 2, net.vy / 2 + 26);
+    ctx.restore();
+  }
 }
 
 // ======================================================================================
@@ -12344,7 +12351,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.7';
+const BUILD = '2026.10.03.8';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
