@@ -38,7 +38,9 @@ const net = {
 // host: record a visual/sound event so guests can replay it
 function netRec(ev) { if (net.role === 'host' && net.playing) net.events.push(ev); }
 const isMine = i => net.mine.includes(i); // online: is this player slot controlled from this computer?
-const guestView = () => net.role === 'guest' && net.playing && net.hostW > 0;
+// an online host on a phone held upright still makes the world wide (so computer players get a wide screen), and views it like a guest
+const hostTall = () => net.role === 'host' && net.playing && window.innerHeight > window.innerWidth * 1.1;
+const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) || hostTall();
 
 function resize() {
   let low = false; try { low = settings.lowfx; } catch (e) {} // (the very first resize runs before settings are loaded)
@@ -46,8 +48,8 @@ function resize() {
   const rw = window.innerWidth, rh = window.innerHeight;
   cv.width = rw * DPR; cv.height = rh * DPR;
   if (guestView()) {
-    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window
-    W = net.hostW; H = net.hostH;
+    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window (an upright phone hosting: 16:9, as tall as the phone)
+    if (net.role === 'host') { W = Math.round(rh * 16 / 9); H = rh; } else { W = net.hostW; H = net.hostH; }
     net.vs = Math.min(rw / W, rh / H); net.vx = (rw - W * net.vs) / 2; net.vy = (rh - H * net.vs) / 2;
   } else { W = rw; H = rh; net.vs = 1; net.vx = net.vy = 0; }
   ctx.setTransform(DPR * net.vs, 0, 0, DPR * net.vs, DPR * net.vx, DPR * net.vy);
@@ -1490,13 +1492,13 @@ cv.addEventListener('pointerdown', e => {
     if (e.pointerType !== 'mouse' && mk >= 0 && touchAbHit(w.x, w.y)) { abTouchId = e.pointerId; localAbility(mk); return; }
     if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
   }
-  pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
+  pointer = { ...camWorld(w), touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
 });
 cv.addEventListener('pointermove', e => {
   if (e.pointerId === abTouchId) return;
   const w = toWorld(e.clientX, e.clientY);
-  if (pointer || e.pointerType === 'mouse') pointer = { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
+  if (pointer || e.pointerType === 'mouse') pointer = { ...camWorld(w), touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
 });
 // paste a room code
@@ -12282,9 +12284,10 @@ function draw() {
   }
   // a phone held upright in a wide host's game: zoom in on my ship and follow it, so the world fills the tall screen (the HUD stays whole)
   const pc = gv && portraitCam();
-  if (pc) {
-    const me = players[net.mine[0]] || players[0], Z = pc, hw = W / 2 / Z;
-    net.camX = Math.max(hw, Math.min(W - hw, net.camX === undefined ? me.x : net.camX + (me.x - net.camX) * 0.15));
+  net.camZ = pc;
+  if (pc) { // (the camera only moves once my ship leaves the middle half of the view, so steering with a finger doesn't chase itself)
+    const me = players[net.mine[0]] || players[0], Z = pc, hw = W / 2 / Z, cx = net.camX ?? me.x, d = me.x - cx, edge = hw * 0.5;
+    net.camX = Math.max(hw, Math.min(W - hw, cx + (Math.abs(d) > edge ? (d - Math.sign(d) * edge) * 0.2 : 0)));
     ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(Z, Z); ctx.translate(-net.camX, -H / 2); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
   }
   // the background repaints every pixel each frame (no translucent fill — that left smeary ghost trails)
@@ -12344,8 +12347,10 @@ function draw() {
   if (gv) ctx.restore();
 }
 // how much to zoom in for an upright phone in a wide host's game (0: no zoom); never shows less than 40% of the world's width
-const portraitCam = () => window.innerHeight > window.innerWidth * 1.1 && net.hostW > net.hostH && inRun()
-  ? Math.max(1, Math.min(window.innerHeight / (net.hostH * net.vs), 2.5)) : 0;
+const portraitCam = () => window.innerHeight > window.innerWidth * 1.1 && W > H && inRun()
+  ? Math.max(1, Math.min(window.innerHeight / (H * net.vs), 2.5)) : 0;
+// a screen point (already in world units, see toWorld) -> the spot in the world under it, when the view is zoomed in (portraitCam)
+const camWorld = w => net.camZ ? { x: (w.x - W / 2) / net.camZ + net.camX, y: (w.y - H / 2) / net.camZ + H / 2 } : w;
 
 // ======================================================================================
 // ---------- online co-op ----------
@@ -12355,7 +12360,7 @@ const portraitCam = () => window.innerHeight > window.innerWidth * 1.1 && net.ho
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.9';
+const BUILD = '2026.10.03.10';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12595,6 +12600,7 @@ function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
   compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
+  net.playing = true; resize(); // (first: an upright phone hosting gets its wide world before the ships are placed)
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = !isMine(i));
   net.playing = true; net.sendT = 0; net.events = [];
@@ -12609,7 +12615,7 @@ function compactSlots() {
   net.slots = slots;
 }
 function backToLobby() {
-  net.playing = false; go('lobby');
+  net.playing = false; resize(); go('lobby');
   compactSlots();
   broadcastLobby();
 }
