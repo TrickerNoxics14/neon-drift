@@ -12344,7 +12344,7 @@ function draw() {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.6';
+const BUILD = '2026.10.03.7';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12691,7 +12691,7 @@ function keepAlive(peer, onLost) {
 }
 // joining: if the two computers can't reach each other, don't spin forever. Try a few times, then say what's wrong
 const JOIN_WAIT = 12, JOIN_TRIES = 3; // seconds per try, and how many tries
-const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi) can block online play: once the game has loaded, try turning the VPN off on both computers, or try another network.';
+const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi, or a phone on mobile data) can block online play: once the game has loaded, try turning the VPN off on both devices, or switch the phone to Wi-Fi.';
 async function joinGame(code, attempt = 1) {
   Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0 });
   Object.assign(net, { role: 'guest', status: attempt > 1 ? `Still connecting… (try ${attempt} of ${JOIN_TRIES})` : 'Connecting…', slots: [], myId: 0, mine: [], joinFail: null, lastCode: code });
@@ -12724,7 +12724,8 @@ async function joinGame(code, attempt = 1) {
     conn.on('error', () => { if (!opened) giveUp(); });
   });
   peer.on('error', err => {
-    if (err.type === 'peer-unavailable') giveUp(`No game found with code ${code}. Check the code, and make sure you both refreshed the page (Ctrl+F5) so you have the same version.`);
+    if (err.type === 'peer-unavailable' && verNew) { giveUp('Your copy of the game is out of date: updating…'); setTimeout(() => location.reload(), 900); }
+    else if (err.type === 'peer-unavailable') giveUp(`No game found with code ${code}. Check the code, and make sure you both have the newest version (Ctrl+F5 on a computer; on a phone, pull down to reload).`);
     else if (!opened) giveUp();
   });
 }
@@ -13228,10 +13229,11 @@ function drawOnline() {
   lines.forEach((l, i) => fitText(l, oy + 258 + i * 16, 12, i < 2 ? '#789' : '#8fb39a'));
   // can this browser make direct connections at all? (a VPN or strict Wi-Fi often blocks them; see checkNetwork)
   if (!netCheck) checkNetwork();
+  if (!verCheck) checkVersion();
   const ny = oy + 266 + lines.length * 16;
   if (netCheck === 'blocked') {
     ctx.font = 'bold 13px system-ui';
-    wrap('⚠ Online connections look blocked here — usually by a VPN, or a strict network like school Wi-Fi. Once the game has loaded, try turning the VPN off (on both computers), or try another network.', lw)
+    wrap('⚠ Online connections look blocked here — usually by a VPN, or a strict network like school Wi-Fi. Once the game has loaded, try turning the VPN off (on both devices), or try another network.', lw)
       .forEach((l, i) => fitText(l, ny + i * 18, 13, '#ff8d8d', 'bold'));
   } else fitText(netCheck === 'ok' ? '✓ Your connection looks fine for online play' : 'Checking your connection…', ny, 12, netCheck === 'ok' ? '#5dff7a' : '#789');
 }
@@ -13250,6 +13252,19 @@ async function checkNetwork() {
     pc.close();
     netCheck = ok ? 'ok' : 'blocked';
   } catch (e) { netCheck = 'blocked'; } // (no WebRTC at all)
+}
+// phones can't Ctrl+F5: when the online menu opens, ask the site whether a newer version is out, and switch to it by itself
+// (an old copy can't find the new version's rooms). 'no-cache' only re-checks with the site: an unchanged page isn't downloaded again
+let verCheck = null, verNew = false;
+const newerBuild = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 4; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+async function checkVersion() {
+  verCheck = 'checking';
+  try {
+    const v = (await (await fetch(location.href.split('#')[0], { cache: 'no-cache' })).text()).match(/const BUILD = '([^']+)'/)?.[1];
+    verNew = !!v && newerBuild(v, BUILD);
+    if (verNew && !net.role && !inRun()) { showToast('Updating to the newest version…', 3); setTimeout(() => location.reload(), 800); }
+  } catch (e) {} // (offline, or opened as a file: nothing to compare)
+  verCheck = 'done';
 }
 // typing the last digit joins straight away
 function typeCodeDigit(d) {
