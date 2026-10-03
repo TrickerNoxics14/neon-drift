@@ -38,9 +38,8 @@ const net = {
 // host: record a visual/sound event so guests can replay it
 function netRec(ev) { if (net.role === 'host' && net.playing) net.events.push(ev); }
 const isMine = i => net.mine.includes(i); // online: is this player slot controlled from this computer?
-// an online host on a phone held upright still makes the world wide (so computer players get a wide screen), and views it like a guest
-const hostTall = () => net.role === 'host' && net.playing && window.innerHeight > window.innerWidth * 1.1;
-const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) || hostTall();
+// (an online host whose game has someone on an upright phone: the world has a phone's shape, see startOnline, and is drawn like a guest's)
+const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) || (net.role === 'host' && net.playing && !!net.worldA);
 
 function resize() {
   let low = false; try { low = settings.lowfx; } catch (e) {} // (the very first resize runs before settings are loaded)
@@ -48,11 +47,12 @@ function resize() {
   const rw = window.innerWidth, rh = window.innerHeight;
   cv.width = rw * DPR; cv.height = rh * DPR;
   if (guestView()) {
-    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window (an upright phone hosting: 16:9, as tall as the phone)
-    if (net.role === 'host') { W = Math.round(rh * 16 / 9); H = rh; } else { W = net.hostW; H = net.hostH; }
+    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window (host with a phone-shaped world: up to 820 tall)
+    if (net.role === 'host') { H = Math.min(rh, 820); W = Math.round(H * net.worldA); } else { W = net.hostW; H = net.hostH; }
     net.vs = Math.min(rw / W, rh / H); net.vx = (rw - W * net.vs) / 2; net.vy = (rh - H * net.vs) / 2;
   } else { W = rw; H = rh; net.vs = 1; net.vx = net.vy = 0; }
   ctx.setTransform(DPR * net.vs, 0, 0, DPR * net.vs, DPR * net.vx, DPR * net.vy);
+  if (net.role === 'guest' && !net.playing && net.host?.open) net.host.send({ scr: [rw, rh] }); // (in the lobby: the host picks the world's shape from everyone's screens)
 }
 // screen (client) coordinates -> world coordinates
 const toWorld = (cx, cy) => ({ x: (cx - net.vx) / net.vs, y: (cy - net.vy) / net.vs });
@@ -12399,7 +12399,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.12';
+const BUILD = '2026.10.03.13';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12540,8 +12540,11 @@ function toggleLock() {
 }
 // the host's own slots come first (one per player sharing the host's computer)
 const hostSlots = () => Array.from({ length: net.localN }, (_, k) => ({ ship: lastShips[k] || 'striker', cos: k === 0 ? meta.cos.eq : COS_DEFAULT }));
+// a guest's screen size, checked ([width, height], or null)
+const cleanScr = s => Array.isArray(s) && s.length === 2 && s.every(v => Number.isFinite(v) && v > 100 && v < 10000) ? [Math.round(s[0]), Math.round(s[1])] : null;
 function onHello(conn, h) {
   if (conn.slots || !h || typeof h !== 'object') return;
+  conn.scr = cleanScr(h.scr);
   if (net.locked) { refuse(conn, 'locked'); return; }
   const n = Math.max(1, Math.min(4, h.n | 0)), ships = Array.isArray(h.ships) ? h.ships : [];
   const slot = k => ({ ship: cleanShip(ships[k]), cos: k === 0 ? cleanCos(h.cos) : COS_DEFAULT });
@@ -12574,6 +12577,7 @@ function onHostData(conn, d) {
   if (typeof d.ping === 'number') { conn.send({ pong: d.ping }); return; } // (a guest measuring its ping)
   if (d.hello) { if (!conn._pub) onHello(conn, d.hello); return; } // (the public address is only for looking)
   if (!conn.slots) return;
+  if (d.scr) { conn.scr = cleanScr(d.scr) || conn.scr; return; } // (they turned their phone, or resized the window, in the lobby)
   const k = d.k ?? 0; // which of their players this is about — only ever one of their own
   if (!okIdx(k, conn.slots.length)) return;
   const id = conn.slots[k];
@@ -12639,7 +12643,10 @@ function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
   compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
-  net.playing = true; resize(); // (first: an upright phone hosting gets its wide world before the ships are placed)
+  // anyone holding a phone upright (host or guest): the world takes a phone's shape, so phones see all of it full screen (computers get bars at the sides)
+  const tall = [[window.innerWidth, window.innerHeight], ...net.conns.map(c => c.scr)].filter(s => s && s[1] > s[0] * 1.1);
+  net.worldA = tall.length ? Math.max(...tall.map(s => s[0] / s[1])) : 0; // (the squarest of the upright phones: the others get thin bands)
+  net.playing = true; resize(); // (first, so the ships are placed in the world's new shape)
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = !isMine(i));
   net.playing = true; net.sendT = 0; net.events = [];
@@ -12773,7 +12780,7 @@ async function joinGame(code, attempt = 1) {
     conn.on('open', () => { // say hello: how many of us share this computer, and our ships
       opened = true; clearTimeout(timer);
       net.status = 'Connected! Pick your ship — the host starts the game.';
-      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq } });
+      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq, scr: [window.innerWidth, window.innerHeight] } });
     });
     conn.on('data', d => safely(() => onGuestData(d)));
     conn.on('close', () => { if (!opened) giveUp(); else if (net.role === 'guest' && net.host === conn) leaveOnline('The host left the game'); });
