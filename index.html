@@ -1480,25 +1480,25 @@ cv.addEventListener('contextmenu', e => e.preventDefault()); // (right-click is 
 let abTouchId = null; // the finger on the on-screen ability button (it mustn't steer the ship)
 let touchMode = false; // (playing with a finger: the on-screen pause and ability buttons show)
 cv.addEventListener('pointerdown', e => {
-  const w = toWorld(e.clientX, e.clientY);
+  const w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY); // (an upright phone's HUD is drawn at screen size: see draw)
   touchMode = e.pointerType !== 'mouse';
   ensureAudio();
   if (state === 'play' && !paused && !menuOpen && run) {
-    if (e.pointerType !== 'mouse' && touchPauseHit(w.x, w.y)) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
+    if (e.pointerType !== 'mouse' && inHud(() => touchPauseHit(w.x, w.y))) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
     if (skipAbyssIntro()) return; // (a tap skips THE ABYSS's entrance, once you've seen it)
     const chip = dokiChips.find(c => w.x >= c.x && w.x <= c.x + c.w && w.y >= c.y && w.y <= c.y + c.h);
     if (chip && dokiAsking()) { answerDoki(chip.k); return; } // (answering DOKI DOLL by clicking)
     const mk = mouseOwner();
-    if (e.pointerType !== 'mouse' && mk >= 0 && touchAbHit(w.x, w.y)) { abTouchId = e.pointerId; localAbility(mk); return; }
+    if (e.pointerType !== 'mouse' && mk >= 0 && inHud(() => touchAbHit(w.x, w.y))) { abTouchId = e.pointerId; localAbility(mk); return; }
     if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
   }
-  pointer = { ...camWorld(w), touch: e.pointerType !== 'mouse' };
+  pointer = net.camZ ? dragPointer(e, true) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
 });
 cv.addEventListener('pointermove', e => {
   if (e.pointerId === abTouchId) return;
-  const w = toWorld(e.clientX, e.clientY);
-  if (pointer || e.pointerType === 'mouse') pointer = { ...camWorld(w), touch: e.pointerType !== 'mouse' };
+  const w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY);
+  if (pointer || e.pointerType === 'mouse') pointer = net.camZ ? dragPointer(e) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
 });
 // paste a room code
@@ -1509,7 +1509,7 @@ document.addEventListener('paste', e => {
 });
 cv.addEventListener('pointerup', e => {
   if (e.pointerId === abTouchId) { abTouchId = null; return; }
-  if (e.pointerType !== 'mouse') pointer = null;
+  if (e.pointerType !== 'mouse') { pointer = null; drag = null; }
 });
 
 // gamepads: pad 0 -> player 1, pad 1 -> player 2
@@ -9205,9 +9205,10 @@ function drawBossFx(layer) {
   for (const tx of bossFx.texts) {
     const age = tx.max - tx.life;
     const pop = age < 0.15 ? age / 0.15 * 1.3 : Math.max(1, 1.3 - (age - 0.15) * 2);
-    ctx.font = `900 ${Math.min(tx.size, W / 12)}px system-ui`;
-    const half = Math.min(W / 2, ctx.measureText(tx.text).width * pop / 2 + 8); // keep it on screen near the edges
-    ctx.save(); ctx.translate(Math.max(half, Math.min(W - half, tx.x)), Math.max(20, tx.y)); ctx.scale(pop, pop);
+    const v0 = net.camZ ? net.camX - W / 2 / net.camZ : 0, vw = net.camZ ? W / net.camZ : W; // (an upright phone only sees part of the world: keep it inside that)
+    ctx.font = `900 ${Math.min(tx.size, vw / 12)}px system-ui`;
+    const half = Math.min(vw / 2, ctx.measureText(tx.text).width * pop / 2 + 8); // keep it on screen near the edges
+    ctx.save(); ctx.translate(Math.max(v0 + half, Math.min(v0 + vw - half, tx.x)), Math.max(20, tx.y)); ctx.scale(pop, pop);
     ctx.globalAlpha = Math.min(1, tx.life / 0.4);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     glow(tx.color, 25); ctx.fillStyle = '#fff'; ctx.fillText(tx.text, 0, 0);
@@ -9477,7 +9478,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `SECTOR ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42);
+  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `SECTOR ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -12308,6 +12309,9 @@ function draw() {
   if (inRun() && curse('blackout')) drawBlackout();
   ctx.restore();
   if (pc) ctx.restore();
+  // an upright phone: the HUD and menus are drawn at the phone's own size over the zoomed-in world, like solo play on a phone
+  const hudWH = pc ? [W, H] : null;
+  if (hudWH) { W = window.innerWidth; H = window.innerHeight; ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   ctx.shadowBlur = 0;
   if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(settings.calm ? 0.15 : 0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); } // (gentle with REDUCED FLASHING)
   if (state === 'play') drawVignette();
@@ -12344,13 +12348,24 @@ function draw() {
   }
   drawAchBanner();
   if (settings.fps) { ctx.save(); ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = fps < 40 ? '#ff5a70' : '#5dff7a'; ctx.fillText(`${Math.round(fps)} FPS`, W / 2, H - 8); ctx.restore(); }
+  if (hudWH) { ctx.restore(); W = hudWH[0]; H = hudWH[1]; }
   if (gv) ctx.restore();
 }
-// how much to zoom in for an upright phone in a wide host's game (0: no zoom); never shows less than 40% of the world's width
+// how much to zoom in for an upright phone in a wide game (0: no zoom): enough to fill the phone's height
 const portraitCam = () => window.innerHeight > window.innerWidth * 1.1 && W > H && inRun()
-  ? Math.max(1, Math.min(window.innerHeight / (H * net.vs), 2.5)) : 0;
-// a screen point (already in world units, see toWorld) -> the spot in the world under it, when the view is zoomed in (portraitCam)
-const camWorld = w => net.camZ ? { x: (w.x - W / 2) / net.camZ + net.camX, y: (w.y - H / 2) / net.camZ + H / 2 } : w;
+  ? Math.max(1, Math.min(window.innerHeight / (H * net.vs), 3.5)) : 0;
+// run fn with W and H set to the HUD's size (an upright phone draws its HUD at the phone's own size: see draw)
+function inHud(fn) { if (!net.camZ) return fn(); const s = [W, H]; W = window.innerWidth; H = window.innerHeight; try { return fn(); } finally { W = s[0]; H = s[1]; } }
+// an upright phone steers by dragging: the ship moves as far as your finger does, wherever you touch
+// (the camera follows the ship, so steering toward a spot on the screen would make the ship chase itself)
+let drag = null;
+function dragPointer(e, down) {
+  const me = players[net.mine[0]] || players[0], k = net.vs * net.camZ; if (!me) return null;
+  if (down || !drag) drag = { fx: e.clientX, fy: e.clientY, sx: me.x, sy: me.y };
+  const x = drag.sx + (e.clientX - drag.fx) / k, y = drag.sy + (e.clientY - drag.fy) / k, cx = Math.max(0, Math.min(W, x)), cy = Math.max(0, Math.min(H, y));
+  drag.sx += cx - x; drag.sy += cy - y; // (past an edge: carry on from the edge, so dragging back answers at once)
+  return { x: cx, y: cy, touch: false };
+}
 
 // ======================================================================================
 // ---------- online co-op ----------
@@ -12360,7 +12375,7 @@ const camWorld = w => net.camZ ? { x: (w.x - W / 2) / net.camZ + net.camX, y: (w
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.10';
+const BUILD = '2026.10.03.11';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
