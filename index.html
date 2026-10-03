@@ -38,8 +38,8 @@ const net = {
 // host: record a visual/sound event so guests can replay it
 function netRec(ev) { if (net.role === 'host' && net.playing) net.events.push(ev); }
 const isMine = i => net.mine.includes(i); // online: is this player slot controlled from this computer?
-// (an online host whose game has someone on an upright phone: the world has a phone's shape, see startOnline, and is drawn like a guest's)
-const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) || (net.role === 'host' && net.playing && !!net.worldA);
+// (an online host with a phone in the game: the world's size is fixed, see startOnline, and it's drawn like a guest's)
+const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) || (net.role === 'host' && net.playing && !!net.phoneIn);
 
 function resize() {
   let low = false; try { low = settings.lowfx; } catch (e) {} // (the very first resize runs before settings are loaded)
@@ -47,8 +47,9 @@ function resize() {
   const rw = window.innerWidth, rh = window.innerHeight;
   cv.width = rw * DPR; cv.height = rh * DPR;
   if (guestView()) {
-    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window (host with a phone-shaped world: up to 820 tall)
-    if (net.role === 'host') { H = Math.min(rh, 820); W = Math.round(H * net.worldA); } else { W = net.hostW; H = net.hostH; }
+    // online guest: the world is the host's size, scaled (and letterboxed) to fit this window
+    // (a host with a phone in the game: its own shape, 16:9 if it's an upright phone, and at most 720 tall so things are bigger on the phones)
+    if (net.role === 'host') { const a = rh > rw * 1.1 ? 16 / 9 : rw / rh; H = Math.min(rh, 720); W = Math.round(H * a); } else { W = net.hostW; H = net.hostH; }
     net.vs = Math.min(rw / W, rh / H); net.vx = (rw - W * net.vs) / 2; net.vy = (rh - H * net.vs) / 2;
   } else { W = rw; H = rh; net.vs = 1; net.vx = net.vy = 0; }
   ctx.setTransform(DPR * net.vs, 0, 0, DPR * net.vs, DPR * net.vx, DPR * net.vy);
@@ -12366,8 +12367,22 @@ function draw() {
   }
   drawAchBanner();
   if (settings.fps) { ctx.save(); ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = fps < 40 ? '#ff5a70' : '#5dff7a'; ctx.fillText(`${Math.round(fps)} FPS`, W / 2, H - 8); ctx.restore(); }
-  if (hudWH) { ctx.restore(); W = hudWH[0]; H = hudWH[1]; }
+  if (hudWH) { if (state === 'play') drawEdgeArrows(hudWH[0], hudWH[1]); ctx.restore(); W = hudWH[0]; H = hudWH[1]; }
   if (gv) ctx.restore();
+}
+// an upright phone only sees part of the world: arrows at its screen edges point at the enemies and bosses outside the view
+// (bigger for bosses, fainter the further away; wW/wH: the world's size, while W/H are the phone screen's)
+function drawEdgeArrows(wW, wH) {
+  const Z = net.camZ, hw = wW / 2 / Z, x0 = net.camX - hw, x1 = net.camX + hw;
+  ctx.save();
+  for (const e of enemies.concat(bosses)) {
+    if (e.x >= x0 && e.x <= x1) continue;
+    const left = e.x < x0, far = left ? x0 - e.x : e.x - x1, s = bosses.includes(e) ? 12 : 7, dir = left ? -1 : 1;
+    const y = Math.max(80, Math.min(H - 80, net.vy + ((e.y - wH / 2) * Z + wH / 2) * net.vs)), x = left ? 4 + s : W - 4 - s;
+    ctx.globalAlpha = Math.max(0.3, 1 - far / wW); ctx.fillStyle = e.color || '#ff5a70';
+    ctx.beginPath(); ctx.moveTo(x + dir * s * 0.7, y); ctx.lineTo(x - dir * s * 0.7, y - s); ctx.lineTo(x - dir * s * 0.7, y + s); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
 }
 // an upright phone in a wide game zooms in on its ship; the zoom button (by the pause button) picks how far, and it's remembered
 // (the whole game's width, 70%, half, or close enough to fill the screen; the game around it shows in bands above and below)
@@ -12399,7 +12414,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.13';
+const BUILD = '2026.10.03.14';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12643,9 +12658,9 @@ function startOnline() {
   if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
   compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
-  // anyone holding a phone upright (host or guest): the world takes a phone's shape, so phones see all of it full screen (computers get bars at the sides)
-  const tall = [[window.innerWidth, window.innerHeight], ...net.conns.map(c => c.scr)].filter(s => s && s[1] > s[0] * 1.1);
-  net.worldA = tall.length ? Math.max(...tall.map(s => s[0] / s[1])) : 0; // (the squarest of the upright phones: the others get thin bands)
+  // a phone in the game (a small screen, upright or sideways): the world stays wide for the computers, but no taller than 720,
+  // so things are bigger on the phones (an upright phone zooms in on its part of it: see portraitCam)
+  net.phoneIn = [[window.innerWidth, window.innerHeight], ...net.conns.map(c => c.scr)].some(s => s && Math.min(s[0], s[1]) < 600);
   net.playing = true; resize(); // (first, so the ships are placed in the world's new shape)
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = !isMine(i));
