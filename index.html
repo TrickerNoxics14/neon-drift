@@ -881,12 +881,12 @@ const META_ITEMS = [
 ];
 const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default', pet: 'pet_none' };
 // (abyssMark: lost to THE ABYSS and haven't beaten it since — the menu stays corrupted; curseSel: the curses picked for the next run)
-let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } }, abyssMark: false, abyssLosses: 0, curseSel: [] };
+let meta = { shards: 0, lv: {}, ships: {}, ach: {}, stats: { kills: 0, revives: 0, bossShips: {} }, cos: { owned: {}, eq: { ...COS_DEFAULT } }, abyssMark: false, abyssLosses: 0, curseSel: [], galleryCheat: false };
 try { const m = JSON.parse(localStorage.getItem('neonDriftMeta')); if (m) meta = { shards: Number.isFinite(m.shards) ? Math.max(0, m.shards) : 0, lv: m.lv || {}, ships: m.ships || {}, ach: m.ach || {}, stats: Object.assign({ kills: 0, revives: 0, bossShips: {} }, m.stats),
   cos: { owned: m.cos?.owned || {}, eq: { ...COS_DEFAULT, ...m.cos?.eq } }, seenAbyss: !!m.seenAbyss,
   abyssMark: !!m.abyssMark, abyssLosses: m.abyssLosses | 0, curseSel: Array.isArray(m.curseSel) ? m.curseSel.filter(id => typeof id === 'string') : [],
   mastery: m.mastery && typeof m.mastery === 'object' ? m.mastery : {}, bossLog: m.bossLog && typeof m.bossLog === 'object' ? m.bossLog : {}, ships3: m.ships3 && typeof m.ships3 === 'object' ? m.ships3 : {},
-  goldShards: m.goldShards && typeof m.goldShards === 'object' ? m.goldShards : {}, rush: m.rush && typeof m.rush === 'object' ? m.rush : {}, clockFix: m.clockFix | 0 }; } catch (e) {}
+  goldShards: m.goldShards && typeof m.goldShards === 'object' ? m.goldShards : {}, rush: m.rush && typeof m.rush === 'object' ? m.rush : {}, clockFix: m.clockFix | 0, galleryCheat: !!m.galleryCheat }; } catch (e) {}
 meta.mastery ||= {}; // (mastery XP per ship, by its base id)
 meta.ships3 ||= {}; // (the MK IIIs you own)
 meta.goldShards ||= {}; meta.rush ||= {}; // (golden shards found, by zone; Boss Rush: best medal (1-3) and best time)
@@ -895,7 +895,7 @@ const metaLv = id => meta.lv[id] || 0;
 function saveMeta() { try { localStorage.setItem('neonDriftMeta', JSON.stringify(meta)); } catch (e) {} }
 // the boss gallery's records: met a boss fight (secs undefined), or beat it in secs seconds
 function logBoss(name, secs) {
-  if (typeof name !== 'string' || !name) return;
+  if (typeof name !== 'string' || !name || run?.practice?.cheatGallery) return;
   const e = meta.bossLog[name] ||= {};
   if (e.met && secs === undefined) return;
   e.met = true;
@@ -1374,9 +1374,9 @@ let state = 'menu', paused = false;
 // everyone (paused, which reaches the guests through the snapshots)
 let menuOpen = false;
 let buttons = [], sel = 0;
-const menuScroll = { hangar: 0, achievements: 0, settings: 0, jukebox: 0 };
+const menuScroll = { hangar: 0, achievements: 0, settings: 0, jukebox: 0, gallery: 0 };
 let menuScrollMax = 0, touchMenuScroll = null;
-const scrollMenuState = s => ['hangar', 'achievements', 'settings', 'jukebox'].includes(s) ? s : null;
+const scrollMenuState = s => ['hangar', 'achievements', 'settings', 'jukebox', 'gallery'].includes(s) ? s : null;
 function clampMenuScroll(s, amount = menuScroll[s] || 0) { return Math.max(0, Math.min(menuScrollMax, amount)); }
 function go(s) { state = s; sel = 0; buttons = []; menuOpen = false; }
 function toggleMenu() { menuOpen = !menuOpen; pauseView = 'main'; sel = 0; }
@@ -1495,7 +1495,9 @@ function showToast(text, life = 1.4) { toast = { text, life }; }
 addEventListener('keyup', e => keys[e.code] = false);
 const hitButton = (x, y) => {
   const page = scrollMenuState(state), offset = page ? menuScroll[page] || 0 : 0;
-  if (page && (y < (page === 'settings' ? 112 : 100) || y > H - 8)) return -1;
+  const top = page === 'settings' ? 112 : page === 'jukebox' ? 96 : page === 'hangar' ? 120 : page === 'gallery' ? 108 : 100;
+  if (page && y < top) return page === 'gallery' ? buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) : -1;
+  if (page && y > H - 8) return -1;
   return buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y + offset >= b.y && y + offset <= b.y + b.h);
 };
 // (pointer positions are converted to world coordinates, which differ from the screen for scaled online guests)
@@ -1512,7 +1514,7 @@ cv.addEventListener('pointerdown', e => {
   const w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY); // (an upright phone's HUD is drawn at screen size: see draw)
   touchMode = e.pointerType !== 'mouse';
   ensureAudio();
-  const page = scrollMenuState(state), scrollTop = page === 'settings' ? 112 : 100;
+  const page = scrollMenuState(state), scrollTop = page === 'settings' ? 112 : page === 'jukebox' ? 96 : page === 'hangar' ? 120 : page === 'gallery' ? 108 : 100;
   if (page && menuScrollMax > 0 && e.pointerType !== 'mouse' && w.y >= scrollTop && w.y < H - 8) {
     touchMenuScroll = { id: e.pointerId, page, x: w.x, startY: w.y, lastY: w.y, moved: false };
     cv.setPointerCapture?.(e.pointerId);
@@ -5605,6 +5607,7 @@ function hitBoss(b, dmg, fx, fy) {
 
 // achievements for winning a boss fight (called once, when its last boss is gone)
 function onEncounterBeaten(enc, last) {
+  if (run.practice?.cheatGallery) return;
   unlockAch('first_boss');
   logBoss(enc.name, enc.t0 !== undefined ? (run.clock || 0) - enc.t0 : undefined);
   if (run.practice?.hard && meta.bossLog[enc.name]) { meta.bossLog[enc.name].hard = true; saveMeta(); }
@@ -10671,12 +10674,13 @@ const LORE_HOW = ['Meet it', 'Beat it', 'Beat it 3 times', 'Beat it on HARD'];
 const PRACTICE_AT = 4;
 function startPractice(i, hard) {
   const e = galleryEntries()[i];
-  if (!e || !meta.bossLog[e.name]?.beat || net.role) return;
+  const cheatPreview = !!e && !meta.bossLog[e.name]?.beat && meta.galleryCheat;
+  if (!e || (!meta.bossLog[e.name]?.beat && !cheatPreview) || net.role) return;
   const keep = runType; runType = 'standard';
   start(1, [lastShips[0]]);
   runType = keep;
   const n = e.defs[0].final ? 8 : PRACTICE_AT;
-  run.practice = { i, hard: !!hard && !e.noHard, name: e.name, form: galleryForm % bossForms(e.defs[0]).length };
+  run.practice = { i, hard: !!hard && !e.noHard, name: e.name, form: galleryForm % bossForms(e.defs[0]).length, cheatGallery: !!cheatPreview };
   run.nemesisAt = 0; run.dokiMet = true;
   for (let k = 0; k < n * 2; k++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   run.bossOrder = Array(n).fill(e.order); bossCount = n; level = 1 + n * 2;
@@ -10730,12 +10734,17 @@ function drawGallery() {
   const list = galleryEntries(), log = meta.bossLog, beaten = list.filter(e => log[e.name]?.beat).length;
   fitText(`${beaten} / ${list.length} beaten  ·  [R] ${galleryRage ? 'normal forms' : 'rage & super forms'}`, 90, 14, '#ffb08d', 'bold');
   if (galleryPick < 0) buttons.push({ x: W / 2 - 160, y: 78, w: 320, h: 26, action: () => { galleryRage = !galleryRage; } }); // (tap the line to switch, too)
-  const cols = W >= 900 ? 7 : W >= 640 ? 5 : 3, gap = 8, rows = Math.ceil(list.length / cols);
-  const cw = Math.min(130, (W - 32 - gap * (cols - 1)) / cols), ch = Math.max(70, Math.min(116, (H - 180) / rows - gap));
+  const viewH = Math.min(H, window.innerHeight);
+  const cols = W >= 900 ? 7 : W >= 640 ? 5 : W >= 440 ? 3 : 2, gap = 8, rows = Math.ceil(list.length / cols);
+  const cw = Math.min(130, (W - 32 - gap * (cols - 1)) / cols), ch = Math.max(70, Math.min(116, (viewH - 190) / Math.min(rows, 5) - gap));
   const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 112, t = performance.now() / 1000;
+  const cheatY = y0 + rows * (ch + gap) + 4, backY = cheatY + (net.role ? 0 : 48);
+  menuScrollMax = galleryPick < 0 ? Math.max(0, backY + 40 - (viewH - 12)) : 0;
+  menuScroll.gallery = clampMenuScroll('gallery');
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 108, W, viewH - 108); ctx.clip(); ctx.translate(0, -menuScroll.gallery);
   list.forEach((e, i) => {
     const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap), rec = log[e.name] || {};
-    const seen = !!rec.met, color = rec.hard ? '#ff3d5a' : rec.beat ? '#ff8d5d' : seen ? '#889' : '#334';
+    const seen = !!rec.met || meta.galleryCheat, color = rec.hard ? '#ff3d5a' : rec.beat ? '#ff8d5d' : seen ? '#889' : '#334';
     if (seen && galleryPick < 0) buttons.push({ x, y, w: cw, h: ch, action: () => { galleryPick = i; galleryForm = 0; } });
     panel(x, y, cw, ch, color, false);
     if (!seen && e.secret) { // a secret you haven't found: nothing to see yet
@@ -10759,16 +10768,28 @@ function drawGallery() {
     ctx.fillText(seen || !e.secret ? (seen ? e.name : '???') : '???', x + cw / 2, y + ch - 22);
     ctx.font = `${cw < 110 ? 9 : 10}px system-ui`; ctx.fillStyle = rec.beat ? '#ffd23d' : '#778';
     const best = rec.best, mm = best !== undefined ? `${Math.floor(best / 60)}:${String(Math.floor(best % 60)).padStart(2, '0')}` : '';
-    ctx.fillText(rec.beat ? `${rec.hard ? '☠' : '★'} ${rec.beat}×  ·  best ${mm}` : seen ? 'not beaten yet' : 'not met yet', x + cw / 2, y + ch - 9);
+    ctx.fillText(rec.beat ? `${rec.hard ? '☠' : '★'} ${rec.beat}×  ·  best ${mm}` : rec.met ? 'not beaten yet' : meta.galleryCheat ? 'cheat preview' : 'not met yet', x + cw / 2, y + ch - 9);
   });
-  const bw = Math.min(240, W - 32);
-  if (galleryPick < 0) button('BACK  [Esc]', (W - bw) / 2, Math.min(H - 52, y0 + rows * (ch + gap) + 6), bw, 44, '#7df9ff', () => go('menu'));
-  else drawBossPage(list[galleryPick], log[list[galleryPick].name] || {}, t);
+  if (galleryPick < 0) {
+    const bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+    if (!net.role) button(`GALLERY CHEAT: ${meta.galleryCheat ? 'ON' : 'OFF'}`, bx, cheatY, bw, 40, meta.galleryCheat ? '#ff5dc8' : '#667', () => {
+      meta.galleryCheat = !meta.galleryCheat; saveMeta(); showToast(meta.galleryCheat ? 'ALL BOSSES REVEALED — PRACTICE ENABLED' : 'GALLERY CHEAT OFF');
+    });
+    button('BACK  [Esc]', bx, backY, bw, 40, '#7df9ff', () => go('menu'));
+    ctx.restore();
+    if (menuScrollMax > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 112, 3, viewH - 128);
+      ctx.fillStyle = '#ff8d5d'; ctx.fillRect(W - 8, 112 + (viewH - 128 - 42) * menuScroll.gallery / menuScrollMax, 3, 42);
+    }
+  } else {
+    ctx.restore();
+    drawBossPage(list[galleryPick], log[list[galleryPick].name] || {}, t);
+  }
 }
 // a boss's own page: big, with its record, its story (THE ABYSS and ZERO only) and the practice buttons
 function drawBossPage(e, rec, t) {
   ctx.fillStyle = 'rgba(3,3,12,0.82)'; ctx.fillRect(0, 0, W, H);
-  const lore = LORE[e.name], pw = Math.min(560, W - 24), ph = Math.min(H - 24, lore ? 520 : 360), px = (W - pw) / 2, py = (H - ph) / 2;
+  const lore = LORE[e.name], pw = Math.min(560, W - 24), ph = Math.min(H - 20, lore ? (W < 560 ? 620 : 520) : (W < 560 ? 420 : 360)), px = (W - pw) / 2, py = (H - ph) / 2;
   panel(px, py, pw, ph, rec.hard ? '#ff3d5a' : '#ff8d5d', false);
   title(e.name, py + 34, '#ff8d5d', 28);
   // the boss itself (its rage or super form when R is on)
@@ -10793,13 +10814,25 @@ function drawBossPage(e, rec, t) {
       y += 7;
     });
   }
-  const by = py + ph - 58, bw2 = (pw - 48) / 3;
-  if (rec.beat) {
-    button('FIGHT  [Enter]', px + 16, by, bw2, 42, '#5dff7a', () => startPractice(galleryPick, false));
-    if (!e.noHard) button('☠ HARD  [D]', px + 24 + bw2, by, bw2, 42, '#ff3d5a', () => startPractice(galleryPick, true));
-    else fitText('No HARD mode', by + 21, 12, '#778');
-  } else { ctx.textAlign = 'center'; fitText('Beat it in a run to practice it here', by + 21, 12, '#9ab'); }
-  button('BACK  [Esc]', px + 32 + bw2 * 2, by, bw2, 42, '#7df9ff', () => { galleryPick = -1; });
+  const narrow = W < 560, canPractice = !!rec.beat || !!meta.galleryCheat, actionHeight = narrow ? (canPractice ? 88 : 70) : 42;
+  const by = py + ph - actionHeight - 12, bw2 = (pw - 48) / 3, fullW = pw - 32;
+  const cheatPreview = !rec.beat && meta.galleryCheat;
+  if (rec.beat || cheatPreview) {
+    button(cheatPreview ? 'PRACTICE [CHEAT]' : 'FIGHT  [Enter]', px + 16, by, narrow ? fullW : bw2, 38, '#5dff7a', () => startPractice(galleryPick, false));
+    if (narrow) {
+      if (!e.noHard) {
+        button('☠ HARD  [D]', px + 16, by + 46, (fullW - 8) / 2, 38, '#ff3d5a', () => startPractice(galleryPick, true));
+        button('BACK  [Esc]', px + 24 + (fullW - 8) / 2, by + 46, (fullW - 8) / 2, 38, '#7df9ff', () => { galleryPick = -1; });
+      } else button('BACK  [Esc]', px + 16, by + 46, fullW, 38, '#7df9ff', () => { galleryPick = -1; });
+    } else {
+      if (!e.noHard) button('☠ HARD  [D]', px + 24 + bw2, by, bw2, 38, '#ff3d5a', () => startPractice(galleryPick, true));
+      else fitText('No HARD mode', by + 19, 12, '#778');
+      button('BACK  [Esc]', px + 32 + bw2 * 2, by, bw2, 38, '#7df9ff', () => { galleryPick = -1; });
+    }
+  } else {
+    ctx.textAlign = 'center'; fitText('Beat it in a run to practice it here', by + (narrow ? 8 : 21), 12, '#9ab');
+    button('BACK  [Esc]', px + (narrow ? 16 : 32 + bw2 * 2), by + (narrow ? 28 : 0), narrow ? fullW : bw2, 38, '#7df9ff', () => { galleryPick = -1; });
+  }
   const forms = bossForms(e.defs[0]), fi = galleryForm % forms.length; // (cycle through every form it has)
   button(`◀ FORM: ${forms[fi][0]} (${fi + 1}/${forms.length}) ▶  [V]`, px + 16, py + 172, pw - 32, 30, '#ff9ccf', () => { galleryForm = (galleryForm + 1) % forms.length; });
 }
