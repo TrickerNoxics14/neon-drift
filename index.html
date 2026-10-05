@@ -317,6 +317,14 @@ const SONGS = {
     B: { chords: '4 5 3 6 4 5 1 1', ins: 'synth', dr: 'rock', gt: 'chug', mel: [
       'e---w---q---7---', 'w-------5---7---', 'q---7---5---3---', '6-------3---5---',
       'e---w---q---e---', 'r---e---w---q---', 'q---7---q---w---', 'q---------------'] } } },
+  // SHADOW's fight: fast, dark rock in a minor key
+  shadow: { name: 'Black Comet', bpm: 172, root: 40, scale: 'minor', lead: 64, battle: true, form: ['A', 'B'], parts: {
+    A: { chords: '1 6 7 5^ 1 6 4 5^', ins: 'guitar', dr: 'drive', gt: 'chug', mel: [
+      '1.1.5.3.q.7.5.3.', '6.6.q.6.5.3.1.3.', '7.7.w.7.5.4.2.4.', '5---7---w---7-5-',
+      '1.1.5.3.q.7.5.3.', '6.6.q.6.5.3.1.3.', '4.4.6.q.w.q.6.4.', '5-------7---w---'] },
+    B: { chords: '6 4 1 5^ 6 4 7 7', ins: 'synth', dr: 'rock', gt: 'strum', mel: [
+      'e-------w---q---', 'r-------e---w---', 'q-------7---5---', '7-------5-------',
+      'e-------w---q---', 'r-------t---r---', 'e---w---q---7---', '7---------------'] } } },
   // GLITCH SECTOR: stuttering, repeating synth lines (like a scratched record) in a dark key
   glitch: { name: 'Normal World', file: 'glitch.mp3', loop: [0.06, 141.38], gain: 1.37, bpm: 132, root: 41, scale: 'phrygian', lead: 65, form: ['A', 'B'], parts: {
     A: { chords: '1 2 1 7 1 2 6 5^', ins: 'synth', dr: 'groove', gt: 'chug', arp: 1, mel: [
@@ -385,7 +393,7 @@ function zoneSong(zone) {
 const SONG_LIST = [['menu', 'Main menu'], ['hangar', 'Hangar & menus'], ['deep', 'Deep Space'], ['deep2', 'Deep Space'], ['belt', 'Shattered Belt'], ['belt2', 'Shattered Belt'],
   ['nebula', 'Crimson Nebula'], ['nebula2', 'Crimson Nebula'], ['rings', 'Frozen Rings'], ['rings2', 'Frozen Rings'], ['corona', 'Solar Corona'], ['corona2', 'Solar Corona'],
   ['derelict', 'Derelict Fleet'], ['derelict2', 'Derelict Fleet'], ['prism', 'Prism Reach'], ['prism2', 'Prism Reach'], ['horizon', 'Event Horizon'], ['horizon2', 'Event Horizon'], ['glitch', 'Glitch Sector'], ['glitch2', 'Glitch Sector (extra)'],
-  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['sonnet', 'SONNET'], ['supersonnet', 'SUPER SONNET'], ['dawnny', 'DAWNNY'], ['victory', 'Victory'], ['gameover', 'Game over']];
+  ['shop', 'The shop'], ['starmap', 'Route map'], ['rival', 'Team bosses'], ['abyss', 'THE ABYSS'], ['zero', 'The secret boss'], ['nemesis', 'The second secret boss'], ['doki', 'The pink secret'], ['sonnet', 'SONNET'], ['supersonnet', 'SUPER SONNET'], ['dawnny', 'DAWNNY'], ['shadow', 'SHADOW'], ['victory', 'Victory'], ['gameover', 'Game over']];
 const MENU_SCREENS = ['hangar', 'cosmetics', 'ships', 'achievements', 'settings', 'curses', 'gallery'];
 const DRUMS = { // 16 steps per bar: k kick, s snare, h hi-hat, t taiko
   half:   { k: 'x.........x.....', s: '........x.......', h: 'x...x...x...x...', v: 0.9 },
@@ -482,6 +490,7 @@ function wantedSong() {
   // version carries on, turning into its heavy remake)
   if (bosses.some(b => b.gimmick === 'sonnet')) return bosses.some(b => b.super) && recordedOk('supersonnet') ? 'supersonnet' : 'sonnet';
   if (bosses.some(b => b.gimmick === 'dawnny')) return 'dawnny';
+  if (bosses.some(b => b.gimmick === 'shadow')) return 'shadow';
   if (bosses.some(b => b.nemesis) || warn?.nemesis) return 'nemesis';
   if (bosses.some(b => b.secret) || warn?.name === '???' || warn?.zero) return 'zero';
   if (bosses.some(b => b.final)) return 'abyss'; // (its warning keeps the zone's song: the silence comes as it arrives)
@@ -952,6 +961,7 @@ const COSMETICS = [
   { id: 'pet_p0',     cat: 'pet', name: 'P0',           cost: 400, req: 'nemesis', reqText: 'Beat the second secret' },
   { id: 'pet_eye',    cat: 'pet', name: 'Little Eye',   cost: 500, req: 'omega',   reqText: 'Beat THE ABYSS' },
   { id: 'pet_manga',  cat: 'pet', name: 'Mini Manga',   cost: 300, req: 'dawnny',  reqText: 'Beat DAWNNY' },
+  { id: 'pet_shadow', cat: 'pet', name: 'Mini Shadow',  cost: 300, req: 'shadow',  reqText: 'Beat SHADOW' },
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
 const cosOwned = c => !!meta.cos.owned[c.id] || (c.cost === 0 && !cosLocked(c)); // (free ones are yours once unlocked)
@@ -1027,7 +1037,7 @@ const masteryXp = id => meta.mastery?.[id] | 0;
 const masteryLv = id => MASTERY_XP.filter(x => masteryXp(id) >= x).length;
 // colors of each ship's Signature trail
 const SIGNATURE = { striker: ['#7df9ff', '#ffffff'], interceptor: ['#5dffc8', '#3d9dff'], juggernaut: ['#ffb13d', '#ff6a2d'], scatter: ['#ff5dc8', '#ffe93d'],
-  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'], bomber: ['#ff6a2d', '#ffe93d'], summoner: ['#c08dff', '#7df9ff'] };
+  piercer: ['#bff8ff', '#5d8dff'], medic: ['#5dff7a', '#ffffff'], wraith: ['#c08dff', '#6a3dff'], carrier: ['#ffe93d', '#9db4c8'], berserker: ['#ff3050', '#ff9a3d'], gunslinger: ['#ffb86b', '#fff3d0'], bomber: ['#ff6a2d', '#ffe93d'], summoner: ['#c08dff', '#7df9ff'], volt: ['#58e9ff', '#c9a0ff'] };
 function drawSignatureTrail(p, pts, [c1, c2], t) {
   ctx.save(); ctx.lineCap = 'round'; glow(c1, 12);
   for (let i = 1; i < pts.length; i++) { // two twisting ribbons
@@ -1090,6 +1100,7 @@ const ACHIEVEMENTS = [
   { id: 'doki',        cat: 'boss', name: 'Doki Doki',            reward: 250, desc: 'Open the pink door, and fill her DOKI meter.' },
   { id: 'golden',      cat: 'boss', name: 'Faster Than Light',    reward: 200, desc: 'Defeat SUPER SONNET.' },
   { id: 'dawnny',      cat: 'boss', name: 'Case Closed',          reward: 200, desc: 'Defeat DAWNNY.' },
+  { id: 'shadow',      cat: 'boss', name: 'Ultimate Lifeform',    reward: 200, desc: 'Defeat SHADOW.' },
   { id: 'cursed',      cat: 'progress', name: 'Storm Chaser',     reward: 300, desc: 'Destroy THE ABYSS with 3 or more TURBULENCE on.' },
   { id: 'revive',      cat: 'team', name: 'No One Left Behind',   reward: 50,  desc: 'Revive a teammate.' },
   { id: 'revive10',    cat: 'team', name: 'Guardian Angel',       reward: 100, desc: 'Revive 10 teammates (all-time).', progress: () => [meta.stats.revives, 10] },
@@ -1198,6 +1209,8 @@ const UPGRADES = [
   { id: 'abm_bomber', name: 'Payload', r: 'rare', max: 1, ship: 'bomber', desc: 'BOMBER: every explosion is 35% bigger, and Megaton wipes every enemy bullet off the screen', apply: s => s.abm_bomber = 1 },
   { id: 'abm_gunslinger', name: 'Speed Loader', r: 'rare', max: 1, ship: 'gunslinger', desc: 'GUNSLINGER: reloads twice as fast, and Fan the Hammer fires 3 more rounds', apply: s => s.abm_gunslinger = 1 },
   { id: 'abm_berserker',name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
+  { id: 'link_amp', name: 'LINK AMPLIFIER', r: 'rare', max: 3, desc: 'LINK BEAMs deal 25% more damage and grow 25% wider', when: () => players.length > 1, apply: s => s.linkPower += 0.25 },
+  { id: 'abm_volt', name: 'Overload', r: 'rare', max: 1, ship: 'volt', desc: 'VOLT: Ion Storm chains through more enemies and hits bosses harder', apply: s => s.abm_volt = 1 },
   // evolutions: offered (always as the first card) once you own both ingredients at the listed levels
   { id: 'evo_halo', name: 'Storm Halo', r: 'evo', max: 1, needs: [['blades', 2], ['chain', 1]],
     desc: '+1 blade, and your blades crackle with chain lightning', apply: s => { s.blades++; s.stormHalo = 1; } },
@@ -1223,7 +1236,7 @@ function newStats() {
     maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1 + 0.2 * metaLv('luck'), crit: 0, homing: 0, drones: 0,
     aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * metaLv('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
-    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1 };
+    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1, linkPower: 1 };
 }
 // ability cards only show up when they'd do something
 const abCardOk = u => !(u.ab || u.ship) || (!curse('powerless') && (!u.ship || players.some(p => !p.gone && shipBase(p) === u.ship)));
@@ -1361,6 +1374,10 @@ let state = 'menu', paused = false;
 // everyone (paused, which reaches the guests through the snapshots)
 let menuOpen = false;
 let buttons = [], sel = 0;
+const menuScroll = { hangar: 0, achievements: 0, settings: 0 };
+let menuScrollMax = 0, touchMenuScroll = null;
+const scrollMenuState = s => ['hangar', 'achievements', 'settings'].includes(s) ? s : null;
+function clampMenuScroll(s, amount = menuScroll[s] || 0) { return Math.max(0, Math.min(menuScrollMax, amount)); }
 function go(s) { state = s; sel = 0; buttons = []; menuOpen = false; }
 function toggleMenu() { menuOpen = !menuOpen; pauseView = 'main'; sel = 0; }
 function forcePause(on) { // (the host only)
@@ -1393,7 +1410,8 @@ addEventListener('keydown', e => {
   const inMenu = paused || menuOpen; // (paused, or online, a menu of your own while the game keeps going)
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
-    if (inMenu && (pauseView === 'settings' || pauseView === 'room') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
+    if (inMenu && (pauseView === 'settings' || pauseView === 'room' || pauseView === 'cheats') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
+    if (inMenu && !net.playing && e.code === 'KeyK') { pauseView = 'cheats'; sel = 0; return; }
     if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
       if (e.code === 'KeyP') { if (net.role === 'host') forcePause(!paused); return; }
@@ -1475,15 +1493,31 @@ document.addEventListener('visibilitychange', () => {
 let toast = null;
 function showToast(text, life = 1.4) { toast = { text, life }; }
 addEventListener('keyup', e => keys[e.code] = false);
-const hitButton = (x, y) => buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+const hitButton = (x, y) => {
+  const page = scrollMenuState(state), offset = page ? menuScroll[page] || 0 : 0;
+  if (page && (y < (page === 'settings' ? 112 : 100) || y > H - 8)) return -1;
+  return buttons.findIndex(b => x >= b.x && x <= b.x + b.w && y + offset >= b.y && y + offset <= b.y + b.h);
+};
 // (pointer positions are converted to world coordinates, which differ from the screen for scaled online guests)
 cv.addEventListener('contextmenu', e => e.preventDefault()); // (right-click is an ability button)
+cv.addEventListener('wheel', e => {
+  const page = scrollMenuState(state);
+  if (!page || menuScrollMax <= 0) return;
+  e.preventDefault();
+  menuScroll[page] = clampMenuScroll(page, (menuScroll[page] || 0) + e.deltaY);
+}, { passive: false });
 let abTouchId = null; // the finger on the on-screen ability button (it mustn't steer the ship)
 let touchMode = false; // (playing with a finger: the on-screen pause and ability buttons show)
 cv.addEventListener('pointerdown', e => {
   const w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY); // (an upright phone's HUD is drawn at screen size: see draw)
   touchMode = e.pointerType !== 'mouse';
   ensureAudio();
+  const page = scrollMenuState(state), scrollTop = page === 'settings' ? 112 : 100;
+  if (page && menuScrollMax > 0 && e.pointerType !== 'mouse' && w.y >= scrollTop && w.y < H - 8) {
+    touchMenuScroll = { id: e.pointerId, page, x: w.x, startY: w.y, lastY: w.y, moved: false };
+    cv.setPointerCapture?.(e.pointerId);
+    return;
+  }
   if (state === 'play' && !paused && !menuOpen && run) {
     if (e.pointerType !== 'mouse' && inHud(() => touchPauseHit(w.x, w.y))) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
     if (e.pointerType !== 'mouse' && net.camZ && inHud(() => touchZoomHit(w.x, w.y))) { // (an upright phone's zoom button)
@@ -1503,6 +1537,13 @@ cv.addEventListener('pointerdown', e => {
 cv.addEventListener('pointermove', e => {
   if (e.pointerId === abTouchId) return;
   const w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY);
+  if (touchMenuScroll?.id === e.pointerId) {
+    const delta = touchMenuScroll.lastY - w.y;
+    if (Math.abs(w.y - touchMenuScroll.startY) > 6) touchMenuScroll.moved = true;
+    if (touchMenuScroll.moved) menuScroll[touchMenuScroll.page] = clampMenuScroll(touchMenuScroll.page, (menuScroll[touchMenuScroll.page] || 0) + delta);
+    touchMenuScroll.lastY = w.y;
+    return;
+  }
   if (pointer || e.pointerType === 'mouse') pointer = net.camZ ? dragPointer(e) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
 });
@@ -1514,6 +1555,12 @@ document.addEventListener('paste', e => {
 });
 cv.addEventListener('pointerup', e => {
   if (e.pointerId === abTouchId) { abTouchId = null; return; }
+  if (touchMenuScroll?.id === e.pointerId) {
+    const gesture = touchMenuScroll, w = net.camZ ? { x: e.clientX, y: e.clientY } : toWorld(e.clientX, e.clientY);
+    touchMenuScroll = null;
+    if (!gesture.moved) { const i = hitButton(w.x, w.y); if (i >= 0) { sel = i; activate(); } }
+    return;
+  }
   if (e.pointerType !== 'mouse') { pointer = null; drag = null; }
 });
 
@@ -1621,6 +1668,11 @@ const BOSSES = [
   { name: 'DAWNNY', style: 'dawnny', color: '#ff8fc8', sides: 8, r: 54, gimmick: 'dawnny', rageMove: 'cliffhanger', rageTitle: 'MANGA WITHDRAWAL',
     hint: 'DAWNNY: in WHO DUNNIT? find the real murderer (the one throwing knives) and shoot it. When she turns into THE BEAST, hack the three computers to escape!',
     patterns: ['pages', 'bubbles', 'ship', 'knives', 'pages', 'bubbles', 'ship'] },
+  // a nod to a certain black hedgehog: SONNET's dark rival. He races you to a CHAOS EMERALD (see the shadow gimmick), throws
+  // CHAOS SPEARs and skates on jet shoes, and when his gold inhibitor rings come off (his rage) he CHAOS BLASTs
+  { name: 'SHADOW', style: 'shadow', color: '#ff3b4a', sides: 8, r: 50, gimmick: 'shadow', rageMove: 'chaosblast', rageTitle: 'INHIBITORS OFF',
+    hint: 'SHADOW: race him to the CHAOS EMERALD! Grab it first and he freezes. If he gets it, spears appear around you: slip out through a gap before they fly.',
+    patterns: ['spear', 'homing', 'skate', 'spindash', 'blink', 'spear', 'skate'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
   { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
@@ -1643,6 +1695,13 @@ const PAGE_COLOR = '#fff6e8', BUBBLE_COLOR = '#fff0fa', KNIFE_COLOR = '#cfd8e6',
 const DAWN_GAP = 12, SUS_T = 10, BEAST_T = 17, PC_HACK = 2.6, PC_R = 58, BEAST_SPEED = 135, DAWN_TIRED = 4.5;
 const SHIP_WARN = 0.9, SHIP_GLIDE = 2.2, SHIP_W = 9, KNIFE_WARN = 0.6, KNIFE_SPEED = 560;
 const CLIFF_WARN = 1.3, CLIFF_FIRE = 0.55, CLIFF_W = 28;
+// SHADOW: his CHAOS SPEARs and the embers off his skates (drawn as themselves, on guests' screens too: told apart by color),
+// the CHAOS EMERALD race (how often, how long before he goes for it, how close counts as grabbing it, how long he's frozen and
+// how much harder he's hit then; his time-stop spears: how long they hang, how far out) and CHAOS BLAST's charge
+const SPEAR_COLOR = '#ffe23d', EMBER_COLOR = '#ff7a2a', SKATE_SPEED = 620;
+const EMERALD_EVERY = 11, EMERALD_WAIT = 1.6, EMERALD_GRAB = 26, SHADOW_STUN = 3, SHADOW_STUN_DMG = 1.5, CC_FREEZE = 1, CC_R = 190, CB_WARN = 1.6;
+// a CHAOS SPEAR's shape, pointing along +x (s: its size)
+const spearPath = s => { const L = s * 3.2, w = s * 0.9; ctx.beginPath(); ctx.moveTo(L, 0); ctx.lineTo(-L * 0.45, -w); ctx.lineTo(-L * 0.15, 0); ctx.lineTo(-L * 0.45, w); ctx.closePath(); };
 const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55, ZERO_STOLEN_T = 1.2;
 // what ZERO can steal: every other boss's attacks, and (in FATAL ERROR) their rage moves, each with whose it was. A few are
 // left out because they only work with their owner's own machinery (SONNET's loop and booms, THE ABYSS's tentacles...)
@@ -1730,6 +1789,17 @@ function sonnetHalf(k) {
     q([-1.32, 0.44], [-1.46, -0.28]), [-0.76, 0.38],
     [-0.54, 0.62], [-0.26, 0.76], [0, 0.8]];
 }
+// SHADOW's head, its left half from the top round to his chin (in sizes of r): an ear, then three quills that sweep up and out
+// (k: how far into his rage form: with his inhibitor rings off they flare higher), and the red stripe along each quill
+function shadowHalf(k) {
+  const q = (a, b) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  return [[0, -0.82], [-0.24, -0.78], [-0.4, -1.18], [-0.58, -0.66], // (an ear)
+    [-0.7, -0.58], q([-1.08, -1.3], [-1.02, -1.5]), [-0.86, -0.4],
+    q([-1.44, -0.92], [-1.52, -1.14]), [-0.94, -0.1],
+    q([-1.48, -0.34], [-1.62, -0.56]), [-0.8, 0.34],
+    [-0.54, 0.62], [-0.26, 0.76], [0, 0.8]];
+}
+const SHADOW_STRIPES = [[[-0.8, -0.6], [-1.0, -1.1]], [[-0.95, -0.32], [-1.3, -0.8]], [[-0.95, 0.04], [-1.32, -0.28]]];
 const randomOf = a => a[Math.floor(Math.random() * a.length)];
 
 // team bosses: two at once, each pair with a mechanic that rewards splitting up and coordinating
@@ -1890,6 +1960,11 @@ const SHIPS = [
     mod: { noGuns: true, drones: 4, dmg: 0.8 },
     mk2: { cost: 300, stats: { speed: 3, power: 4, armor: 3 }, trait: 'A ring of 5 drones that hit harder.',
       mod: { noGuns: true, drones: 5, dmg: 0.85 } } },
+  { id: 'volt', name: 'VOLT', tag: 'Chain lightning', shape: 'volt',
+    stats: { speed: 4, power: 4, armor: 2 }, trait: 'Fast twin-shot fighter. Ion Storm chains lightning through nearby enemies and strikes bosses.',
+    mod: { speed: 1.08, dmg: 1.05, shots: 1, spread: 0.55, bulletSpeed: 1.1 },
+    mk2: { cost: 350, stats: { speed: 4, power: 5, armor: 2 }, trait: 'Faster twin shots, plus a stronger Ion Storm with extra lightning arcs.',
+      mod: { speed: 1.12, dmg: 1.15, shots: 1, spread: 0.5, bulletSpeed: 1.15 } } },
 ];
 // a ship id is the base id ("medic") or the MK II ("medic2")
 const mk2Cache = {};
@@ -1962,6 +2037,7 @@ const ABILITIES = {
   summoner:    { name: 'LEGION',      cd: [16, 12], dur: [5, 6], desc: 'Your ring doubles for a few seconds: twice the drones, firing twice as fast.' },
   bomber:      { name: 'MEGATON',     cd: [12, 9],  desc: 'Drops one huge, slow bomb that blasts everything around it and blows away enemy bullets.' },
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
+  volt:        { name: 'ION STORM',   cd: [14, 10], desc: 'Chains lightning through nearby enemies and strikes every boss.' },
 };
 const AB_START = 0.35; // (a run starts with abilities 65% charged)
 const shipBase = p => p.ship.base || p.ship.id;
@@ -2092,6 +2168,17 @@ function useAbility(p, dx = 0, dy = 0) {
     p.ammo = p.ship.mod.cylinder; p.reloadT = 0;
     fxRing(p.x, p.y - 10, 6, 40, 0.25, '#ffd23d', 3); shake = Math.max(shake, 8);
     for (let i = 0; i < 3; i++) beep(260 - i * 30, 0.08, 'square', 0.05, -150);
+  } else if (id === 'volt') { // ION STORM: lightning jumps through nearby enemies and arcs into every boss
+    const boosted = abm('volt'), count = (tier ? 8 : 5) + (boosted ? 4 : 0);
+    chainLightning(p.x, p.y, count, dps * (tier ? 0.9 : 0.7) * (boosted ? 1.3 : 1), p.id);
+    for (const bo of bosses) if (bossAlive(bo)) {
+      bossFx.zaps.push({ x1: p.x, y1: p.y, x2: bo.x, y2: bo.y, life: 0.2, max: 0.2 });
+      netRec(['z', Math.round(p.x), Math.round(p.y), Math.round(bo.x), Math.round(bo.y)]);
+      hitBoss(bo, dps * (tier ? 1.1 : 0.8) * (boosted ? 1.35 : 1), p.x, bo.y);
+    }
+    fxRing(p.x, p.y, 12, 120, 0.4, p.color, 5);
+    burst(p.x, p.y, p.color, 18 + (tier ? 8 : 0), 220);
+    shake = Math.max(shake, 8); beep(480, 0.35, 'sawtooth', 0.06, 900);
   } else if (id === 'berserker') { // RAMPAGE
     p.rampKills = 0;
     fxRing(p.x, p.y, 10, 90, 0.4, '#ff3050', 5); burst(p.x, p.y, '#ff3050', 30, 300); shake = Math.max(shake, 8);
@@ -2165,7 +2252,7 @@ const upgradeCount = () => run ? Object.values(run.owned || {}).reduce((t, n) =>
 const evoTier = () => EVO_AT.filter(n => upgradeCount() >= n).length;
 
 // ---------- LINK BEAM: two teammates who fly close together charge a link, then fire one huge beam together ----------
-const LINK_R = 140, LINK_TIME = 3, LINK_FIRE = 1.6, LINK_CD = 16, LINK_W = 40;
+const LINK_R = 160, LINK_TIME = 2.6, LINK_FIRE = 1.9, LINK_CD = 14, LINK_W = 52;
 function updateLinks(dt) {
   const L = run.links ||= {}, ps = living().filter(p => !p.gone);
   for (const k in L) { const [a, b] = k.split('-').map(Number); if (!players[a]?.alive || !players[b]?.alive) { L[k].c = 0; L[k].fire = 0; } }
@@ -2179,20 +2266,28 @@ function updateLinks(dt) {
     if (l.fire > 0) { // firing: a column of light straight up from between them, hitting everything in it ten times a second
       l.fire -= dt;
       if ((l.tick -= dt) <= 0) {
-        l.tick = 0.1;
+        l.tick = 0.08;
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 30;
-        for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && e.y < my + e.r && Math.abs(e.x - mx) < LINK_W / 2 + e.r) { e.lastBy = a.id; damageEnemy(e, Math.max(10, dps * 0.35), 'splash'); }
-        for (const bo of bosses) if (bo.y < my + bo.r && Math.abs(bo.x - mx) < LINK_W / 2 + bo.r) hitBoss(bo, dps * 0.18, mx, bo.y);
+        const crew = Math.max(2, l.n || 2), strength = (1 + Math.min(3, (crew - 2) * 0.7)) * (run.s.linkPower || 1);
+        const beamW = LINK_W * strength, beamPower = Math.max(10, dps * 0.45) * strength;
+        for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && e.y < my + e.r && Math.abs(e.x - mx) < beamW / 2 + e.r) { e.lastBy = a.id; damageEnemy(e, beamPower, 'splash'); }
+        for (const bo of bosses) if (bo.y < my + bo.r && Math.abs(bo.x - mx) < beamW / 2 + bo.r) hitBoss(bo, dps * 0.22 * strength, mx, bo.y);
         shake = Math.max(shake, 4);
       }
       continue;
     }
-    const near = Math.hypot(a.x - b.x, a.y - b.y) < LINK_R && !busy.has(a.id) && !busy.has(b.id) && !abyssCine();
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const crew = ps.filter(p => !busy.has(p.id) && Math.hypot(p.x - mx, p.y - my) < LINK_R * 1.25).length;
+    l.n = Math.max(2, crew);
+    const near = dist < LINK_R && !busy.has(a.id) && !busy.has(b.id) && !abyssCine();
+    const teamSync = dist < LINK_R * 0.75;
     const before = l.c;
-    l.c = l.cd > 0 ? 0 : near ? Math.min(1, l.c + dt / LINK_TIME) : Math.max(0, l.c - dt * 0.6);
+    const chargeRate = near ? dt / (LINK_TIME * (teamSync ? 0.8 : 1)) * (1 + Math.min(0.75, (crew - 2) * 0.25)) : dt * 0.55;
+    l.c = l.cd > 0 ? 0 : near ? Math.min(1, l.c + chargeRate) : Math.max(0, l.c - dt * 0.6);
     for (const T of [0.33, 0.66]) if (before < T && l.c >= T) beep(400 + T * 600, 0.1, 'triangle', 0.04, 200); // (a rising hum as it charges)
-    if (l.c >= 1 && (enemies.some(e => !e.dead && !TYPES[e.type].harmless) || bosses.some(bossAlive))) {
-      l.c = 0; l.fire = LINK_FIRE; l.cd = LINK_CD; l.tick = 0; busy.add(a.id); busy.add(b.id);
+    if (l.c >= 1 && !busy.has(a.id) && !busy.has(b.id) && (enemies.some(e => !e.dead && !TYPES[e.type].harmless) || bosses.some(bossAlive))) {
+      l.c = 0; l.fire = LINK_FIRE; l.cd = LINK_CD; l.tick = 0; l.n = Math.max(2, crew); busy.add(a.id); busy.add(b.id);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       fxText('LINK BEAM!', mx, my - 60, mixHex(a.color, b.color, 0.5), 26, 1.2);
       fxRing(mx, my - 30, 10, 120, 0.5, '#ffffff', 5);
@@ -2201,9 +2296,9 @@ function updateLinks(dt) {
     }
   }
 }
-// [player a, player b, charge 0-1, firing time left] for every link worth drawing (online guests get it from the host)
+// [player a, player b, charge 0-1, firing time left, nearby crew] for every visible link
 const linkList = () => net.role === 'guest' ? (run.linkView || [])
-  : Object.entries(run?.links || {}).filter(([, l]) => l.c > 0.02 || l.fire > 0).map(([k, l]) => [...k.split('-').map(Number), r2(l.c), r2(l.fire)]);
+  : Object.entries(run?.links || {}).filter(([, l]) => l.c > 0.02 || l.fire > 0).map(([k, l]) => [...k.split('-').map(Number), r2(l.c), r2(l.fire), Math.max(2, l.n || 2)]);
 
 // ship select: each player picks in turn, then the run starts
 let shipPick = null;
@@ -3245,13 +3340,14 @@ function killEnemy(e, src) {
 }
 
 // lightning jumps from enemy to enemy
-function chainLightning(x, y, n, dmg) {
+function chainLightning(x, y, n, dmg, owner = null) {
   const hit = new Set();
   for (let i = 0; i < n; i++) {
     let best = null, bd = 170;
     for (const o of enemies) { if (o.dead || hit.has(o)) continue; const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { bd = d; best = o; } }
     if (!best) break;
     hit.add(best);
+    if (owner !== null) best.lastBy = owner;
     bossFx.zaps.push({ x1: x, y1: y, x2: best.x, y2: best.y, life: 0.2, max: 0.2 });
     netRec(['z', Math.round(x), Math.round(y), Math.round(best.x), Math.round(best.y)]);
     x = best.x; y = best.y;
@@ -3988,6 +4084,17 @@ const BOSS_ATTACKS = {
     b.run = { t: -SONNET_RUN_WARN, a0: r2(Math.atan2(b.y - H * 0.5, b.x - W / 2)), dir: Math.random() < 0.5 ? -1 : 1, fireT: 0, laps: enraged ? 2 : 1 };
     b.atkT = 3.4 * rate; beep(200, 0.5, 'sawtooth', 0.05, 800);
   },
+  // ----- SHADOW: chaos spears and air skates (his CHAOS EMERALD race and CHAOS BLAST: the shadow gimmick and rage move) -----
+  spear(b, enraged, rate) { // CHAOS SPEAR: volleys of three bolts of yellow light, each aimed at whoever is closest (see updateShadowMoves)
+    b.spearN = enraged ? 4 : 3; b.spearT = 0;
+    fxText('CHAOS SPEAR!', b.x, Math.max(40, b.y - b.r - 26), SPEAR_COLOR, 20, 0.9);
+    b.atkT = 1.5 * rate;
+  },
+  skate(b, enraged, rate) { // AIR SKATE: he drops to a line, crouches, then blasts across the screen on his jet shoes, raining embers
+    if (b.charge || b.skate) return;
+    b.skate = { dir: b.x < W / 2 ? 1 : -1, y: Math.round(Math.max(b.r + 30, Math.min(H * 0.3, b.y))), fireT: 0, warn: 0.45 };
+    b.atkT = 2.4 * rate; beep(180, 0.5, 'sawtooth', 0.05, 700);
+  },
 };
 function dokiShot(b, x, y, vx, vy, r, color) { eBullets.push({ x, y, vx, vy, r, color, src: b }); }
 // DAWNNY's rounds. WHO DUNNIT?: she hides among identical suspects in a row; only the murderer (her) throws knives
@@ -4047,6 +4154,50 @@ function updateShipsKnives(b, dt) {
     if (k[0] >= KNIFE_WARN) { const sp = KNIFE_SPEED * BOSS_BULLET_SPEED; eBullets.push({ x: b.x, y: b.y, vx: Math.cos(k[1]) * sp, vy: Math.sin(k[1]) * sp, r: 5, color: KNIFE_COLOR, src: b }); beep(1900, 0.06, 'sawtooth', 0.03, -1200); }
   }
   if (b.knives) b.knives = b.knives.filter(k => k[0] < KNIFE_WARN);
+}
+// SHADOW's CHAOS SPEAR volleys and AIR SKATE (any boss's: ZERO can steal them too). 'hold' while skating
+function updateShadowMoves(b, dt) {
+  if (b.spearN > 0 && (b.spearT -= dt) <= 0) {
+    b.spearN--; b.spearT = 0.22;
+    const p = nearestPlayer(b.x, b.y), a = p ? Math.atan2(p.y - b.y, p.x - b.x) : Math.PI / 2, sp = 380 * BOSS_BULLET_SPEED;
+    for (let i = -1; i <= 1; i++) { const s = a + i * 0.16; eBullets.push({ x: b.x + Math.cos(s) * b.r * 0.6, y: b.y + Math.sin(s) * b.r * 0.6, vx: Math.cos(s) * sp, vy: Math.sin(s) * sp, r: 6, color: SPEAR_COLOR, src: b }); }
+    beep(1400, 0.08, 'sawtooth', 0.04, 900);
+  }
+  const k = b.skate; if (!k) return;
+  if (k.warn > 0) { k.warn -= dt; b.y += (k.y - b.y) * Math.min(1, dt * 8); return 'hold'; }
+  b.x += k.dir * SKATE_SPEED * dt; b.y = k.y;
+  if ((b._ghostT = (b._ghostT || 0) - dt) <= 0) { b._ghostT = 0.035; fxGhost(b, 0.22); }
+  if ((k.fireT -= dt) <= 0) { k.fireT = b.wasEnraged ? 0.045 : 0.06; eBullets.push({ x: b.x, y: b.y + b.r * 0.6, vx: (Math.random() - 0.5) * 60, vy: (150 + Math.random() * 90) * BOSS_BULLET_SPEED, r: 5, color: EMBER_COLOR, src: b }); }
+  if (k.dir > 0 ? b.x > W - b.r : b.x < b.r) { b.x = Math.max(b.r, Math.min(W - b.r, b.x)); b.skate = null; shake = Math.max(shake, 5); }
+  return 'hold';
+}
+// SHADOW's CHAOS EMERALD: it appears where you can reach it, away from everyone (a race, not a gift)
+function shadowEmerald(b) {
+  let spot = null;
+  for (let i = 0; i < 14 && !spot; i++) { const x = 70 + Math.random() * (W - 140), y = H * (0.45 + Math.random() * 0.4); if (living().every(p => Math.hypot(p.x - x, p.y - y) > 150)) spot = [x, y]; }
+  spot ||= [W * (0.2 + Math.random() * 0.6), H * 0.62];
+  b.emerald = { x: Math.round(spot[0]), y: Math.round(spot[1]), t: 0, c: Math.floor(Math.random() * EMERALDS.length) };
+  fxText('CHAOS EMERALD!', b.emerald.x, b.emerald.y - 36, EMERALDS[b.emerald.c], 18, 1.4);
+  [1319, 1760].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.05), i * 90));
+}
+function shadowEmeraldTaken(b, p) { // you got there first: CHAOS CONTROL freezes him in time, and his bullets vanish
+  const em = b.emerald; b.emerald = null; b.emT = EMERALD_EVERY;
+  b.ccT = SHADOW_STUN; b.charge = null; b.skate = null; b.spearN = 0; b.trap = null;
+  for (const s of eBullets) if (s.src === b) { s.dead = true; burst(s.x, s.y, '#7df9ff', 2, 60); }
+  burst(em.x, em.y, EMERALDS[em.c], 30, 260); fxRing(em.x, em.y, 10, Math.max(W, H), 0.6, '#7df9ff', 4);
+  fxText('CHAOS CONTROL!', W / 2, H * 0.34, '#7df9ff', 30, 1.6); fxText(`P${p.id + 1} froze SHADOW in time!`, W / 2, H * 0.34 + 32, '#bfe8ff', 16, 1.6);
+  screenFlash = Math.max(screenFlash, 0.3); beep(880, 0.3, 'sine', 0.05, -500); setTimeout(() => beep(440, 0.5, 'sine', 0.05, -200), 150);
+}
+function shadowChaosControl(b, enraged) { // he got there first: he warps next to someone and stops time, leaving a ring of spears around everyone
+  const em = b.emerald; b.emerald = null; b.emT = EMERALD_EVERY;
+  const ps = living(), p = ps.length ? randomOf(ps) : null;
+  fxGhost(b, 0.5); burst(em.x, em.y, EMERALDS[em.c], 24, 240);
+  if (p) { b.x = Math.max(b.r, Math.min(W - b.r, p.x + (Math.random() < 0.5 ? -1 : 1) * 170)); b.y = Math.max(b.r + 30, Math.min(H * 0.5, p.y - 200)); b.appear = 1; }
+  const n = enraged ? 14 : 10, pts = [];
+  for (const q of ps) { const off = Math.random() * TAU; for (let i = 0; i < n; i++) { const a = off + i / n * TAU; pts.push([Math.round(q.x + Math.cos(a) * CC_R), Math.round(q.y + Math.sin(a) * CC_R), r2(a + Math.PI)]); } }
+  b.trap = { t: 0, pts: pts.slice(0, 64) };
+  fxText('CHAOS CONTROL!', W / 2, H * 0.3, '#ff3b4a', 32, 1.6);
+  screenFlash = Math.max(screenFlash, 0.4); shake = Math.max(shake, 8); beep(220, 0.6, 'sawtooth', 0.06, -150);
 }
 // SONNET: his rings are drawn as rings (on guests' screens too: they're told apart by this color), his transformation's
 // timeline, and how much tougher SUPER SONNET is
@@ -4624,6 +4775,30 @@ const GIMMICKS = {
     dmg: b => b.xf >= 0 ? 0 : b.super ? SUPER_ARMOR : 1, // (untouchable while he transforms; SUPER SONNET is tougher)
     rate: b => b.super ? SUPER_RATE : 1,
   },
+  shadow: { // the CHAOS EMERALD race: every so often an emerald appears; grab it first and CHAOS CONTROL freezes him (and wipes out his
+    // bullets), but if he gets there first he warps next to you and stops time: a ring of spears hangs around you, then they all fly
+    update(b, dt, enraged) {
+      if (enraged && !b.ringsOff && b.entered) { b.ringsOff = true; for (const sd of [-1, 1]) burst(b.x + sd * b.r * 1.08, b.y + b.r * 0.42, RING_COLOR, 18, 220); beep(1568, 0.1, 'triangle', 0.05); } // (his inhibitor rings come off)
+      if (b.trap && (b.trap.t += dt) >= CC_FREEZE) { // time resumes: every spear flies at once
+        const sp = 300 * BOSS_BULLET_SPEED;
+        for (const [x, y, a] of b.trap.pts) eBullets.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 6, color: SPEAR_COLOR, src: b });
+        b.trap = null; beep(300, 0.3, 'sawtooth', 0.06, 900);
+      }
+      if (b.ccT > 0) { b.ccT -= dt; return 'hold'; } // (frozen by your CHAOS CONTROL)
+      const em = b.emerald;
+      if (!em) { if (b.entered && !b.trap && !b.special && (b.emT = (b.emT ?? EMERALD_EVERY * 0.5) - dt) <= 0) shadowEmerald(b); return; }
+      em.t += dt;
+      for (const p of living()) if (Math.hypot(p.x - em.x, p.y - em.y) < p.r + EMERALD_GRAB) { shadowEmeraldTaken(b, p); return 'hold'; }
+      if (em.t < EMERALD_WAIT || b.special) return; // (he waits a moment, and finishes a CHAOS BLAST first)
+      b.charge = null; // (then drops whatever he was doing and goes for it, fast)
+      const d = Math.hypot(em.x - b.x, em.y - b.y) || 1, step = (enraged ? 820 : 640) * dt;
+      if (d <= step + b.r * 0.4) { shadowChaosControl(b, enraged); return 'hold'; }
+      b.x += (em.x - b.x) / d * step; b.y += (em.y - b.y) / d * step;
+      if ((b._ghostT = (b._ghostT || 0) - dt) <= 0) { b._ghostT = 0.03; fxGhost(b, 0.25); }
+      return 'hold';
+    },
+    dmg: b => b.ccT > 0 ? SHADOW_STUN_DMG : 1, // (frozen in time, he takes extra damage)
+  },
   abyss: {
     update(b, dt) {
       // three phases: at 66% the lights go out, at 33% it fully awakens
@@ -5060,6 +5235,18 @@ const RAGE_MOVES = {
       if (s.t >= CLIFF_WARN && s.t < CLIFF_WARN + CLIFF_FIRE) for (const p of living())
         if (s.v.some(x => Math.abs(p.x - x) < CLIFF_W / 2 + p.r * 0.4) || s.h.some(y => Math.abs(p.y - y) < CLIFF_W / 2 + p.r * 0.4)) hurt(p);
     } },
+  chaosblast: { name: 'CHAOS BLAST', len: CB_WARN + 1.3, cd: 9, // SHADOW: he gathers chaos energy (arrows show where each ring's gap
+    // will be), then explodes in three red rings, one after another
+    start(b, s) { s.gaps = [0, 1, 2].map(() => r2(Math.random() * TAU)); beep(70, CB_WARN, 'sawtooth', 0.06, 500); },
+    update(b, s, dt) {
+      for (let i = 0; i < 3; i++) if (at(s, dt, CB_WARN + i * 0.38)) {
+        const n = 32, sp = (165 + i * 35) * BOSS_BULLET_SPEED;
+        for (let j = 0; j < n; j++) { const a = j / n * TAU; if (Math.abs(angleDiff(a, s.gaps[i])) > 0.42) eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 7, color: '#ff3b4a', src: b }); }
+        fxRing(b.x, b.y, b.r, b.r * 4, 0.35, '#ff3b4a', 5);
+        if (!i) { shake = Math.max(shake, 16); screenFlash = Math.max(screenFlash, 0.45); fxText('CHAOS... BLAST!', b.x, Math.max(40, b.y - b.r - 40), '#ff3b4a', 34, 1.4); beep(55, 0.9, 'sawtooth', 0.09, -20); }
+      }
+      return s.t < CB_WARN ? 'hold' : 'quiet';
+    } },
   wipe: { name: 'MEMORY WIPE', len: WIPE_WARN * 2 + WIPE_FIRE + 0.1, cd: 7, // a checkerboard: one color is deleted, then the other
     start(b, s) { s.par = Math.random() < 0.5 ? 0 : 1; s.cols = W >= H ? 6 : 4; s.rows = W >= H ? 4 : 6; },
     update(b, s, dt) {
@@ -5299,6 +5486,7 @@ function updateBoss(b, dt) {
   if (b.gx && updateGlitchBoss(b, dt) === 'hold') return; // (a GLITCH variant: its corruption and glitch attacks; frozen while it hangs)
   updateOrbiters(b, dt, enraged);
   if (b.ships?.length || b.knives?.length) updateShipsKnives(b, dt); // (DAWNNY's ships and knives, or ZERO's stolen ones)
+  if ((b.skate || b.spearN > 0) && updateShadowMoves(b, dt) === 'hold') return; // (SHADOW's spears and skates, or ZERO's stolen ones)
   const gim = GIMMICKS[b.gimmick]?.update?.(b, dt, enraged);
   if (gim === 'hold') return;
   if (updateAscend(b, dt)) return;
@@ -5429,6 +5617,7 @@ function onEncounterBeaten(enc, last) {
   if (last.gimmick === 'doki') unlockAch('doki');
   if (last.gimmick === 'sonnet') unlockAch('golden');
   if (last.gimmick === 'dawnny') unlockAch('dawnny');
+  if (last.gimmick === 'shadow') unlockAch('shadow');
   if (enc.kind === 'twins' && !enc.revived) unlockAch('twins');
   if (enc.kind === 'binary' && !enc.tetherHit) unlockAch('tether');
   if (enc.kind === 'aegis') unlockAch('aegis');
@@ -5475,6 +5664,7 @@ function flashHurt(p, amount) {
 
 // returns true if the hit landed (broke a shield or cost a life)
 function hurt(p) {
+  if (cheats.invincible && !net.playing) return false;
   if (p.inv > 0 || !p.alive || p.phaseOn > 0 || abActive(p, 'juggernaut')) return false; // (Wraiths are untouchable while phased; so is a FORTRESS)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
   const doki = dokiBoss(); if (doki) dokiAdd(doki, -DOKI_HURT); // (DOKI DOLL thinks you're no fun when you get hit)
@@ -6069,6 +6259,7 @@ const HULLS = {
   payload: { pts: [[0, -14], [6, -10], [21, 1], [21, 8], [9, 9], [5, 14], [-5, 14], [-9, 9], [-21, 8], [-21, 1], [-6, -10]], flames: [[-6, 12, 4], [6, 12, 4]], cockpit: [[0, -8], [3, -1], [-3, -1]], bombBay: true },
   revolver: { pts: [[-2.5, -24], [2.5, -24], [3, -10], [8, -8], [17, 6], [15, 12], [6, 9], [0, 13], [-6, 9], [-15, 12], [-17, 6], [-8, -8], [-3, -10]], flames: [[0, 12, 5]], cockpit: [[0, -4], [4, 4], [-4, 4]], cylinder: true },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
+  volt:     { pts: [[0, -23], [5, -9], [17, -4], [9, 2], [16, 12], [5, 9], [0, 17], [-5, 9], [-16, 12], [-9, 2], [-17, -4], [-5, -9]], flames: [[-5, 13, 3], [5, 13, 3]], cockpit: [[0, -13], [3, -3], [0, 1], [-3, -3]] },
 };
 // mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
 // mk2 === 3: the MK III model — bigger still, with prism-violet trim, a second pair of pods and two crystals orbiting it
@@ -6195,6 +6386,11 @@ const PETS = {
     ctx.rotate(t * 14); ctx.fillStyle = '#3d7dff'; glow('#3d7dff', 14);
     ctx.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, R = i % 2 ? 5 : 8; ctx.lineTo(Math.cos(a) * R, Math.sin(a) * R); } ctx.fill();
     ctx.strokeStyle = '#bfe8ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, 4); ctx.stroke();
+  },
+  pet_shadow(t) { // a mini SHADOW, curled into a spinning black ball with a red stripe
+    ctx.rotate(t * 14); ctx.fillStyle = '#16161e'; ctx.strokeStyle = '#ff3b4a'; glow('#ff3b4a', 14); ctx.lineWidth = 1.5;
+    ctx.beginPath(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU, R = i % 2 ? 5 : 8; ctx.lineTo(Math.cos(a) * R, Math.sin(a) * R); } ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#ff2a3a'; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, 4); ctx.stroke();
   },
   pet_zero(t) { // a glitching black-and-white cube
     const j = Math.random() < 0.08 ? (Math.random() - 0.5) * 6 : 0;
@@ -7604,6 +7800,31 @@ const BOSS_SHAPES = {
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(sd * coreR * 0.36 - coreR * 0.09, -coreR * 0.14, coreR * 0.07, 0, TAU); ctx.fill();
     }
   } },
+  // SHADOW: SONNET's dark rival. A black head whose quills sweep up, a red stripe along each, and two red pupils under a hard
+  // brow; his gold inhibitor rings and hover-shoe jets: see drawBossDecor. Curled into a spiky ball for his spin dash and homing attack
+  shadow: { mode: 'up', eye: [0, -0.12, 1.02], path(r, b, k = 0) {
+    ctx.beginPath();
+    if (b && sonnetBall(b)) { for (let i = 0; i < 18; i++) { const a = i / 18 * TAU, rr = r * (i % 2 ? 0.74 : 1.12); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); return; }
+    const pts = shadowHalf(k);
+    pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x * r, y * r));
+    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(-pts[i][0] * r, pts[i][1] * r);
+    ctx.closePath();
+  }, detail(r, b) { // the red stripes (on the ball: a red ring)
+    ctx.save(); ctx.strokeStyle = '#ff2a3a'; glow('#ff2a3a', 12); ctx.lineWidth = Math.max(2, r * 0.07); ctx.lineCap = 'round';
+    if (b && sonnetBall(b)) { ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, TAU); ctx.stroke(); ctx.restore(); return; }
+    for (const sd of [-1, 1]) for (const [[x0, y0], [x1, y1]] of SHADOW_STRIPES) { ctx.beginPath(); ctx.moveTo(sd * x0 * r, y0 * r); ctx.lineTo(sd * x1 * r, y1 * r); ctx.stroke(); }
+    ctx.restore();
+  },
+  hideEye: b => sonnetBall(b), // (no eye on the spinning ball)
+  pupil(coreR, b, fury, blinking) { // two red pupils under a hard, slanted brow (no shine: he's all business)
+    ctx.scale(1, blinking ? 0.1 : 1);
+    for (const sd of [-1, 1]) {
+      ctx.fillStyle = '#ff2a3a'; ctx.beginPath(); ctx.ellipse(sd * coreR * 0.36, coreR * 0.06, coreR * 0.28, coreR * 0.36, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#05070f'; ctx.beginPath(); ctx.ellipse(sd * coreR * 0.36, coreR * 0.1, coreR * 0.13, coreR * 0.22, 0, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = '#0a0a14'; // (the brow: a dark wedge across the top of the eye, lowest in the middle)
+    ctx.beginPath(); ctx.moveTo(-coreR * 1.05, -coreR * 0.6); ctx.lineTo(0, -coreR * 0.2); ctx.lineTo(coreR * 1.05, -coreR * 0.6); ctx.lineTo(coreR * 1.05, -coreR * 1.2); ctx.lineTo(-coreR * 1.05, -coreR * 1.2); ctx.closePath(); ctx.fill();
+  } },
   // DOKI DOLL: a stitched patchwork heart with cat ears and a little bow, beating. Possessed (her rage form), it breaks in
   // two along a jagged crack, the halves (an ear each) pulling apart around her eye. Her staff and tail: see drawBossDecor
   doki: { mode: 'up', eye: [0, 0.02, 1.1], path(r, b, k = 0) {
@@ -7719,7 +7940,7 @@ const headingOf = b => b.style === 'wyrm' && b.body?.length ? Math.atan2(b.y - b
 function bossRot(b) {
   const m = BOSS_SHAPES[shapeOf(b)]?.mode || 'spin', dieP = b.dying > 0 ? 1 - b.dying / DEATH_TIME : 0;
   if (b.style === 'doki' && b.entered && b.dying <= 0 && b.patterns?.[b.pattern] === 'twirl') return (b.t || 0) * 7; // (DOKI DOLL twirling)
-  if (b.style === 'sonnet' && sonnetBall(b)) return (b.t || 0) * 22; // (SONNET curled up: a spinning ball)
+  if ((b.style === 'sonnet' || b.style === 'shadow') && sonnetBall(b)) return (b.t || 0) * 22; // (SONNET or SHADOW curled up: a spinning ball)
   if (m === 'point') return headingOf(b) + (b.dying > 0 ? b.spin : 0);
   if (m === 'spin') return (b.spin || 0) * (b.side > 0 && shapeOf(b) === 'star' ? -1 : 1); // (the twins turn opposite ways)
   const t = b.t || 0, sway = m === 'swing' ? Math.sin(t * 1.9) * 0.16 : Math.sin(t * 1.2 + (b.slot || 0)) * 0.06;
@@ -8120,6 +8341,22 @@ function drawBossDecor(b, layer, c, enraged) {
         ctx.globalAlpha = A;
       }
       break;
+    }
+    case 'shadow': { // gold inhibitor rings on his wrists (they come off when he's enraged) and the jets of his hover shoes
+      if (sonnetBall(b)) break;
+      if (layer === 'back') { // the jets: two flickering flames under him (long while he skates)
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.shadowBlur = 0;
+        for (const sd of [-1, 1]) {
+          const x = sd * r * 0.34, y = r * 0.82, h = r * (0.42 + Math.sin(t * 40 + sd) * 0.1 + (b.skate && !(b.skate.warn > 0) ? 0.5 : 0));
+          ctx.fillStyle = 'rgba(255,140,40,0.75)'; ctx.beginPath(); ctx.moveTo(x - r * 0.12, y); ctx.lineTo(x, y + h); ctx.lineTo(x + r * 0.12, y); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = 'rgba(255,240,200,0.9)'; ctx.beginPath(); ctx.moveTo(x - r * 0.05, y); ctx.lineTo(x, y + h * 0.5); ctx.lineTo(x + r * 0.05, y); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore(); break;
+      }
+      if (enraged) break; // (INHIBITORS OFF)
+      ctx.save(); ctx.strokeStyle = RING_COLOR; glow(RING_COLOR, 14); ctx.lineWidth = 4;
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * r * 1.08, r * 0.42, r * 0.2, r * 0.09, sd * 0.3, 0, TAU); ctx.stroke(); }
+      ctx.restore(); break;
     }
     case 'dawnny': {
       if (layer === 'back') {
@@ -8841,6 +9078,19 @@ function drawRageMove(b) {
         }
       }
       break;
+    case 'chaosblast': { // red energy rushing in and a swelling red core, with an arrow where each ring's gap will be
+      if (s.t >= CB_WARN) break;
+      const k = s.t / CB_WARN;
+      ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 3;
+      for (let i = 0; i < 4; i++) { const f = (t * 1.6 + i / 4) % 1; ctx.globalAlpha = (1 - f) * 0.5 * (0.4 + k); ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1 + (1 - f) * 3), 0, TAU); ctx.stroke(); }
+      ctx.globalAlpha = 0.2 + k * 0.4; ctx.fillStyle = '#ff2a3a'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (0.9 + k * 0.8), 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#ffffff';
+      (s.gaps || []).forEach((g, i) => { // (the first ring's gap brightest)
+        const R = b.r * 2 + i * 26; ctx.globalAlpha = (0.9 - i * 0.25) * (0.5 + blink * 0.5);
+        ctx.save(); ctx.translate(b.x + Math.cos(g) * R, b.y + Math.sin(g) * R); ctx.rotate(g); ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-6, -8); ctx.lineTo(-6, 8); ctx.closePath(); ctx.fill(); ctx.restore();
+      });
+      break;
+    }
     case 'cliffhanger': { // manga panel borders: thin guides, then thick black gutters (with a white edge), and the famous arrow
       const live = s.t >= CLIFF_WARN && s.t < CLIFF_WARN + CLIFF_FIRE;
       const line = (x1, y1, x2, y2) => { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); };
@@ -8954,6 +9204,11 @@ function drawGimmick(b) {
       const f = k[0] / KNIFE_WARN;
       ctx.save(); ctx.strokeStyle = '#ff2a3a'; ctx.globalAlpha = 0.25 + f * 0.6; ctx.lineWidth = 1 + f * 2; if (f < 0.6) ctx.setLineDash([8, 8]);
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(k[1]) * 1600, b.y + Math.sin(k[1]) * 1600); ctx.stroke(); ctx.restore();
+    }
+    if (b.skate?.warn > 0) { // AIR SKATE about to go: a dashed line along where he'll fly (SHADOW's, or ZERO's stolen one)
+      const y = b.skate.y, x2 = b.skate.dir > 0 ? W : 0;
+      ctx.save(); ctx.strokeStyle = EMBER_COLOR; ctx.globalAlpha = 0.35 + (Math.floor(t * 12) % 2) * 0.35; ctx.lineWidth = 3; ctx.setLineDash([12, 10]);
+      ctx.beginPath(); ctx.moveTo(b.x, y); ctx.lineTo(x2, y); ctx.stroke(); ctx.restore();
     }
   }
   const label = (text, color, y = b.y + b.r * 1.7) => {
@@ -9119,6 +9374,33 @@ function drawGimmick(b) {
       ctx.strokeStyle = n > 0.8 ? '#ffffff' : b.color; glow(b.color, 10 + n * 25);
       ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 2.3, -Math.PI / 2, -Math.PI / 2 + n * Math.PI * 2); ctx.stroke();
       if (n > 0.8 && Math.floor(t * 6) % 2) label('SUPERNOVA CHARGING', '#ffffff', b.y + b.r * 2.7);
+      break;
+    }
+    case 'shadow': { // the CHAOS EMERALD (and his dash line once he goes for it), spears hanging in stopped time, and him frozen
+      const em = b.emerald;
+      if (em) {
+        const c = EMERALDS[em.c] || '#5dff7a', s = 13 + Math.sin(t * 6) * 1.5;
+        if (em.t >= EMERALD_WAIT) { ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 2; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -t * 60; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(em.x, em.y); ctx.stroke(); ctx.restore(); }
+        ctx.save(); ctx.translate(em.x, em.y); glow(c, 26);
+        ctx.globalAlpha = 0.25 + Math.sin(t * 5) * 0.1; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, s * 2.4, 0, TAU); ctx.fill(); // (its glow)
+        ctx.globalAlpha = 1; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; // (a cut gem: a flat top, a pointed bottom, and its facets)
+        ctx.beginPath(); ctx.moveTo(-s, -s * 0.35); ctx.lineTo(-s * 0.55, -s * 0.85); ctx.lineTo(s * 0.55, -s * 0.85); ctx.lineTo(s, -s * 0.35); ctx.lineTo(0, s); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.globalAlpha = 0.7; ctx.beginPath(); ctx.moveTo(-s, -s * 0.35); ctx.lineTo(s, -s * 0.35); ctx.moveTo(-s * 0.3, -s * 0.85); ctx.lineTo(-s * 0.45, -s * 0.35); ctx.lineTo(0, s); ctx.lineTo(s * 0.45, -s * 0.35); ctx.lineTo(s * 0.3, -s * 0.85); ctx.stroke();
+        ctx.restore();
+      }
+      if (b.trap) { // spears frozen in stopped time, blinking faster as time is about to resume
+        const k = b.trap.t / CC_FREEZE, on = Math.floor(t * (k > 0.6 ? 18 : 8)) % 2;
+        ctx.save(); glow(SPEAR_COLOR, 12); ctx.fillStyle = SPEAR_COLOR; ctx.globalAlpha = 0.55 + on * 0.4;
+        for (const [x, y, a] of b.trap.pts) { ctx.save(); ctx.translate(x, y); ctx.rotate(a); spearPath(6); ctx.fill(); ctx.restore(); }
+        ctx.restore();
+      }
+      if (b.ccT > 0) { // frozen in time: a pale blue clock face over him, its hand going round until he's free
+        ctx.save(); ctx.globalAlpha = 0.7; ctx.strokeStyle = '#7df9ff'; ctx.lineWidth = 3; glow('#7df9ff', 16);
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.5, 0, TAU); ctx.stroke();
+        for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.beginPath(); ctx.moveTo(b.x + Math.cos(a) * b.r * 1.32, b.y + Math.sin(a) * b.r * 1.32); ctx.lineTo(b.x + Math.cos(a) * b.r * 1.5, b.y + Math.sin(a) * b.r * 1.5); ctx.stroke(); }
+        const a = -Math.PI / 2 + (1 - b.ccT / SHADOW_STUN) * TAU; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + Math.cos(a) * b.r * 1.2, b.y + Math.sin(a) * b.r * 1.2); ctx.stroke();
+        ctx.restore();
+      }
       break;
     }
     case 'dawnny': // THE BEAST's computers: a hacking zone, a monitor, and its progress
@@ -9291,7 +9573,7 @@ function drawWorld() {
   for (const bo of bosses) drawBoss(bo);
   for (const bo of bosses) drawGlitchPost(bo);
   for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); drawGlitchOver(bo); }
-  const shots = [], ink = [], hearts = [], goldRings = [], pages = [], speech = [], blades = [], gxb = [];
+  const shots = [], ink = [], hearts = [], goldRings = [], pages = [], speech = [], blades = [], gxb = [], spears = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
     if (b.fuse !== undefined) { // mine: pulsing ring that blinks faster as it's about to burst
@@ -9308,9 +9590,15 @@ function drawWorld() {
     if (c === BUBBLE_COLOR) { speech.push(b); continue; }
     if (c === KNIFE_COLOR) { blades.push(b); continue; }
     if (GX_BULLETS.has(c)) { gxb.push(b); continue; }
+    if (c === SPEAR_COLOR) { spears.push(b); continue; }
     shots.push({ x: b.x, y: b.y, r: b.r || 5, color: c });
   }
   drawGlowDots(shots);
+  if (spears.length) { // SHADOW's CHAOS SPEARs: bolts of yellow light pointing the way they fly
+    ctx.save(); glow(SPEAR_COLOR, 14); ctx.fillStyle = SPEAR_COLOR;
+    for (const b of spears) { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy, b.vx)); spearPath(b.r || 6); ctx.fill(); ctx.restore(); }
+    ctx.restore();
+  }
   if (gxb.length) drawGlitchBullets(gxb); // (GLITCH 0s and 1s, dead pixels, forks, packets, leaks)
   if (pages.length || speech.length || blades.length) { // DAWNNY's manga pages, speech bubbles and knives
     const t = performance.now() / 1000;
@@ -9438,28 +9726,34 @@ function drawAbFx() {
 // co-op links: a tether that brightens as it charges, then two streams that meet above the pair and one great beam
 function drawLinks() {
   const t = performance.now() / 1000;
-  for (const [ia, ib, c, fire] of linkList()) {
+  for (const [ia, ib, c, fire, crew = 2] of linkList()) {
     const a = players[ia], b = players[ib];
     if (!a?.alive || !b?.alive) continue;
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, col = mixHex(a.color, b.color, 0.5);
+    const contributors = players.filter(p => p.alive && !p.gone && Math.hypot(p.x - mx, p.y - my) < LINK_R * 1.25);
+    const teamSize = Math.max(crew, contributors.length, 2);
+    const teamPower = (1 + Math.min(3, (teamSize - 2) * 0.7)) * (run?.s?.linkPower || 1);
     ctx.save(); ctx.lineCap = 'round';
     if (fire > 0) {
-      const k = Math.min(1, fire / 0.3), fy = my - 30, w = LINK_W * (0.85 + Math.random() * 0.25) * k;
-      glow(col, 40);
-      for (const p of [a, b]) { ctx.strokeStyle = p.color; ctx.lineWidth = 6 * k; ctx.beginPath(); ctx.moveTo(p.x, p.y - 10); ctx.lineTo(mx, fy); ctx.stroke(); }
+      const k = Math.min(1, fire / 0.3), fy = my - 30, w = LINK_W * teamPower * (0.85 + Math.random() * 0.25) * k;
+      glow(col, 40 * teamPower);
+      for (const p of contributors) { ctx.strokeStyle = p.color; ctx.lineWidth = 6 * teamPower * k; ctx.beginPath(); ctx.moveTo(p.x, p.y - 10); ctx.lineTo(mx, fy); ctx.stroke(); }
       const g = ctx.createLinearGradient(mx - w / 2, 0, mx + w / 2, 0);
-      g.addColorStop(0, a.color); g.addColorStop(0.5, '#ffffff'); g.addColorStop(1, b.color);
+      const teamColors = contributors.map(p => p.color);
+      teamColors.forEach((color, i) => g.addColorStop(i / Math.max(1, teamColors.length - 1), color));
       ctx.globalAlpha = 0.9; ctx.fillStyle = g; ctx.fillRect(mx - w / 2, 0, w, fy);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(mx - w / 8, 0, w / 4, fy);
+      ctx.globalAlpha = 0.45; ctx.fillStyle = '#ffffff'; ctx.fillRect(mx - w / 24, 0, w / 12, fy);
       ctx.beginPath(); ctx.arc(mx, fy, w * 0.55, 0, TAU); ctx.fill(); // (the focus where the streams meet)
+      if (teamSize > 2) { ctx.globalAlpha = 1; ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`${teamSize}P LINK!`, mx, fy + 24); }
     } else {
       const full = c >= 0.99;
-      ctx.globalAlpha = 0.2 + c * 0.6; ctx.strokeStyle = full ? '#ffffff' : col; ctx.lineWidth = 1 + c * 3;
-      glow(col, 8 + c * 20); ctx.setLineDash(full ? [] : [6, 6]); ctx.lineDashOffset = -t * 40;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 0.2 + c * 0.6; ctx.strokeStyle = full ? '#ffffff' : col; ctx.lineWidth = (1 + c * 3) * (1 + Math.min(2, (teamSize - 2) * 0.5));
+      glow(col, 8 + c * 20 + (teamSize - 2) * 8); ctx.setLineDash(full ? [] : [6, 6]); ctx.lineDashOffset = -t * 40;
+      for (const p of contributors) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mx, my); ctx.stroke(); }
+      ctx.setLineDash([]);
       ctx.globalAlpha = 0.5 + c * 0.5; ctx.fillStyle = full ? '#ffffff' : col;
       ctx.beginPath(); ctx.arc(mx, my, 3 + c * 7 + (full ? Math.sin(t * 12) * 2 : 0), 0, TAU); ctx.fill();
-      if (c > 0.15) { ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(full ? 'LINK READY' : `LINK ${Math.round(c * 100)}%`, mx, my - 16); }
+      if (c > 0.15 || teamSize > 2) { ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`${full ? 'LINK READY' : `LINK ${Math.round(c * 100)}%`}${teamSize > 2 ? ` · ${teamSize}P` : ''}`, mx, my - 16); }
     }
     ctx.restore();
   }
@@ -9653,7 +9947,8 @@ function settingsButtons(y) {
   return y + Math.ceil(items.length / cols) * (bh + gap);
 }
 
-let pauseView = 'main'; // 'main' or 'settings'
+let pauseView = 'main'; // pause menu view: main, settings, room or offline cheats
+const cheats = { invincible: false };
 function restartRun() {
   if (net.role === 'guest' || !run) return;
   paused = false; pauseView = 'main';
@@ -9675,6 +9970,7 @@ function drawPause() {
     button('BACK  [Esc]', (W - bw) / 2, y + 6, bw, 42, '#9ab', () => { pauseView = 'main'; });
     return;
   }
+  if (pauseView === 'cheats' && !online) { drawCheats(); return; }
   if (pauseView === 'room' && online && !guest) { drawRoomMenu(); return; }
   title(!online ? 'PAUSED' : paused ? (guest ? 'PAUSED BY HOST' : 'PAUSED FOR EVERYONE') : 'MENU', 64, '#7df9ff', 48);
   if (online && !paused) fitText('The game keeps going for everyone — your ship is still out there!', 98, 13, '#ffb13d', 'bold');
@@ -9686,13 +9982,42 @@ function drawPause() {
   if (online && !guest && !paused) items.push(['⏸  PAUSE FOR EVERYONE  [P]', '#ffe93d', () => forcePause(true)]);
   items.push(['SETTINGS', '#9ab', () => { pauseView = 'settings'; }]);
   if (online && !guest) items.push([`PLAYERS & ROOM${net.locked ? '  🔒' : ''}`, '#c08dff', () => { pauseView = 'room'; sel = 0; }]);
-  if (!guest) { items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
+  if (!guest) { if (!online) items.push(['CHEATS  [K]', '#ff5dc8', () => { pauseView = 'cheats'; sel = 0; }]); items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
   if (online) items.push([guest ? 'LEAVE GAME' : 'CLOSE ROOM', '#ff5a70', () => leaveOnline(guest ? 'You left the game' : undefined)]);
   const wide = W >= 760, bw = wide ? 250 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
   const bx = wide ? W / 2 - 290 : (W - bw) / 2, by = 116;
   items.forEach(([label, color, act], i) => button(label, bx, by + gap * i, bw, bh, color, act));
   if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
   else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * items.length + 6, Math.min(420, W - 32));
+}
+function drawCheats() {
+  title('LOCAL CHEATS', 68, '#ff5dc8', 42);
+  fitText('Offline only · cheats may affect run results', 102, 13, '#c9a0ff');
+  const bw = Math.min(360, W - 32), bx = (W - bw) / 2, bh = H < 700 ? 42 : 48, gap = bh + 10;
+  let y = 132;
+  button(`INVINCIBILITY: ${cheats.invincible ? 'ON' : 'OFF'}`, bx, y, bw, bh, cheats.invincible ? '#9dff5d' : '#ff5a70', () => {
+    cheats.invincible = !cheats.invincible; showToast(`INVINCIBILITY ${cheats.invincible ? 'ON' : 'OFF'}`);
+  }); y += gap;
+  button('FULL HEAL + REVIVE TEAM', bx, y, bw, bh, '#5dffc8', () => {
+    for (const p of players) {
+      if (!p.alive && !p.gone) revive(p, living()[0], false);
+      if (p.alive) { p.lives = maxLivesOf(p); p.shield = 1; }
+    }
+    showToast('TEAM RESTORED');
+  }); y += gap;
+  button(`POWER UP${run?.cheatBoost ? `  (${run.cheatBoost}/5)` : ''}`, bx, y, bw, bh, '#ffe93d', () => {
+    if (!run || (run.cheatBoost || 0) >= 5) { showToast(run ? 'POWER BOOST LIMIT REACHED' : 'START A RUN FIRST'); return; }
+    run.cheatBoost = (run.cheatBoost || 0) + 1;
+    run.s.dmg *= 1.5; run.s.fireDelay *= 0.85; run.s.speed *= 1.1; run.s.bossDmg *= 1.25;
+    showToast(`POWER BOOST ${run.cheatBoost}/5`);
+  }); y += gap;
+  button('+1,000 SHARDS', bx, y, bw, bh, '#ffb13d', () => {
+    meta.shards += 1000; saveMeta(); showToast('1,000 SHARDS ADDED');
+  }); y += gap;
+  button('CLEAR ENEMY BULLETS', bx, y, bw, bh, '#7df9ff', () => {
+    eBullets = []; lasers = []; showToast('SCREEN CLEARED');
+  }); y += gap;
+  button('BACK  [Esc]', bx, y + 4, bw, 40, '#9ab', () => { pauseView = 'main'; sel = 0; });
 }
 // online, the host's own menu: who's in the room (and removing them), locking it, and public or private
 function drawRoomMenu() {
@@ -9751,9 +10076,20 @@ function drawBuildPanel(x, y, w) {
 
 function drawSettings() {
   title('SETTINGS', 80, '#7df9ff', 52);
-  const y = settingsButtons(130), bw = Math.min(280, W - 32);
+  const contentTop = H < 700 ? 124 : 130, bw = Math.min(280, W - 32);
+  const toggleEnd = contentTop + Math.ceil((SETTING_LIST.length + 1) / (W >= 640 ? 2 : 1)) * ((W >= 640 ? 42 : 38) + 8);
+  const contentBottom = toggleEnd + 112;
+  menuScrollMax = Math.max(0, contentBottom - (H - 12));
+  menuScroll.settings = clampMenuScroll('settings');
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 112, W, H - 112); ctx.clip(); ctx.translate(0, -menuScroll.settings);
+  const y = settingsButtons(contentTop);
   button('MUSIC ROOM  ♪  [J]', (W - bw) / 2, y + 10, bw, 42, '#c08dff', () => go('jukebox'));
   button('BACK  [Esc]', (W - bw) / 2, y + 60, bw, 42, '#9ab', () => go('menu'));
+  ctx.restore();
+  if (menuScrollMax > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 116, 3, H - 132);
+    ctx.fillStyle = '#7df9ff'; ctx.fillRect(W - 8, 116 + (H - 132 - 42) * menuScroll.settings / menuScrollMax, 3, 42);
+  }
 }
 // the Music Room: listen to any song in the game (and its battle version)
 function drawJukebox() {
@@ -9940,6 +10276,11 @@ function drawAchievements() {
   const cols = W < 560 ? 6 : 10, gap = 8;
   const ts = Math.min(60, (W - 32 - (cols - 1) * gap) / cols);
   const gx = (W - (cols * ts + (cols - 1) * gap)) / 2, gy = 108;
+  const rows = Math.ceil(ACHIEVEMENTS.length / cols), py = gy + rows * (ts + gap) + 4, ph = 112;
+  const contentBottom = py + ph + 56;
+  menuScrollMax = Math.max(0, contentBottom - (H - 12));
+  menuScroll.achievements = clampMenuScroll('achievements');
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 100, W, H - 100); ctx.clip(); ctx.translate(0, -menuScroll.achievements);
   ACHIEVEMENTS.forEach((a, i) => {
     const x = gx + (i % cols) * (ts + gap), y = gy + Math.floor(i / cols) * (ts + gap), got = !!meta.ach[a.id], c = ACH_CATS[a.cat];
     buttons.push({ x, y, w: ts, h: ts, action: () => {} });
@@ -9958,9 +10299,8 @@ function drawAchievements() {
       ctx.fillStyle = c; ctx.fillRect(x + 6, y + ts - 8, (ts - 12) * f, 3);
     }
   });
-  const rows = Math.ceil(ACHIEVEMENTS.length / cols), py = gy + rows * (ts + gap) + 4;
   const a = ACHIEVEMENTS[Math.min(sel, ACHIEVEMENTS.length - 1)], got = !!meta.ach[a.id], c = ACH_CATS[a.cat];
-  const pw = Math.min(520, W - 32), px = (W - pw) / 2, ph = 112;
+  const pw = Math.min(520, W - 32), px = (W - pw) / 2;
   panel(px, py, pw, ph, got ? c : '#556', false);
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = c; ctx.font = 'bold 11px system-ui'; ctx.fillText(a.cat.toUpperCase() + (got ? '  ·  UNLOCKED' : '  ·  LOCKED'), px + 16, py + 12);
@@ -9977,6 +10317,11 @@ function drawAchievements() {
   }
   const bw = Math.min(240, W - 32);
   button('BACK  [Esc]', (W - bw) / 2, py + ph + 14, bw, 42, '#9ab', () => go('menu'));
+  ctx.restore();
+  if (menuScrollMax > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 104, 3, H - 120);
+    ctx.fillStyle = '#ffb13d'; ctx.fillRect(W - 8, 104 + (H - 120 - 42) * menuScroll.achievements / menuScrollMax, 3, 42);
+  }
 }
 
 // "ACHIEVEMENT UNLOCKED" banner that slides down from the top
@@ -10002,34 +10347,35 @@ const CONTROL_NAMES = { wasd: 'WASD', arrows: 'Arrow keys', mouse: 'Mouse', ijkl
 
 function drawShips() {
   const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? net.mine[sp.k || 0] ?? 0 : pl];
+  const mobile = W < 600;
   const mySkin = sp.online || pl === 0 ? meta.cos.eq.skin : null; // (your skin shows on P1's picks)
   if (sel < SHIPS.length) sp.view = sel;
   const base = SHIPS[sp.view ?? 0], tier = pickTier(base), two = tier > 0, owned2 = tierOwned(base, tier);
   const view = shipById(tierId(base, tier)); // the version being looked at
   const TIER_NAME = MK_NAME, TIER_COST = [0, 1, 2, 3, 4].map(t => mkCost(base, t)), TIER_COLOR = [pc, 1, 2, 3, 4].map((c, t) => t ? tierColor(t) : c);
 
-  title(sp.mode > 1 ? `P${pl + 1} — CHOOSE YOUR SHIP` : 'CHOOSE YOUR SHIP', 52, sp.mode > 1 ? pc : '#7df9ff', 40);
+  title(sp.mode > 1 ? `P${pl + 1} — CHOOSE YOUR SHIP` : 'CHOOSE YOUR SHIP', mobile ? 40 : 52, sp.mode > 1 ? pc : '#7df9ff', mobile ? 32 : 40);
   const ctrl = sp.online ? 'Mouse / WASD / Arrow keys' : CONTROLS[sp.mode][pl].map(k => CONTROL_NAMES[k]).join(' / ');
-  fitText(`${sp.online ? 'ONLINE  ·  ' : runType !== 'standard' ? `${RUN_LABEL[runType]} RUN  ·  ` : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, 88, 13, RUN_COLOR[runType]);
+  fitText(`${sp.online ? 'ONLINE  ·  ' : runType !== 'standard' ? `${RUN_LABEL[runType]} RUN  ·  ` : ''}${sp.mode > 1 ? `P${pl + 1} controls: ` : 'Controls: '}${ctrl}  ·  ◆ ${meta.shards} shards`, mobile ? 72 : 88, mobile ? 11 : 13, RUN_COLOR[runType]);
 
-  // ship icons: 6 across on wide screens, 3x2 on narrow ones
-  const cols = W < 560 ? 3 : 6, gap = 10;
-  const iw = Math.min(100, (W - 32 - (cols - 1) * gap) / cols), ih = iw * 0.95;
-  const gx = (W - (cols * iw + (cols - 1) * gap)) / 2, gy = 110;
+  // Five columns on wider phones keep the full roster and selection controls together.
+  const cols = mobile ? (W >= 440 ? 5 : 4) : 6, gap = mobile ? 6 : 10;
+  const iw = Math.min(mobile ? 130 : 100, (W - (mobile ? 24 : 32) - (cols - 1) * gap) / cols), ih = mobile ? Math.max(56, iw * 0.7) : iw * 0.95;
+  const gx = (W - (cols * iw + (cols - 1) * gap)) / 2, gy = mobile ? 76 : 110;
   SHIPS.forEach((s, i) => {
     // center a partly-filled last row
     const row = Math.floor(i / cols), inRow = Math.min(cols, SHIPS.length - row * cols), rowX = gx + (cols - inRow) * (iw + gap) / 2;
     const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), has2 = mk2Owned(s), top = topTier(s), st = tierOwned(s, pickTier(s)) ? pickTier(s) : 0, showing2 = st > 0;
     buttons.push({ x, y, w: iw, h: ih, action: () => pickShip(i) });
     panel(x, y, iw, ih, showing2 ? tierColor(st) : pc, sel === i);
-    ctx.save(); ctx.translate(x + iw / 2, y + ih * 0.42); ctx.scale(iw / 70, iw / 70);
+    ctx.save(); ctx.translate(x + iw / 2, y + ih * (mobile ? 0.28 : 0.42)); ctx.scale(iw / (mobile ? 82 : 70), iw / (mobile ? 82 : 70));
     drawHull(s.shape, pc, 0, st >= 2 ? st + 1 : showing2, mySkin);
     ctx.restore();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = `bold ${Math.max(8, Math.min(11, iw / 9))}px system-ui`; ctx.fillStyle = '#dfe8ff';
+    ctx.font = `bold ${Math.max(mobile ? 8 : 8, Math.min(mobile ? 12 : 11, iw / (mobile ? 8 : 9)))}px system-ui`; ctx.fillStyle = '#dfe8ff';
     ctx.fillText(s.name, x + iw / 2, y + ih - 11);
     const mlv = masteryLv(s.id); // (its mastery stars)
-    ctx.font = `${Math.max(7, Math.min(9, iw / 11))}px system-ui`; ctx.fillStyle = mlv >= MASTERY_MAX ? '#ffd23d' : '#a89a6a';
+    ctx.font = `${Math.max(mobile ? 7 : 7, Math.min(mobile ? 10 : 9, iw / (mobile ? 10 : 11)))}px system-ui`; ctx.fillStyle = mlv >= MASTERY_MAX ? '#ffd23d' : '#a89a6a';
     ctx.fillText('★'.repeat(mlv) + '☆'.repeat(MASTERY_MAX - mlv), x + iw / 2, y + ih - 24);
     if (has2) { ctx.font = 'bold 10px system-ui'; ctx.fillStyle = tierColor(top); ctx.textAlign = 'right'; ctx.fillText(MK_NAME[top], x + iw - 6, y + 10); ctx.textAlign = 'center'; }
     // which earlier players already took this ship
@@ -10039,7 +10385,29 @@ function drawShips() {
 
   // details for the highlighted ship (in the version currently chosen)
   const rows = Math.ceil(SHIPS.length / cols), py = gy + rows * (ih + gap) + 6;
-  const pw = Math.min(560, W - 32), px = (W - pw) / 2, ph = 196, locked = !owned2, accent = TIER_COLOR[tier];
+  const pw = Math.min(560, W - (mobile ? 24 : 32)), px = (W - pw) / 2, ph = mobile ? 136 : 196, locked = !owned2, accent = TIER_COLOR[tier];
+  if (mobile) {
+    panel(px, py, pw, ph, accent, false);
+    const art = Math.min(68, pw * 0.22);
+    ctx.save(); ctx.translate(px + art / 2 + 6, py + ph / 2); ctx.scale(art / 45, art / 45);
+    if (locked) ctx.globalAlpha = 0.55;
+    drawHull(view.shape, pc, 0.5, hullTier(view), mySkin);
+    ctx.restore();
+    const tx = px + art + 16, tw = pw - art - 26;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#fff'; ctx.font = '900 16px system-ui'; ctx.fillText(view.name, tx, py + 8);
+    ctx.fillStyle = accent; ctx.font = 'bold 9px system-ui';
+    ctx.fillText(view.tag.toUpperCase() + (two ? (owned2 ? ' · OWNED' : ` · ◆ ${TIER_COST[tier]}`) : ' · FREE'), tx, py + 28);
+    ctx.fillStyle = '#9ab'; ctx.font = 'bold 9px system-ui';
+    ctx.fillText(`SPD ${view.stats.speed}  ·  PWR ${view.stats.power}  ·  ARM ${view.stats.armor}`, tx, py + 42);
+    ctx.fillStyle = '#cde'; ctx.font = '9px system-ui';
+    const traitLines = wrap(view.trait, tw).slice(0, 2);
+    traitLines.forEach((line, j) => ctx.fillText(line, tx, py + 53 + j * 11));
+    const ab = ABILITIES[base.id], ay = py + 76 + traitLines.length * 11;
+    ctx.fillStyle = accent; ctx.font = 'bold 9px system-ui'; ctx.fillText(`ABILITY: ${ab.name} · ${ab.cd[two ? 1 : 0]}s`, tx, ay);
+    ctx.fillStyle = '#9ab'; ctx.font = '8px system-ui';
+    wrap(ab.desc, tw).slice(0, 2).forEach((line, j) => ctx.fillText(line, tx, ay + 12 + j * 10));
+  } else {
   panel(px, py, pw, ph, accent, false);
   const art = Math.min(110, pw * 0.3);
   ctx.save(); ctx.translate(px + art / 2 + 10, py + ph / 2); ctx.scale(art / 45, art / 45);
@@ -10072,19 +10440,20 @@ function drawShips() {
   ctx.fillStyle = accent; ctx.font = 'bold 12px system-ui'; ctx.fillText(`ABILITY: ${ab.name}  ·  every ${Math.round(ab.cd[two ? 1 : 0] * (tier >= 2 ? MK_UP[tier + 1].cd : 1) * 10) / 10}s`, tx, ay);
   ctx.fillStyle = '#9ab'; ctx.font = '11px system-ui';
   wrap(ab.desc, tw).slice(0, 2).forEach((l, j) => ctx.fillText(l, tx, ay + 16 + j * 13));
+  }
 
   // MK I to MK V switch (V cycles through them; 🔒 = not bought yet)
-  const bw = Math.min(440, W - 32), bx = (W - bw) / 2, hw = (bw - 24) / 5, ty = py + ph + 10;
-  [0, 1, 2, 3, 4].forEach(k => button(`${tier === k ? '● ' : ''}${TIER_NAME[k]}${tierOwned(base, k) ? '' : ' 🔒'}`, bx + k * (hw + 6), ty, hw, 34,
+  const bw = Math.min(440, W - (mobile ? 24 : 32)), bx = (W - bw) / 2, hw = (bw - 24) / 5, ty = py + ph + (mobile ? 7 : 10), buttonH = mobile ? 28 : 34;
+  [0, 1, 2, 3, 4].forEach(k => button(`${tier === k ? '● ' : ''}${TIER_NAME[k]}${tierOwned(base, k) ? '' : ' 🔒'}`, bx + k * (hw + 6), ty, hw, buttonH,
     tier === k ? TIER_COLOR[k] : '#667', () => toggleVariant(base, k)));
 
   // confirm / buy, and back
-  const by = ty + 44;
+  const by = ty + buttonH + (mobile ? 8 : 10);
   const needs2 = tier >= 2 && !tierOwned(base, tier - 1), cost = TIER_COST[tier], afford = !needs2 && meta.shards >= cost;
   const label = locked ? (needs2 ? `BUY THE ${TIER_NAME[tier - 1]} FIRST` : afford ? `BUY ${TIER_NAME[tier]}  ◆ ${cost}` : `${TIER_NAME[tier]} — NEED ◆ ${cost}`)
     : sp.online ? `FLY THE ${view.name}` : pl < sp.mode - 1 ? `PICK ${view.name}  ›  P${pl + 2}` : `LAUNCH AS ${view.name}`;
-  button(label, bx, by, bw, 44, locked ? (afford ? TIER_COLOR[tier] : '#667') : accent, () => pickShip(sp.view ?? 0));
-  button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + 52, bw, 38, '#9ab', shipSelectBack);
+  button(label, bx, by, bw, mobile ? 38 : 44, locked ? (afford ? TIER_COLOR[tier] : '#667') : accent, () => pickShip(sp.view ?? 0));
+  button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + (mobile ? 44 : 52), bw, mobile ? 32 : 38, '#9ab', shipSelectBack);
 }
 
 function drawUpgrade() {
@@ -10432,6 +10801,10 @@ function drawHangar() {
   const cols = W >= 760 ? 2 : 1, perCol = Math.ceil(META_ITEMS.length / cols), gap = cols > 1 ? 8 : 6, colGap = 12;
   const rw = Math.min(cols > 1 ? 420 : 560, (W - 32 - colGap * (cols - 1)) / cols), x0 = (W - (rw * cols + colGap * (cols - 1))) / 2;
   const rh = Math.max(36, Math.min(58, (H - 130 - 122) / perCol - gap)), small = rh < 44;
+  const by = 130 + perCol * (rh + gap) + 8, contentBottom = by + 92;
+  menuScrollMax = Math.max(0, contentBottom - (H - 12));
+  menuScroll.hangar = clampMenuScroll('hangar');
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 120, W, H - 120); ctx.clip(); ctx.translate(0, -menuScroll.hangar);
   META_ITEMS.forEach((it, i) => {
     const col = Math.floor(i / perCol), rx = x0 + col * (rw + colGap), y = 130 + (i % perCol) * (rh + gap);
     const lv = metaLv(it.id), cost = it.costs[lv], maxed = cost === undefined;
@@ -10448,11 +10821,15 @@ function drawHangar() {
     ctx.font = `${small ? 11 : 12}px system-ui`;
     ctx.fillText('●'.repeat(lv) + '○'.repeat(it.costs.length - lv), rx + rw - 12, y + rh / 2 + (small ? 8 : 10));
   });
-  const by = 130 + perCol * (rh + gap) + 8, bw = Math.min(240, W - 32);
   const hw = Math.min(200, (W - 40) / 2);
   button(W < 420 ? 'SKINS  [C]' : 'SKINS & COSMETICS  [C]', W / 2 - hw - 4, by, hw, 44, '#ff5dc8', () => go('cosmetics'));
   button(W < 420 ? 'BOSSES  [G]' : 'BOSS GALLERY  [G]', W / 2 - hw - 4, by + 52, hw * 2 + 8, 40, '#ff8d5d', () => go('gallery'));
   button('BACK  [Esc]', W / 2 + 4, by, hw, 44, '#7df9ff', () => go('menu'));
+  ctx.restore();
+  if (menuScrollMax > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 124, 3, H - 140);
+    ctx.fillStyle = '#ffe93d'; ctx.fillRect(W - 8, 124 + (H - 140 - 42) * menuScroll.hangar / menuScrollMax, 3, 42);
+  }
 }
 
 function drawOver() {
@@ -10533,7 +10910,7 @@ const ZONES = [
   { id: 'nebula', name: 'CRIMSON NEBULA', sub: 'Thick red gas, and things hiding in it', color: '#ff4d8d', tints: ['#6e1a3e', '#5e0d2a'],
     hazard: 'ION STORM', hazardDesc: 'Lightning lands on pink circles (it fries enemies too)',
     hint: 'CRIMSON NEBULA: the gas is charged. Get out of the pink circles before the lightning lands!',
-    bosses: ['THE LEECH', 'PHANTOM', 'NULL SERAPH', 'STORMCALLER', 'DAWNNY'], bias: { shade: 2.6, mimic: 2, warper: 2, healer: 1.8, vortex: 1.8, seeker: 1.6, slimer: 1.6 } },
+    bosses: ['THE LEECH', 'PHANTOM', 'NULL SERAPH', 'STORMCALLER', 'DAWNNY', 'SHADOW'], bias: { shade: 2.6, mimic: 2, warper: 2, healer: 1.8, vortex: 1.8, seeker: 1.6, slimer: 1.6 } },
   { id: 'rings', name: 'FROZEN RINGS', sub: 'The ice rings of a long-dead giant', color: '#9de4ff', tints: ['#0d4a6e', '#1a3a8e'],
     hazard: 'ICE FIELD', hazardDesc: 'Ice drifts by: it blocks enemy shots, and breaks into coins',
     hint: 'FROZEN RINGS: hide behind the drifting ice (it blocks enemy shots), or shoot it apart for coins!',
@@ -10541,7 +10918,7 @@ const ZONES = [
   { id: 'corona', name: 'SOLAR CORONA', sub: 'Skimming the fire of a dying star', color: '#ff8d2d', tints: ['#6e2a0d', '#5e1a0d'],
     hazard: 'SOLAR FLARES', hazardDesc: 'Pillars of fire burst down from the sun (they burn enemies too)',
     hint: 'SOLAR CORONA: when a column glows, a solar flare is about to blast down it. Move out of the way!',
-    bosses: ['HEXCORE', 'STORMCALLER', 'VOID LANCER', 'THE WYRM', 'SONNET'], bias: { firework: 2.2, kamikaze: 2, bomber: 2, launcher: 2, dasher: 1.6 } },
+    bosses: ['HEXCORE', 'STORMCALLER', 'VOID LANCER', 'THE WYRM', 'SONNET', 'SHADOW'], bias: { firework: 2.2, kamikaze: 2, bomber: 2, launcher: 2, dasher: 1.6 } },
   { id: 'derelict', name: 'DERELICT FLEET', sub: 'A graveyard of warships from a forgotten war', color: '#9db4c8', tints: ['#2a3a4e', '#3a2a2e'],
     hazard: 'OLD TURRETS', hazardDesc: 'Broken turrets drift by and shoot at anything, enemies too',
     hint: 'DERELICT FLEET: the old turrets still fire at whatever is closest, you or the enemies. Shoot them down, or let them help!',
@@ -10549,7 +10926,7 @@ const ZONES = [
   { id: 'prism', name: 'PRISM REACH', sub: 'Living crystal that bends the light', color: '#d08dff', tints: ['#3a1a6e', '#0d4a5e'],
     hazard: 'PRISMS', hazardDesc: 'Any shot through a prism splits in three, yours AND theirs',
     hint: 'PRISM REACH: shoot through a prism to split your shots in three. Careful: enemy shots split too!',
-    bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS', 'DAWNNY'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
+    bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS', 'DAWNNY', 'SHADOW'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
   // the secret zone: it only shows up on the route map once you've beaten ZERO, and ZERO lives there (see glitchZeroDue)
   { id: 'glitch', name: 'GLITCH SECTOR', sub: 'Where the code of space comes apart', color: '#ff3df2', tints: ['#2a0a3a', '#0a2a3a'], secret: true,
     hazard: 'GLITCHES', hazardDesc: 'The screen tears, enemies teleport, and your controls flip for a moment',
@@ -12414,7 +12791,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.14';
+const BUILD = '2026.10.03.15';
 const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
@@ -12688,7 +13065,7 @@ function packSnap() {
     ck: r1(run.clock || 0), // (the run's real time, for the run timer and medals)
     st: state, pa: paused ? 1 : 0, lv: level, lt: r2(levelT), sc: score, co: combo, bw: r2(bossWarn), bc: bossCount, t: r2(time),
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
-    rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd },
+    rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd, linkPower: s.linkPower },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
@@ -12728,7 +13105,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired', 'emerald', 'ccT', 'trap', 'skate']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -13087,7 +13464,7 @@ function applySnap(s) {
   }
   run.pinkCoins = Math.round(num(s.pc, 0, PINK_NEED, 0));
   run.linkView = Array.isArray(s.lk) ? s.lk.slice(0, 28).filter(l => Array.isArray(l) && okIdx(l[0], MAX_ONLINE) && okIdx(l[1], MAX_ONLINE))
-    .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0)]) : [];
+    .map(l => [l[0], l[1], num(l[2], 0, 1, 0), num(l[3], 0, LINK_FIRE, 0), num(l[4], 2, MAX_ONLINE, 2)]) : [];
   if (bosses.some(b => b.final && b.dying > 0)) clearAbyssMark(); // (THE ABYSS is falling: its mark on my menu lifts)
   run.warp = s.wp ? { t: s.wp[0], to: s.wp[1] } : null;
   if (okZone(s.zn) && s.zn !== run.zone) { run.zone = s.zn; showZoneCard(s.zn, run.route.length); noteZone(s.zn); } // arrived in a new zone
@@ -13106,7 +13483,7 @@ function applySnap(s) {
   }
 }
 const GUEST_SHARD_CAP = 20000; // far more than any real run pays
-const SNAP_STATS = ['maxLives', 'drones', 'shots', 'blades', 'bulletSize', 'speed', 'abCd'];
+const SNAP_STATS = ['maxLives', 'drones', 'shots', 'blades', 'bulletSize', 'speed', 'abCd', 'linkPower'];
 const okZone = id => typeof id === 'string' && ZONES.some(z => z.id === id); // (a zone that really exists)
 const OSC_TYPES = ['sine', 'square', 'sawtooth', 'triangle'];
 // effects the host asks for: sizes, counts and volumes are kept to what the game itself ever uses
@@ -13302,8 +13679,8 @@ function drawOnline() {
   button('BACK  [Esc]', bx, oy + 204, bw, 38, '#9ab', () => go('menu'));
   ctx.font = '12px system-ui';
   const lw = Math.min(480, W - 40);
-  const lines = [...wrap(`Everyone needs this same version of the game (online version ${ONLINE_VERSION}). The host runs the game; friends join with a 4-digit room code.`, lw),
-    ...wrap('🔒 There is no game server: your computer connects straight to the other players\', so the people you play with can see your IP address (as in any peer-to-peer game). Nothing else on your computer is shared: just your ships, cosmetics and what happens in the game. Playing with friends? Host a private game, and LOCK it once everyone is in.', lw)];
+  const lines = [...wrap(`Use the same game version. Host a room; friends join with its 4-digit code.`, lw),
+    ...wrap('🔒 Peer-to-peer play shows your IP to other players. Only ships, cosmetics, and game activity are shared. Use a private room and lock it.', lw)];
   lines.forEach((l, i) => fitText(l, oy + 258 + i * 16, 12, i < 2 ? '#789' : '#8fb39a'));
   // can this browser make direct connections at all? (a VPN or strict Wi-Fi often blocks them; see checkNetwork)
   if (!netCheck) checkNetwork();
@@ -13409,51 +13786,59 @@ function togglePublic() {
 }
 function drawLobby() {
   const host = net.role === 'host', me = net.mine[0] ?? 0;
+  const mobile = W < 600;
   const ctrlOf = i => (CONTROLS[net.localN]?.[net.mine.indexOf(i)] || []).map(c => CONTROL_NAMES[c]).join(' / '); // (players sharing this computer)
-  title('ONLINE LOBBY', 56, '#9dff5d', 44);
-  fitText(net.status + (net.peer ? (relayOn ? '  ·  relay ON' : '  ·  direct only') : ''), 96, 14, '#9ab');
+  title('ONLINE LOBBY', mobile ? 42 : 56, '#9dff5d', mobile ? 34 : 44);
+  fitText(net.status + (net.peer ? (relayOn ? '  ·  relay ON' : '  ·  direct only') : ''), mobile ? 76 : 96, mobile ? 12 : 14, '#9ab');
   if (host && net.code) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitText(net.locked ? '🔒 ROOM CODE (locked: nobody new can join)' : 'ROOM CODE', 128, 13, net.locked ? '#ffb13d' : '#9dff5d', 'bold');
-    glow('#9dff5d', 20); fitText(net.code.split('').join(' '), 166, 44, '#ffffff', '900'); ctx.shadowBlur = 0;
+    fitText(net.locked ? '🔒 ROOM CODE (locked: nobody new can join)' : 'ROOM CODE', mobile ? 112 : 128, mobile ? 12 : 13, net.locked ? '#ffb13d' : '#9dff5d', 'bold');
+    glow('#9dff5d', 20); fitText(net.code.split('').join(' '), mobile ? 148 : 166, mobile ? 38 : 44, '#ffffff', '900'); ctx.shadowBlur = 0;
   }
-  // 16 slots: four columns of 4 on wide screens, two shorter columns of 8 otherwise
-  const cols = W >= 1000 ? 4 : 2, per = MAX_ONLINE / cols, gap = 10, top = host ? 204 : 128;
-  const full = Math.min(cols === 4 ? 1100 : 760, W - 32), cw = (full - gap * (cols - 1)) / cols, x0 = (W - full) / 2;
-  const rh = cols === 4 ? 48 : Math.max(30, Math.min(48, (H - top - 230) / per - 6)), sc = rh / 48;
+  // Keep phone lobbies compact: a row-major grid makes all slots and actions easier to reach.
+  const cols = mobile ? (W >= 440 ? 4 : 3) : W >= 1000 ? 4 : 2;
+  const per = mobile ? Math.ceil(MAX_ONLINE / cols) : MAX_ONLINE / cols, gap = mobile ? 6 : 10, top = host ? (mobile ? 184 : 204) : (mobile ? 108 : 128);
+  const full = Math.min(cols === 4 ? 1100 : 760, W - (mobile ? 24 : 32)), cw = (full - gap * (cols - 1)) / cols, x0 = (W - full) / 2;
+  const rh = mobile ? Math.max(27, Math.min(44, (H - top - (host ? 250 : 150)) / per - 6))
+    : cols === 4 ? 48 : Math.max(30, Math.min(48, (H - top - 230) / per - 6)), sc = rh / 48;
   for (let i = 0; i < MAX_ONLINE; i++) {
     const s = net.slots[i], c = P_COLORS[i];
-    const rx = x0 + Math.floor(i / per) * (cw + gap), y = top + (i % per) * (rh + 6);
+    const rx = x0 + (mobile ? i % cols : Math.floor(i / per)) * (cw + gap), y = top + (mobile ? Math.floor(i / cols) : i % per) * (rh + 6);
     const kick = host && s && !isMine(i) && !!connOfSlot(i); // (the host can remove a guest's computer)
     panel(rx, y, cw, rh, s ? c : '#334', isMine(i));
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = s ? c : '#556'; ctx.font = `bold ${Math.round(14 * Math.max(0.8, sc))}px system-ui`;
-    ctx.fillText(`P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`, rx + 50 * sc + 4, y + rh * 0.33, cw - 56 - (kick ? 44 : 0));
-    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = `${Math.round(12 * Math.max(0.8, sc))}px system-ui`;
-    ctx.fillText(s ? shipById(s.ship).name + (isMine(i) ? '  · click to change' : '') : 'open slot…', rx + 50 * sc + 4, y + rh * 0.7, cw - 56 - (kick ? 44 : 0));
-    if (s) { ctx.save(); ctx.translate(rx + 25 * sc, y + rh / 2); ctx.scale(0.65 * sc, 0.65 * sc); drawHull(shipById(s.ship).shape, c, 0, hullTier(shipById(s.ship)), s.cos?.skin); ctx.restore(); }
+    const iconW = mobile ? 24 : 50 * sc, textX = rx + iconW + (mobile ? 3 : 4), textW = cw - iconW - (mobile ? 8 : 12) - (kick ? 44 : 0);
+    const playerLabel = mobile ? `P${i + 1}${isMine(i) ? ' · YOU' : ''}`
+      : `P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`;
+    ctx.fillStyle = s ? c : '#556'; ctx.font = `bold ${Math.round((mobile ? 11 : 14) * Math.max(0.8, sc))}px system-ui`;
+    ctx.fillText(playerLabel, textX, y + rh * 0.33, textW);
+    ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = `${Math.round((mobile ? 9 : 12) * Math.max(0.8, sc))}px system-ui`;
+    ctx.fillText(s ? shipById(s.ship).name + (isMine(i) && !mobile ? '  · click to change' : '') : (mobile ? 'open' : 'open slot…'), textX, y + rh * 0.7, textW);
+    if (s) { ctx.save(); ctx.translate(rx + iconW / 2, y + rh / 2); ctx.scale((mobile ? 0.44 : 0.65) * sc, (mobile ? 0.44 : 0.65) * sc); drawHull(shipById(s.ship).shape, c, 0, hullTier(shipById(s.ship)), s.cos?.skin); ctx.restore(); }
     if (isMine(i) && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true, net.mine.indexOf(i)) }); // click your own slot to pick a ship
     if (kick) button(kickArmed(i) ? 'KICK?' : '✕', rx + cw - 46, y + (rh - Math.min(26, rh - 6)) / 2, 40, Math.min(26, rh - 6), '#ff5a70', () => armKick(i));
   }
-  const by = top + per * (rh + 6) + 10, bw = Math.min(300, W - 32), bx = (W - bw) / 2;
+  const by = top + per * (rh + 6) + (mobile ? 6 : 10), bw = Math.min(300, W - (mobile ? 24 : 32)), bx = (W - bw) / 2;
   const lobbyCurses = host ? cleanCurses(meta.curseSel) : net.hostCurses || [];
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; // (the slots left it on the left)
   const where = net.locked ? 'LOCKED' : !net.public ? 'PRIVATE (code only)'
     : `PUBLIC as "${net.roomName}"${pub.status === 'listed' ? '' : pub.status === 'full' ? ' (the public list is full right now — share the code)' : ' (getting listed…)'}`;
-  fitText(`Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  🌀 ${lobbyCurses.length} TURBULENCE (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  turbulence [X]' : ''}${host ? `   ·   ${where}` : ''}`, by + 4, 13, RUN_COLOR[runType], 'bold');
-  if (!host && net.joinFail) button('TRY AGAIN  [Enter]', bx, by + 20, bw, 40, '#7df9ff', () => joinGame(net.joinFail)); // (joining didn't work)
-  else button(net.mine.length > 1 ? 'CHANGE SHIP  [C]  ·  or your own ←/→ keys' : 'CHANGE MY SHIP  [C]', bx, by + 20, bw, 40, P_COLORS[me], () => openShipSelect(1, true));
+  const runInfo = mobile ? `RUN: ${RUN_LABEL[runType]} · ${host ? (net.locked ? 'LOCKED' : net.public ? 'PUBLIC' : 'PRIVATE') : 'ONLINE'}${lobbyCurses.length ? ` · ${lobbyCurses.length} TURBULENCE` : ''}`
+    : `Run: ${RUN_LABEL[runType]}${host ? ' [E]' : ''}${lobbyCurses.length ? `  ·  🌀 ${lobbyCurses.length} TURBULENCE (+${Math.round(curseBonus(lobbyCurses) * 100)}%)` : ''}${host ? '  ·  turbulence [X]' : ''}${host ? `   ·   ${where}` : ''}`;
+  fitText(runInfo, by + 4, mobile ? 10 : 13, RUN_COLOR[runType], 'bold');
+  if (!host && net.joinFail) button('TRY AGAIN  [Enter]', bx, by + 20, bw, mobile ? 36 : 40, '#7df9ff', () => joinGame(net.joinFail)); // (joining didn't work)
+  else button(net.mine.length > 1 ? 'CHANGE SHIP  [C]' : 'CHANGE MY SHIP  [C]', bx, by + 20, bw, mobile ? 36 : 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
     const ready = net.conns.length > 0; // (needs at least one friend from another computer)
-    button(ready ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + 68, bw, 44, ready ? '#9dff5d' : '#667', startOnline);
+    button(ready ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + (mobile ? 62 : 68), bw, mobile ? 38 : 44, ready ? '#9dff5d' : '#667', startOnline);
   }
-  button('LEAVE  [Esc]', bx, by + (host ? 120 : 68), bw, 40, '#ff5a70', () => leaveOnline());
+  button('LEAVE  [Esc]', bx, by + (host ? (mobile ? 108 : 120) : (mobile ? 62 : 68)), bw, mobile ? 36 : 40, '#ff5a70', () => leaveOnline());
   if (host) { // who can get in: public or private, and locked or open
     const hw = (bw - 8) / 2;
-    button(net.public ? 'PUBLIC  [P]' : 'PRIVATE  [P]', bx, by + 168, hw, 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
-    button(net.locked ? '🔒 LOCKED  [K]' : 'LOCK ROOM  [K]', bx + hw + 8, by + 168, hw, 36, net.locked ? '#ffb13d' : '#9ab', toggleLock);
-    fitText(net.locked ? 'Locked: nobody new can join (not even with the code)' : net.public ? 'Public: anyone can join from the list, even mid-game' : 'Private: only people with the code can join', by + 218, 12, '#789');
+    button(net.public ? 'PUBLIC  [P]' : 'PRIVATE  [P]', bx, by + (mobile ? 152 : 168), hw, mobile ? 32 : 36, net.public ? '#ffe93d' : '#9ab', togglePublic);
+    button(net.locked ? '🔒 LOCKED  [K]' : 'LOCK ROOM  [K]', bx + hw + 8, by + (mobile ? 152 : 168), hw, mobile ? 32 : 36, net.locked ? '#ffb13d' : '#9ab', toggleLock);
+    if (!mobile) fitText(net.locked ? 'Locked: nobody new can join (not even with the code)' : net.public ? 'Public: anyone can join from the list, even mid-game' : 'Private: only people with the code can join', by + 218, 12, '#789');
   }
 }
 
