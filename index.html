@@ -1374,9 +1374,9 @@ let state = 'menu', paused = false;
 // everyone (paused, which reaches the guests through the snapshots)
 let menuOpen = false;
 let buttons = [], sel = 0;
-const menuScroll = { hangar: 0, achievements: 0, settings: 0 };
+const menuScroll = { hangar: 0, achievements: 0, settings: 0, jukebox: 0 };
 let menuScrollMax = 0, touchMenuScroll = null;
-const scrollMenuState = s => ['hangar', 'achievements', 'settings'].includes(s) ? s : null;
+const scrollMenuState = s => ['hangar', 'achievements', 'settings', 'jukebox'].includes(s) ? s : null;
 function clampMenuScroll(s, amount = menuScroll[s] || 0) { return Math.max(0, Math.min(menuScrollMax, amount)); }
 function go(s) { state = s; sel = 0; buttons = []; menuOpen = false; }
 function toggleMenu() { menuOpen = !menuOpen; pauseView = 'main'; sel = 0; }
@@ -10098,6 +10098,11 @@ function drawJukebox() {
   fitText(now ? `♪  Now playing: ${now.name}${music.rage ? '  (RAGE remake)' : musicBattle() ? '  (battle version)' : ''}` : 'Pick a song to play it', 82, 14, '#e0d0ff', 'bold');
   const cols = W >= 900 ? 3 : 2, gap = 6, bw = Math.min(290, (W - 32 - gap * (cols - 1)) / cols), bh = H < 760 ? 30 : 36;
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2, y0 = 102;
+  const rows = Math.ceil(SONG_LIST.length / cols), by = y0 + rows * (bh + gap) + 6;
+  const viewH = Math.min(H, window.innerHeight);
+  menuScrollMax = Math.max(0, by + 38 - (viewH - 12));
+  menuScroll.jukebox = clampMenuScroll('jukebox');
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 96, W, viewH - 96); ctx.clip(); ctx.translate(0, -menuScroll.jukebox);
   SONG_LIST.forEach(([id, where], i) => {
     const x = x0 + (i % cols) * (bw + gap), y = y0 + Math.floor(i / cols) * (bh + gap), on = music.song === id;
     const locked = (id === 'zero' && !meta.ach.omega) || (id === 'nemesis' && !meta.ach.zero) || (id === 'doki' && !meta.ach.doki); // (the secret bosses' songs stay secret until you could meet them)
@@ -10110,10 +10115,15 @@ function drawJukebox() {
     ctx.textAlign = 'left'; ctx.fillStyle = on ? '#fff' : locked ? '#667' : '#dde'; ctx.font = `bold ${bw < 190 ? 11 : 13}px system-ui`;
     ctx.fillText((on ? '♪ ' : '') + (locked ? '???' : SONGS[id].name), x + 8, y + bh / 2, bw - lw - 24);
   });
-  const by = y0 + Math.ceil(SONG_LIST.length / cols) * (bh + gap) + 6, hw = Math.min(220, (W - 40) / 2);
+  const hw = Math.min(220, (W - 40) / 2);
   const MODES = [['ROCK', '#778'], ['METAL', '#ffb13d'], ['RAGE', '#ff3d4d']], [mode, mc] = MODES[music.jbMode];
   button(`VERSION [B]: ${mode}`, W / 2 - hw - 4, by, hw, 38, mc, () => { music.jbMode = (music.jbMode + 1) % 3; });
   button('BACK  [Esc]', W / 2 + 4, by, hw, 38, '#9ab', () => go('settings'));
+  ctx.restore();
+  if (menuScrollMax > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 100, 3, viewH - 116);
+    ctx.fillStyle = '#c08dff'; ctx.fillRect(W - 8, 100 + (viewH - 116 - 42) * menuScroll.jukebox / menuScrollMax, 3, 42);
+  }
 }
 
 function title(text, y, color = '#ff3df2', size = 72) {
