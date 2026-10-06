@@ -1530,7 +1530,7 @@ cv.addEventListener('pointerdown', e => {
   const page = scrollMenuState(state), scrollTop = page === 'settings' ? 112 : page === 'jukebox' ? 96 : page === 'hangar' ? 120 : page === 'gallery' ? 108 : 100;
   if (page && menuScrollMax > 0 && e.pointerType !== 'mouse' && w.y >= scrollTop && w.y < H - 8) {
     touchMenuScroll = { id: e.pointerId, page, x: w.x, startY: w.y, lastY: w.y, moved: false };
-    cv.setPointerCapture?.(e.pointerId);
+    try { cv.setPointerCapture?.(e.pointerId); } catch (err) {} // (can fail if the finger is already gone)
     return;
   }
   if (state === 'play' && !paused && !menuOpen && run) {
