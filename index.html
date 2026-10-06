@@ -1201,6 +1201,14 @@ const UPGRADES = [
   { id: 'broadside', name: 'Broadside',       r: 'rare',   max: 2, desc: 'Also fire straight left and right',        apply: s => s.broadside++ },
   { id: 'spiral',   name: 'Spiral Gun',       r: 'rare',   max: 2, desc: 'Every volley adds a shot that spins around you', apply: s => s.spiral++ },
   { id: 'hail',     name: 'Hailstorm',        r: 'epic',   max: 1, desc: 'Fire 60% faster, but your shots spray wildly', apply: s => { s.fireDelay *= 0.625; s.hail = 1; } },
+  { id: 'domino',   name: 'Domino Effect',    r: 'rare',   max: 2, desc: 'Kills zap the nearest enemy for 3× damage (+1 zap per stack)', apply: s => s.domino++ },
+  { id: 'lucky',    name: 'Lucky Seven',      r: 'rare',   max: 1, desc: 'Every 7th kill always drops a pickup',      apply: s => s.lucky = 1 },
+  { id: 'sniper',   name: 'Sniper Scope',     r: 'rare',   max: 1, desc: 'Bullets fly 50% faster and hit 50% harder, but fire 30% slower', apply: s => { s.bulletSpeed *= 1.5; s.dmg *= 1.5; s.fireDelay /= 0.7; } },
+  { id: 'comboshield', name: 'Combo Shield',  r: 'epic',   max: 1, desc: 'Reaching your max combo gives everyone a shield', apply: s => s.comboshield = 1 },
+  { id: 'tagteam',  name: 'Tag Team',         r: 'rare',   max: 2, desc: '+15% damage for each teammate flying near you', apply: s => s.tagteam++, when: () => players.length > 1 },
+  { id: 'echovolley', name: 'Echo Volley',    r: 'epic',   max: 1, desc: 'Every 4th volley fires twice',              apply: s => s.echovolley = 1 },
+  { id: 'blackhole', name: 'Event Horizon',   r: 'rare',   max: 1, desc: 'Kills pull nearby enemies into a clump',    apply: s => s.blackhole = 1 },
+  { id: 'pacifist', name: 'Pacifist',         r: 'rare',   max: 1, desc: 'Double score and shards, but 25% less damage', apply: s => { s.scoreMult += 1; s.dmg *= 0.75; } },
   { id: 'goldgun',  name: 'Golden Gun',       r: 'epic',   max: 1, desc: '+1% damage per 10 coins you hold (up to +60%)', apply: s => s.goldgun = 1 },
   { id: 'siphon',   name: 'Siphon',           r: 'rare',   max: 3, desc: 'Every 40 kills restores a life (fewer per stack)', apply: s => s.siphon++ },
   { id: 'chrono',   name: 'Chrono Field',     r: 'rare',   max: 2, desc: 'Enemy bullets move 15% slower',          apply: s => s.chrono *= 0.85 },
@@ -1259,7 +1267,8 @@ function newStats() {
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
     explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1, linkPower: 1,
     gamble: 0, laststand: 0, frenzy: 0, anchor: 0, pulse: 0, shrapnel: 0, pickpocket: 0, soul: 0, spite: 0, overdrive: 0, goldgun: 0,
-    mirror: 0, momentum: 0, fortified: 0, kinetic: 0, broadside: 0, spiral: 0, hail: 0 };
+    mirror: 0, momentum: 0, fortified: 0, kinetic: 0, broadside: 0, spiral: 0, hail: 0,
+    domino: 0, lucky: 0, comboshield: 0, tagteam: 0, echovolley: 0, blackhole: 0 };
 }
 // ability cards only show up when they'd do something
 const abCardOk = u => !(u.ab || u.ship) || (!curse('powerless') && (!u.ship || players.some(p => !p.gone && shipBase(p) === u.ship)));
@@ -3237,6 +3246,7 @@ function fire(x, y, a, color, kind, p) {
     * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()) // (RAMPAGE, the GLASS CANNON curse, evolved ships)
     * (s.gamble ? 0.4 + Math.random() * 2.2 : 1) * (s.laststand && p?.lives === 1 ? 1.7 : 1) // (Loaded Dice; Last Stand)
     * (1 + 0.04 * (run.soulN || 0)) * (s.goldgun ? 1 + Math.min(0.6, (run.coins || 0) / 1000) : 1) // (Soul Harvest; Golden Gun)
+    * (s.tagteam && p ? 1 + 0.15 * s.tagteam * living().filter(q => q !== p && Math.hypot(q.x - p.x, q.y - p.y) < 220).length : 1) // (Tag Team)
     * (1 + 0.05 * s.momentum * (combo - 1)) * (s.fortified && p?.shield > 0 ? 1.5 : 1) * (s.kinetic && p ? 1 + Math.min(0.6, (p.moveSp || 0) / 700) : 1); // (Momentum; Fortified; Kinetic)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
@@ -3357,6 +3367,16 @@ function killEnemy(e, src) {
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
   if (s.pickpocket) run.coins += s.pickpocket; // (Pickpocket)
+  if (s.lucky && run.kills % 7 === 0) pickups.push({ x: e.x, y: e.y, kind: ['power', 'shield', 'life'][Math.floor(Math.random() * 3)], t: 0 }); // (Lucky Seven)
+  if (s.comboshield && combo >= s.comboMax && !run.comboShielded) { run.comboShielded = true; for (const q of living()) q.shield = 1; popups.push({ x: e.x, y: e.y - 24, text: 'COMBO SHIELD!', life: 1.2, hot: true }); } // (Combo Shield)
+  if (combo < s.comboMax) run.comboShielded = false;
+  if (s.blackhole) for (const o of enemies) { const d = Math.hypot(o.x - e.x, o.y - e.y); if (!o.dead && d > 1 && d < 160) { o.x += (e.x - o.x) * 0.35; o.y += (e.y - o.y) * 0.35; } } // (Event Horizon)
+  if (s.domino && !e._domino) for (let k = 0; k < s.domino; k++) { // (Domino Effect: a zap jumps to the nearest enemy)
+    let best = null, bd = 220; for (const o of enemies) { const d = Math.hypot(o.x - e.x, o.y - e.y); if (!o.dead && o !== e && d < bd && !TYPES[o.type]?.harmless) { bd = d; best = o; } }
+    if (!best) break;
+    bossFx.zaps.push({ x1: e.x, y1: e.y, x2: best.x, y2: best.y, life: 0.15, max: 0.15 });
+    best.hp -= s.dmg * 3; if (best.hp <= 0) { best._domino = true; killEnemy(best, src); }
+  }
   if (s.frenzy) { run.frenzyN = Math.min(10, (run.frenzyN || 0) + 1); run.frenzyT = 3; } // (Bloodrush)
   if (s.soul && run.kills % 20 === 0) { run.soulN = (run.soulN || 0) + 1; popups.push({ x: e.x, y: e.y - 20, text: `SOUL +${run.soulN * 4}%`, life: 1, hot: true }); } // (Soul Harvest)
   if (s.shrapnel) { const n = 1 + s.shrapnel * 3, o = Math.random() * TAU; for (let i = 0; i < n; i++) fire(e.x, e.y, o + i / n * TAU, '#ffb13d', undefined, null); } // (Shrapnel)
@@ -5854,7 +5874,9 @@ function update(dt) {
         * (abActive(p, 'berserker') ? 0.7 : 1) // (RAMPAGE: faster fire)
         / (1 + 0.04 * s.frenzy * (run.frenzyT > 0 ? run.frenzyN || 0 : 0)) // (Bloodrush)
         * (s.anchor && p.stillT > 0.4 ? Math.pow(0.77, s.anchor) : 1) * (s.overdrive && (run.time || time) % 8 < 2 ? 0.5 : 1); // (Anchor Down; Overdrive)
-      if (s.pulse && (p.volleys = (p.volleys || 0) + 1) % 10 === 0) fire(p.x, p.y - 16, -Math.PI / 2, p.color, 'rail', p); // (Pulse Cannon)
+      p.volleys = (p.volleys || 0) + 1;
+      if (s.echovolley && p.volleys % 4 === 0) p.shotT = Math.min(p.shotT, 0.04); // (Echo Volley: the next one comes right away)
+      if (s.pulse && p.volleys % 10 === 0) fire(p.x, p.y - 16, -Math.PI / 2, p.color, 'rail', p); // (Pulse Cannon)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
       for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, m.bombs ? 'bomb' : undefined, p);
       if (s.hail) for (const b of bullets.slice(-n)) if (b.owner === p.id) { const a = Math.atan2(b.vy, b.vx) + (Math.random() - 0.5) * 0.7, sp = Math.hypot(b.vx, b.vy); b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; } // (Hailstorm)
@@ -12876,7 +12898,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.3';
+const BUILD = '2026.10.06.4';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
