@@ -1217,6 +1217,14 @@ const UPGRADES = [
   { id: 'supercharge', name: 'Supercharger',  r: 'rare',   max: 1, desc: 'Ship abilities recharge 40% faster, but 10% less damage', ab: true, apply: s => { s.abCd *= 0.6; s.dmg *= 0.9; } },
   { id: 'cascade',  name: 'Cascade',          r: 'rare',   max: 2, desc: 'Critical hits split into 2 extra bullets (needs crits)', apply: s => s.cascade++, when: () => run.s.crit > 0 },
   { id: 'executioner', name: 'Executioner',   r: 'rare',   max: 2, desc: '×2 damage to enemies under 30% health (+1× per stack)', apply: s => s.executioner++ },
+  { id: 'rebound',  name: 'Rebound',          r: 'rare',   max: 2, desc: 'Bullets that hit an enemy bounce toward another one', apply: s => s.rebound++ },
+  { id: 'lifeline', name: 'Lifeline',         r: 'epic',   max: 1, desc: 'Picking up a life pickup also heals every teammate', apply: s => s.lifeline = 1, when: () => players.length > 1 },
+  { id: 'recycler', name: 'Recycler',         r: 'rare',   max: 2, desc: 'Pickups also shrink your ability cooldowns by 2s', apply: s => s.recycler++ },
+  { id: 'hotstreak', name: 'Hot Streak',      r: 'rare',   max: 2, desc: 'Every 10 hits in a row without being hit: +10% damage (stacks to 5×)', apply: s => s.hotstreak++ },
+  { id: 'powerhungry', name: 'Power Hungry',  r: 'rare',   max: 1, desc: 'Power pickups last twice as long',         apply: s => s.powerDur *= 2 },
+  { id: 'trickshot', name: 'Trick Shot',      r: 'rare',   max: 1, desc: 'Bullets that bounce off a wall deal double damage', apply: s => { s.ricochet += 1; s.trickshot = 1; } },
+  { id: 'chainreact', name: 'Chain Reaction', r: 'epic',   max: 1, desc: 'Explosions can set off more explosions (needs Explosive Rounds)', apply: s => s.chainreact = 1, when: () => run.s.explosive > 0 },
+  { id: 'underdog', name: 'Underdog',         r: 'rare',   max: 1, desc: '+40% damage if you are the team member with the fewest lives', apply: s => s.underdog = 1, when: () => players.length > 1 },
   { id: 'goldgun',  name: 'Golden Gun',       r: 'epic',   max: 1, desc: '+1% damage per 10 coins you hold (up to +60%)', apply: s => s.goldgun = 1 },
   { id: 'siphon',   name: 'Siphon',           r: 'rare',   max: 3, desc: 'Every 40 kills restores a life (fewer per stack)', apply: s => s.siphon++ },
   { id: 'chrono',   name: 'Chrono Field',     r: 'rare',   max: 2, desc: 'Enemy bullets move 15% slower',          apply: s => s.chrono *= 0.85 },
@@ -1277,7 +1285,8 @@ function newStats() {
     gamble: 0, laststand: 0, frenzy: 0, anchor: 0, pulse: 0, shrapnel: 0, pickpocket: 0, soul: 0, spite: 0, overdrive: 0, goldgun: 0,
     mirror: 0, momentum: 0, fortified: 0, kinetic: 0, broadside: 0, spiral: 0, hail: 0,
     domino: 0, lucky: 0, comboshield: 0, tagteam: 0, echovolley: 0, blackhole: 0,
-    jackpot: 0, bloodpact: 0, adrenalrush: 0, meteor: 0, cascade: 0, executioner: 0 };
+    jackpot: 0, bloodpact: 0, adrenalrush: 0, meteor: 0, cascade: 0, executioner: 0,
+    rebound: 0, lifeline: 0, recycler: 0, hotstreak: 0, trickshot: 0, chainreact: 0, underdog: 0 };
 }
 // ability cards only show up when they'd do something
 const abCardOk = u => !(u.ab || u.ship) || (!curse('powerless') && (!u.ship || players.some(p => !p.gone && shipBase(p) === u.ship)));
@@ -3257,6 +3266,8 @@ function fire(x, y, a, color, kind, p) {
     * (1 + 0.04 * (run.soulN || 0)) * (s.goldgun ? 1 + Math.min(0.6, (run.coins || 0) / 1000) : 1) // (Soul Harvest; Golden Gun)
     * (s.tagteam && p ? 1 + 0.15 * s.tagteam * living().filter(q => q !== p && Math.hypot(q.x - p.x, q.y - p.y) < 220).length : 1) // (Tag Team)
     * (1 + 0.25 * (s.bloodpact ? run.pactN || 0 : 0)) // (Blood Pact)
+    * (1 + 0.1 * (s.hotstreak && p ? Math.min(5, Math.floor((p.streak || 0) / 10)) * s.hotstreak : 0)) // (Hot Streak)
+    * (s.underdog && p && players.length > 1 && living().every(q => q === p || q.lives > p.lives) ? 1.4 : 1) // (Underdog)
     * (1 + 0.05 * s.momentum * (combo - 1)) * (s.fortified && p?.shield > 0 ? 1.5 : 1) * (s.kinetic && p ? 1 + Math.min(0.6, (p.moveSp || 0) / 700) : 1); // (Momentum; Fortified; Kinetic)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   if (crit && s.cascade && !kind) for (let i = 0; i < 2 * s.cascade; i++) { const c = a + (i % 2 ? 1 : -1) * (0.18 + 0.12 * Math.floor(i / 2)); // (Cascade: crits split)
@@ -3425,7 +3436,10 @@ function chainLightning(x, y, n, dmg, owner = null) {
 
 function splash(x, y, radius, dmg, except) {
   if (bossFx.rings.length < 40) fxRing(x, y, 4, radius, 0.25, '#ffb13d', 2);
-  for (const o of enemies) if (o !== except && !o.dead && Math.hypot(o.x - x, o.y - y) < radius + o.r) damageEnemy(o, dmg, 'splash');
+  for (const o of enemies) if (o !== except && !o.dead && Math.hypot(o.x - x, o.y - y) < radius + o.r) {
+    const was = o.dead; damageEnemy(o, dmg, 'splash');
+    if (run.s.chainreact && !was && o.dead && !o._chained) { o._chained = true; splash(o.x, o.y, radius * 0.8, dmg * 0.7, o); } // (Chain Reaction: a kill by an explosion explodes too)
+  }
 }
 
 // BOMBER: its bombs fly slowly, then blow up on whatever they touch (or when their fuse runs out), hitting everything around
@@ -5746,6 +5760,7 @@ function hurt(p) {
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
   if (run.s.bloodpact) run.pactN = (run.pactN || 0) + 1; // (Blood Pact)
+  p.streak = 0; // (Hot Streak starts over)
   if (run.s.adrenalrush) p.windT = 3; // (Second Wind)
   if (run.s.spite) { const n = 8 + run.s.spite * 8; for (let i = 0; i < n; i++) fire(p.x, p.y, i / n * TAU, '#ff5a70', undefined, p); } // (Spite)
   if (p.lives <= 0 && run.s.phoenix > 0) { phoenixBlast(p); return true; }
@@ -6028,8 +6043,8 @@ function update(dt) {
     if (b.missile && Math.random() < dt * 40) particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.25, max: 0.25, color: '#ff9a3d', size: 2 });
     if (b.bomb && !b.dead && (b.fuse -= dt) <= 0) bombBlast(b); // (BOMBER: it goes off when its fuse runs out, if it hasn't hit anything)
     if (b.bounces > 0) { // Ricochet: bounce off the edges (and allow re-hitting the same enemy)
-      if (b.x < 0 || b.x > W) { b.vx = -b.vx; b.x = Math.max(0, Math.min(W, b.x)); b.bounces--; b.hits = []; }
-      else if (b.y < 0 || b.y > H) { b.vy = -b.vy; b.y = Math.max(0, Math.min(H, b.y)); b.bounces--; b.hits = []; }
+      if (b.x < 0 || b.x > W) { b.vx = -b.vx; b.x = Math.max(0, Math.min(W, b.x)); b.bounces--; b.hits = []; if (run.s.trickshot) b.trickshot = true; }
+      else if (b.y < 0 || b.y > H) { b.vy = -b.vy; b.y = Math.max(0, Math.min(H, b.y)); b.bounces--; b.hits = []; if (run.s.trickshot) b.trickshot = true; }
     }
     for (const bo of bosses) {
       if (b.dead || !bossAlive(bo)) continue;
@@ -6150,7 +6165,12 @@ function update(dt) {
       if (b.pierce > 0) { b.pierce--; b.hits.push(e); } else b.dead = true;
       if (b.crit) burst(b.x, b.y, '#ffffff', 6, 150);
       e.lastBy = b.owner; // (whose kill effect to show)
-      damageEnemy(e, b.dmg, b.missile ? 'missile' : 'bullet');
+      if (s.hotstreak) { const o = players[b.owner]; if (o) o.streak = (o.streak || 0) + 1; } // (Hot Streak)
+      damageEnemy(e, b.dmg * (b.trickshot ? 2 : 1), b.missile ? 'missile' : 'bullet');
+      if (s.rebound && !b.missile && !b.rebounded) { // (Rebound: the bullet turns toward another enemy)
+        let best = null, bd = 260; for (const o of enemies) { const d = Math.hypot(o.x - e.x, o.y - e.y); if (!o.dead && o !== e && !b.hits.includes(o) && d < bd && !TYPES[o.type]?.harmless) { bd = d; best = o; } }
+        if (best && (b.rb = (b.rb || 0) + 1) <= s.rebound) { const sp = Math.hypot(b.vx, b.vy), a = Math.atan2(best.y - b.y, best.x - b.x); b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.dead = false; b.hits.push(e); }
+      }
       // missiles always explode; Explosive Rounds make every hit explode
       if (b.missile) splash(b.x, b.y, s.inferno ? 90 : 45, b.dmg * 0.6, e);
       else if (s.explosive) splash(b.x, b.y, 30 + s.explosive * 15, b.dmg * 0.5, e);
@@ -6204,6 +6224,8 @@ function update(dt) {
       k.dead = true; beep(660, 0.25, 'triangle', 0.08, 660);
       burst(k.x, k.y, '#ffffff', 15, 150);
       if (k.kind === 'power') p.power = s.powerDur;
+      if (s.recycler) p.abCd = Math.max(0, p.abCd - 2 * s.recycler); // (Recycler)
+      if (s.lifeline && k.kind === 'life') for (const q of living()) if (q !== p && q.lives < maxLivesOf(q)) { q.lives++; popups.push({ x: q.x, y: q.y - 30, text: '+♥', life: 1, hot: true }); } // (Lifeline)
       if (k.kind === 'gold') findGoldShard(k.zone || run.zone, k.x, k.y);
       if (k.kind === 'pink') {
         run.pinkCoins = (run.pinkCoins || 0) + 1;
@@ -12922,7 +12944,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.5';
+const BUILD = '2026.10.06.6';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
