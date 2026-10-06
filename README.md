@@ -40,9 +40,9 @@ If joining doesn't work: make sure you all refreshed the page (Ctrl+F5) so you h
 
 ## Features
 
-12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 26 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 30 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 49 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### MK II to MK V
 
@@ -91,7 +91,7 @@ Before a run, press **X** on the menu (or in an online lobby, as the host) to sw
 
 ### Music
 
-30 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
+33 songs. Every zone has two songs, and each run picks one of them. The menus, the hangar, the shop, the route map, team bosses, the final boss, all three secret bosses, victory and game over each have their own song too.
 
 The style is heavy rock in space: distorted guitars in both ears, a growling bass and big drums, with a bamboo flute, a koto, bells and taiko drums on top and lots of echo. When a boss shows up, the song turns into metal: galloping riffs, double bass drums and a lead guitar. When the boss gets **enraged**, it becomes an even heavier remake: much faster (160–196 BPM), darker, with drop-tuned guitars, twin lead guitars, blast beats and a breakdown.
 
@@ -120,8 +120,9 @@ At half health a boss gets **ENRAGED**. It roars, blows away the bullets around 
 - **The Singularity:** sucks every bullet in, then blasts them back out.
 - **The Leech:** sprays blood that rushes back into it.
 - **DAWNNY:** inspired by a friend of the game's creator who loves manga, anime and books, and the Roblox games Murder Mystery and Flee the Facility. An open manga book in a pink heart frame, with a heart bookmark and a detective's magnifying glass. She throws PAGE STORMS, screams in manga speech bubbles (KYAA!, OMG!!), ships two hearts together (SHIP IT!: the pink line between them hurts), and throws knives. Every so often she starts a round from her favorite games: **WHO DUNNIT?** (she hides among identical suspects, and only the murderer throws knives: shoot the right one to make her dizzy, shoot an innocent and you get a burst of hearts) or **THE BEAST** (she can't be hurt and chases you: hack all three computers to escape and leave her dizzy). Enraged, she goes into MANGA WITHDRAWAL and uses **TO BE CONTINUED...**: manga panel borders slam down across the screen. Her song is **Next Chapter!!**.
-- **Zero:** loads in with a LOADING ZERO.EXE bar, and fights in three forms, rebooting between each (it can't be hurt while it reboots): **ZERO**, a cube of flickering pixels; **NULL**, a bare core with its pixels orbiting it; and **FATAL ERROR**, corrupted memory flickering between the faces of other bosses it stole, skipping around the screen and deleting half of it in a checkerboard. It **steals every other boss's abilities**, announcing each one (STOLEN: STORMCALLER'S LIGHTNING) and wearing that boss's face while it uses it: their signature attacks (the Hive's eggs, Sonnet's spin dash, DOKI DOLL's hearts, Nemesis's missiles and more), their whole mechanics for 10 seconds at a time (the Warden's pylons, Hexcore's overheat, Null Seraph's mirror halo, Stormcaller's lightning, the Architect's walls, the Oracle's judgment, the Singularity's supernova, Echo's echoes, Chronos's time stop and Phantom's decoys), and their rage moves (all 16), in every form. Its new moves: **LAG SPIKE** (its bullets freeze, then jump ahead), **COPY-PASTE** (every bullet it has out gets a mirror copy), and **DEAD PIXELS** (falling pixels with one gap).
+- **Zero:** loads in with a LOADING ZERO.EXE bar, and fights in three forms, rebooting between each (it can't be hurt while it reboots): **ZERO**, a cube of flickering pixels; **NULL**, a bare core with its pixels orbiting it; and **FATAL ERROR**, corrupted memory flickering between the faces of other bosses it stole, skipping around the screen and deleting half of it in a checkerboard. It **steals every other boss's abilities**, announcing each one (STOLEN: STORMCALLER'S LIGHTNING) and wearing that boss's face while it uses it: their signature attacks (the Hive's eggs, Sonnet's spin dash, DOKI DOLL's hearts, Nemesis's missiles and more), their whole mechanics for 10 seconds at a time (the Warden's pylons, Hexcore's overheat, Null Seraph's mirror halo, Stormcaller's lightning, the Architect's walls, the Oracle's judgment, the Singularity's supernova, Echo's echoes, Chronos's time stop and Phantom's decoys), and their rage moves (all 18), in every form. Its new moves: **LAG SPIKE** (its bullets freeze, then jump ahead), **COPY-PASTE** (every bullet it has out gets a mirror copy), and **DEAD PIXELS** (falling pixels with one gap).
 - **SONNET:** halfway through, seven emeralds turn him into the golden **SUPER SONNET**. He can't be hurt while he transforms, his health refills, he takes less damage, and he dashes around a star at light speed. (A nod to a certain blue hedgehog.) His fight plays **Golden Hour**, made by the game's creator: the instrumental, switching to the version with vocals at the very same moment in the song when he turns golden.
+- **UMBRA:** SONNET's rival, the ultimate lifeform. (A nod to a certain black-and-red hedgehog.) A black hedgehog's head with red-striped quills that flick up, white gloves, gold inhibitor rings and jet-powered air shoes. His **CHAOS SPEARS** hang in the air pointing where they'll fly, he swoops across the screen on his air shoes, and he fires the **CHAOS LANCE**. Every so often he calls **CHAOS CONTROL**: time stops for his spears while he warps between numbered marks, throwing more of them, and they all fly when time resumes. At half health his **LIMITERS** come off: the rings fly away and he unleashes **CHAOS BLAST** (get out of the red circle), which leaves him **SPENT**, taking double damage. Bring him down and he gets back up once as **SUPER UMBRA**, dropping storms of spears. He has words for anyone who beat SONNET, and SONNET has words back. His fight plays **Black Comet**.
 
 ### THE ABYSS
 
@@ -198,11 +199,11 @@ Press **G** on the menu (or open it from the Hangar) to see every boss fight you
 
 Click a boss to open its page. Once you've beaten it in a run, you can **practice** it there: a single fight against just that boss, with a mid-run build (no shards, no score). **HARD** makes it enraged from the start, 25% faster and 25% tougher. Beat it on HARD and its tile turns red with a ☠.
 
-THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a time: by meeting them, beating them, beating them 3 times, and beating them on HARD.
+THE ABYSS, ZERO and UMBRA also have their story on their pages, unlocked a piece at a time: by meeting them, beating them, beating them 3 times, and beating them on HARD.
 
 ### Pets
 
-A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Mini Manga, Mini Umbra, Null Bit, P0 and Little Eye unlock by beating SUPER SONNET, DAWNNY, SUPER UMBRA, the secret bosses and THE ABYSS. Online, your friends see your pet too.
 
 ### Boss Rush medals
 
