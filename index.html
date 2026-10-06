@@ -12834,8 +12834,10 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.03.15';
-const PEER_PREFIX = 'neondrift-v7-'; // bumped when the online protocol changes, so old and new versions don't mix
+const BUILD = '2026.10.06.1';
+// (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
+// which older games ignore. A host turns away guests older than itself instead: see onHello)
+const PEER_PREFIX = 'neondrift-v7-';
 
 // Relay (TURN) servers: used automatically when two players' networks block a direct connection
 // (school/work Wi-Fi, some mobile hotspots). Filled in from a free Metered account (metered.ca):
@@ -12980,6 +12982,7 @@ const cleanScr = s => Array.isArray(s) && s.length === 2 && s.every(v => Number.
 function onHello(conn, h) {
   if (conn.slots || !h || typeof h !== 'object') return;
   conn.scr = cleanScr(h.scr);
+  if (typeof h.ver !== 'string' || newerBuild(BUILD, h.ver)) { refuse(conn, 'old'); return; } // (an older game can't keep up with a newer host)
   if (net.locked) { refuse(conn, 'locked'); return; }
   const n = Math.max(1, Math.min(4, h.n | 0)), ships = Array.isArray(h.ships) ? h.ships : [];
   const slot = k => ({ ship: cleanShip(ships[k]), cos: k === 0 ? cleanCos(h.cos) : COS_DEFAULT });
@@ -13215,7 +13218,7 @@ async function joinGame(code, attempt = 1) {
     conn.on('open', () => { // say hello: how many of us share this computer, and our ships
       opened = true; clearTimeout(timer);
       net.status = 'Connected! Pick your ship — the host starts the game.';
-      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq, scr: [window.innerWidth, window.innerHeight] } });
+      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq, scr: [window.innerWidth, window.innerHeight], ver: BUILD } });
     });
     conn.on('data', d => safely(() => onGuestData(d)));
     conn.on('close', () => { if (!opened) giveUp(); else if (net.role === 'guest' && net.host === conn) leaveOnline('The host left the game'); });
@@ -13246,6 +13249,7 @@ function onGuestData(d) {
   }
   if ((d.lobby || d.start) && typeof d.seq === 'number') { if (d.seq < (net.ctlSeq || 0)) return; net.ctlSeq = d.seq; }
   if (d.kicked) { leaveOnline('The host removed you from the game'); return; }
+  if (d.full && d.why === 'old') { leaveOnline('That game is on a newer version than yours: updating…'); setTimeout(() => location.reload(), 1200); return; } // (a newer host: update, then try again)
   if (d.full) { leaveOnline(d.why === 'locked' ? 'That room is locked: the host isn\'t letting anyone new in' : 'That game is full or already running'); return; }
   if (d.lobby) {
     if (!Array.isArray(d.lobby.slots)) return;
