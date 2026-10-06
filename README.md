@@ -42,7 +42,7 @@ If joining doesn't work: make sure you all refreshed the page (Ctrl+F5) so you h
 
 12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 19 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
-Standard, Endless & Boss Rush modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
+Standard, Endless, Boss Rush & MOH modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
 
 ### MK II to MK V
 
@@ -69,7 +69,7 @@ Every ship has one ability on a cooldown (the MK II's is stronger and comes back
 - **Berserker — Rampage:** double damage, faster fire, and you smash through enemies you ram.
 - **Gunslinger — Fan the Hammer:** empties the whole cylinder at the closest enemy at double damage, then reloads instantly. (The Gunslinger fires 6 heavy rounds fast, then has to reload.)
 - **Bomber — Megaton:** drops one huge, slow bomb that blasts everything around it and blows away enemy bullets. (The Bomber fires slow bombs that explode on whatever they touch, hitting everything nearby.)
-- **Summoner — Legion:** your ring of drones doubles for a few seconds, and fires twice as fast. (The Summoner has no guns of its own: a ring of drones aims at enemies for it, and upgrades that add shots add drones instead.)
+- **Summoner — Sentry:** plants a turret that blasts nearby enemies for 12 seconds (two at a time). The Summoner is a real summoner, in the style of Terraria: it has no guns, but a **whip** that cracks at the nearest enemy and **tags** it, and **minions** (imps that spit fireballs, hornets that dive and ram) that go for tagged enemies first and hit them 60% harder. It starts with 3 minion slots (more from Wing Drone and extra-shot upgrades, up to 8), and it's fragile: one life fewer.
 
 Some upgrade cards power up abilities. **Quick Charge**, **Aftershock**, **Adrenaline** and **Kill Charger** work for every ship. Each ship also has its own card that changes how its ability works: Mending Nova, Afterburner, Shockwave Fortress, Flak Storm, Overcharged Rail, Guardian Pulse, Phantom Blades, Hive Mind, Bloodthirst, Speed Loader, Payload and Overseer. A ship's card only shows up when someone is flying that ship.
 
@@ -203,6 +203,10 @@ THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a t
 ### Pets
 
 A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone and Starling can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+
+### MOH
+
+A fourth run type (press **E** on the menu, or in the lobby): standard sectors and bosses, but built to be as hard as it can be while staying fair. You start with 2 lives, enemies are tougher, faster and more frequent from the first sector (and it gets worse every few sectors), there are far more elites, hearts are rarer, and bosses attack faster, have more health and enrage at 70% instead of 50%. And **hands** reach in from the dark all run long: a red ring shows where, and a hand of shadow closes on it about a second later. They follow you only for a moment, never come at someone who was just hit, and are rarer during boss fights, so a normal reaction is always enough. MOH pays 50% more shards, and destroying THE ABYSS in it earns the **Out of the Hands** trophy.
 
 ### Boss Rush medals
 

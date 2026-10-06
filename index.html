@@ -1110,6 +1110,7 @@ const ACHIEVEMENTS = [
   { id: 'link',        cat: 'team', name: 'Better Together',      reward: 100, desc: 'Fire a LINK BEAM with a teammate.' },
   { id: 'endless2',    cat: 'progress', name: 'Beyond the End',   reward: 150, desc: 'Reach cycle 2 in Endless mode.' },
   { id: 'endless4',    cat: 'progress', name: 'Infinite Drift',   reward: 300, desc: 'Reach cycle 4 in Endless mode.' },
+  { id: 'moh',         cat: 'progress', name: 'Out of the Hands', reward: 600, desc: 'Destroy THE ABYSS in MOH mode.' },
   { id: 'voyager',     cat: 'progress', name: 'Star Chart',       reward: 150, desc: 'Visit all 8 zones (all-time).', progress: () => [ZONES.filter(z => !z.secret && meta.stats.zones?.[z.id]).length, ZONES.filter(z => !z.secret).length] },
   { id: 'glitch',      cat: 'progress', name: 'Out of Bounds',    reward: 150, desc: 'Find your way into the Glitch Sector (beat ZERO first).' },
   { id: 'rushgold',    cat: 'progress', name: 'Gold Rush',        reward: 300, desc: 'Win a gold medal in Boss Rush.' },
@@ -1250,7 +1251,7 @@ const UPGRADES = [
   { id: 'abm_medic', name: 'Guardian Pulse',   r: 'rare', max: 1, ship: 'medic',       desc: 'MEDIC: Lifeline also makes the whole team untouchable for 2s', apply: s => s.abm_medic = 1 },
   { id: 'abm_wraith', name: 'Phantom Blades',  r: 'rare', max: 1, ship: 'wraith',      desc: 'WRAITH: while phased, enemies you fly through get shredded', apply: s => s.abm_wraith = 1 },
   { id: 'abm_carrier', name: 'Hive Mind',      r: 'rare', max: 1, ship: 'carrier',     desc: 'CARRIER: Swarm launches twice as many missiles', apply: s => s.abm_carrier = 1 },
-  { id: 'abm_summoner', name: 'Overseer', r: 'rare', max: 1, ship: 'summoner', desc: 'SUMMONER: drone shots pierce one more enemy, and Legion lasts 2s longer', apply: s => s.abm_summoner = 1 },
+  { id: 'abm_summoner', name: 'Overseer', r: 'rare', max: 1, ship: 'summoner', desc: 'SUMMONER: one more minion slot, tags last 2s longer, and sentries stay 6s longer', apply: s => s.abm_summoner = 1 },
   { id: 'abm_bomber', name: 'Payload', r: 'rare', max: 1, ship: 'bomber', desc: 'BOMBER: every explosion is 35% bigger, and Megaton wipes every enemy bullet off the screen', apply: s => s.abm_bomber = 1 },
   { id: 'abm_gunslinger', name: 'Speed Loader', r: 'rare', max: 1, ship: 'gunslinger', desc: 'GUNSLINGER: reloads twice as fast, and Fan the Hammer fires 3 more rounds', apply: s => s.abm_gunslinger = 1 },
   { id: 'abm_berserker',name: 'Bloodthirst',  r: 'rare', max: 1, ship: 'berserker',   desc: 'BERSERKER: kills during Rampage make it last longer, and every 10 heal a life', apply: s => s.abm_berserker = 1 },
@@ -1461,7 +1462,7 @@ addEventListener('keydown', e => {
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
     if (inMenu && (pauseView === 'settings' || pauseView === 'room' || pauseView === 'cheats') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
-    if (inMenu && !net.playing && e.code === 'KeyK') { pauseView = 'cheats'; sel = 0; return; }
+    if (inMenu && !net.playing && pauseView === 'main' && /^[0-9]$/.test(e.key) && secretKey(e.key)) { pauseView = 'cheats'; sel = 0; secretBuf = ''; beep(880, 0.15, 'triangle', 0.05, 400); return; }
     if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
       if (e.code === 'KeyP') { if (net.role === 'host') forcePause(!paused); return; }
@@ -1570,6 +1571,10 @@ cv.addEventListener('pointerdown', e => {
     try { cv.setPointerCapture?.(e.pointerId); } catch (err) {} // (can fail if the finger is already gone)
     return;
   }
+  if (state === 'play' && paused && !net.playing && pauseView === 'main' && secretZone && w.x >= secretZone.x && w.x <= secretZone.x + secretZone.w && w.y >= secretZone.y && w.y <= secretZone.y + secretZone.h) { // (the hidden way into the cheats)
+    const now = performance.now(); secretTaps = now - secretTapT < 1200 ? secretTaps + 1 : 1; secretTapT = now;
+    if (secretTaps >= 7) { secretTaps = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); return; }
+  }
   if (state === 'play' && !paused && !menuOpen && run) {
     if (e.pointerType !== 'mouse' && inHud(() => touchPauseHit(w.x, w.y))) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
     if (e.pointerType !== 'mouse' && net.camZ && inHud(() => touchZoomHit(w.x, w.y))) { // (an upright phone's zoom button)
@@ -1648,21 +1653,21 @@ function readPad(i) {
 // ---------- run state ----------
 // run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators;
 // 'rush' (Boss Rush) is every boss back to back with upgrades and the shop in between
-const RUN_TYPES = ['standard', 'endless', 'rush'];
+const RUN_TYPES = ['standard', 'endless', 'rush', 'moh'];
 let runType = 'standard';
 try { const t = localStorage.getItem('neonDriftRunType'); if (RUN_TYPES.includes(t)) runType = t; } catch (e) {}
 function toggleRunType() {
   runType = RUN_TYPES[(RUN_TYPES.indexOf(runType) + 1) % RUN_TYPES.length];
   try { localStorage.setItem('neonDriftRunType', runType); } catch (e) {}
-  beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : 520, 0.15, 'triangle', 0.06, 200);
+  beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : runType === 'moh' ? 140 : 520, 0.15, 'triangle', 0.06, 200);
 }
-const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠' };
-const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70' };
-const runKind = () => run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
+const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠', moh: 'MOH ✋' };
+const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70', moh: '#ff2a3a' };
+const runKind = () => run.moh ? 'moh' : run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
 
 // best scores are kept per player count and per run type
 const bestKey = (m, kind) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m)
-  + ({ endless: 'Endless', rush: 'Rush' }[kind] || '');
+  + ({ endless: 'Endless', rush: 'Rush', moh: 'Moh' }[kind] || '');
 const best = {};
 function bestOf(m, kind) {
   const k = bestKey(m, kind);
@@ -2006,12 +2011,14 @@ const SHIPS = [
     mod: { shots: -1, dmg: 5, fireRate: 3.2, blast: 70, bombs: true, speed: 0.92 },
     mk2: { cost: 300, stats: { speed: 3, power: 5, armor: 3 }, trait: 'Bigger blasts, heavier bombs, and it fires a bit faster.',
       mod: { shots: -1, dmg: 5.8, fireRate: 3.0, blast: 85, bombs: true, speed: 0.96 } } },
-  // no guns of its own: a ring of drones that aim at enemies for it (see dronesOf, and the drones in update)
-  { id: 'summoner', name: 'SUMMONER', tag: 'Drone master', shape: 'summoner',
-    stats: { speed: 3, power: 3, armor: 3 }, trait: 'No guns: a ring of 4 drones that aim at enemies for you. Upgrades that add shots add drones instead.',
-    mod: { noGuns: true, drones: 4, dmg: 0.8 },
-    mk2: { cost: 300, stats: { speed: 3, power: 4, armor: 3 }, trait: 'A ring of 5 drones that hit harder.',
-      mod: { noGuns: true, drones: 5, dmg: 0.85 } } },
+  // a summoner, like in Terraria: no guns, a WHIP that tags enemies, and minions that fight for it: IMPs spit fireballs and
+  // HORNETs dive at enemies, and they go for tagged ones first and hit them harder. It plants SENTRIES, and it's fragile
+  // (see minionsOf, updateWhip, updateMinions and updateSentries)
+  { id: 'summoner', name: 'SUMMONER', tag: 'Minion master', shape: 'summoner',
+    stats: { speed: 3, power: 3, armor: 2 }, trait: 'No guns: a whip tags enemies, and your imps and hornets hunt them (tagged ones take 60% more). Plants sentries. Fragile: one life fewer. Shot and drone upgrades add minion slots.',
+    mod: { noGuns: true, minions: 3, dmg: 0.8, lives: -1 },
+    mk2: { cost: 300, stats: { speed: 3, power: 4, armor: 2 }, trait: 'A 4th minion, a longer whip and tougher sentries.',
+      mod: { noGuns: true, minions: 4, dmg: 0.85, lives: -1 } } },
   { id: 'volt', name: 'VOLT', tag: 'Chain lightning', shape: 'volt',
     stats: { speed: 4, power: 4, armor: 2 }, trait: 'Fast twin-shot fighter. Ion Storm chains lightning through nearby enemies and strikes bosses.',
     mod: { speed: 1.08, dmg: 1.05, shots: 1, spread: 0.55, bulletSpeed: 1.1 },
@@ -2055,8 +2062,8 @@ const tierId = (base, t) => base.id + (t ? String(t + 1) : ''); // (0: MK I, 1: 
 const tierOf = s => s.mk ? s.mk - 1 : s.mk2 === true ? 1 : 0;
 const hullTier = s => s.mk || s.mk2 === true; // (what drawHull takes)
 const tierColor = t => t >= 2 ? MK_UP[t + 1].color : '#ffe93d';
-// Wing Drone upgrades + the Carrier's (or SUMMONER's) built-in drones. A SUMMONER's extra shots are extra drones, and LEGION doubles its ring
-const dronesOf = p => { const m = p.ship.mod; return run.s.drones + (m.drones || 0) + (m.noGuns ? Math.max(0, run.s.shots - 2) + (abActive(p, 'summoner') ? m.drones : 0) : 0); };
+// Wing Drone upgrades + the Carrier's built-in drones. (A SUMMONER has no drones: its Wing Drone and extra-shot upgrades are minion slots)
+const dronesOf = p => { const m = p.ship.mod; return m.noGuns ? 0 : run.s.drones + (m.drones || 0); }; // (a SUMMONER has minions instead: see minionsOf)
 const shipUnlocked = s => s.mk ? tierOwned(SHIPS.find(b => b.id === s.base), s.mk - 1) : s.mk2 === true ? !!meta.ships[s.base] : true; // base ships are free; a MK II once bought
 // every ship (and every owned MK II) — what the online lobby's quick-cycle goes through
 const flyableShips = () => SHIPS.flatMap(b => [0, 1, 2, 3, 4].filter(t => tierOwned(b, t)).map(t => shipById(tierId(b, t))));
@@ -2086,7 +2093,7 @@ const ABILITIES = {
   wraith:      { name: 'SHADOW STEP', cd: [10, 7],  dur: [1.8, 2.4], desc: 'Phase out on demand, and move 60% faster while phased.' },
   carrier:     { name: 'SWARM',       cd: [9, 7],   desc: 'Launches a swarm of homing missiles (8, or 12 for the MK II).' },
   berserker:   { name: 'RAMPAGE',     cd: [22, 16], dur: [5, 5], desc: 'Double damage and faster fire for 5s, and you smash through enemies you ram.' },
-  summoner:    { name: 'LEGION',      cd: [16, 12], dur: [5, 6], desc: 'Your ring doubles for a few seconds: twice the drones, firing twice as fast.' },
+  summoner:    { name: 'SENTRY',      cd: [13, 10], desc: 'Plants a sentry: a turret that blasts nearby enemies for 12s (two at a time, and the MK II ones hit harder).' },
   bomber:      { name: 'MEGATON',     cd: [12, 9],  desc: 'Drops one huge, slow bomb that blasts everything around it and blows away enemy bullets.' },
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
   volt:        { name: 'ION STORM',   cd: [14, 10], desc: 'Chains lightning through nearby enemies and strikes every boss.' },
@@ -2201,8 +2208,10 @@ function useAbility(p, dx = 0, dy = 0) {
     const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
-  } else if (id === 'summoner') { // LEGION: the ring doubles and fires twice as fast while it lasts (see dronesOf; Overseer: 2s longer)
-    if (abm('summoner')) p.abOn += 2;
+  } else if (id === 'summoner') { // SENTRY: a turret where you stand (two at a time: a third replaces your oldest; Overseer: 6s longer)
+    const mine = run.sentries.filter(q => q.owner === p.id);
+    if (mine.length >= 2) run.sentries.splice(run.sentries.indexOf(mine[0]), 1);
+    run.sentries.push({ x: Math.round(p.x), y: Math.round(p.y), age: 0, life: SENTRY_LIFE + (abm('summoner') ? 6 : 0), owner: p.id, tier, cd: 0.2 });
     fxRing(p.x, p.y, 10, 80, 0.4, p.color, 4); burst(p.x, p.y, p.color, 24, 220);
     [523, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.05), i * 70));
   } else if (id === 'bomber') { // MEGATON: one huge, slow bomb (Payload: it wipes every enemy bullet off the screen)
@@ -2412,12 +2421,13 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
+    endless: runType === 'endless', rush: runType === 'rush', moh: runType === 'moh', hands: [], sentries: [], cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
     musicSeed: Math.floor(Math.random() * 1000),
     // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
   if (curse('slim')) run.rerolls = 0;
+  if (run.moh) { run.s.maxLives = Math.max(1, run.s.maxLives - 1); run.handT = 14; } // (MOH: one life fewer, and the first hand comes a while in)
   lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
@@ -2426,6 +2436,7 @@ function start(m, ships, cosList) {
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
   popups = []; hurtFlash = 0;
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
+  if (run.moh) hint = { text: 'MOH: 2 lives, tougher everything, and HANDS from the dark. When a red ring appears under you, MOVE!', life: 9 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   if (metaLv('deflect')) for (const p of players) p.shield = 1;
@@ -2451,7 +2462,7 @@ let popups = [], hurtFlash = 0, hint = null;
 
 // shards for the run so far: mostly from progress (sectors, bosses), a little from score so combos still matter
 const runShards = () => Math.round((Math.sqrt(score) * 0.8 + (level - 1) * 12 + run.bossKills * (50 + 20 * metaLv('bounty'))
-  + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')) * (1 + curseBonus()));
+  + (run.victory || run.wonStandard ? VICTORY_BONUS : 0) + (run.endless ? (run.cycle - 1) * 150 : 0)) * (1 + 0.25 * metaLv('salvage')) * (1 + curseBonus()) * (run.moh ? 1.5 : 1)); // (MOH pays half as much again)
 // victory: a Standard run that destroyed THE ABYSS (pays a bonus on top of the usual shards)
 function endRun(victory = false) {
   paused = false;
@@ -2516,7 +2527,9 @@ function startNextCycle() {
   if (run.cycle >= 4) unlockAch('endless4');
   return m;
 }
-const mut = id => (run && run.mut[id]) || 0; // how many times a mutator has stacked this run
+const mut = id => (run && (run.mut[id] || 0) + (run.moh ? mohMut(id) : 0)) || 0; // how many times a mutator has stacked this run (MOH has them from the start, and they grow with the sectors)
+const mohMut = id => ({ swift: Math.min(2, 1 + Math.floor(level / 6)), armored: Math.min(3, 1 + Math.floor(level / 4)), frenzy: level >= 5 ? 2 : 1,
+  hellfire: Math.min(3, 1 + Math.floor(level / 5)), titans: level >= 6 ? 2 : 1, volatile: level >= 4 ? 1 : 0 }[id] || 0);
 function addMutator() {
   // prefer ones not active yet; once all are in play, they start stacking
   const fresh = MUTATORS.filter(m => !mut(m.id)), pool = fresh.length ? fresh : MUTATORS;
@@ -2670,7 +2683,7 @@ function spawnEnemy() {
     const x = s ? s[0] : r + Math.random() * (W - r * 2);
     recent.unshift(x); if (recent.length > 3) recent.pop();
     const e = makeEnemy(type, x, -r * 2);
-    if (level >= 3 && Math.random() < eliteChance()) makeElite(e);
+    if (level >= (run.moh ? 2 : 3) && Math.random() < eliteChance()) makeElite(e);
   }
 }
 
@@ -2683,7 +2696,7 @@ const ELITES = {
   splitting:{ name: 'SPLITTING', color: '#ff5dc8', desc: 'splits in two when destroyed' },
 };
 const ELITE_LIST = Object.keys(ELITES);
-const eliteChance = () => Math.min(0.2, 0.025 + (level - 3) * 0.012);
+const eliteChance = () => run.moh ? Math.min(0.35, 0.1 + level * 0.02) : Math.min(0.2, 0.025 + (level - 3) * 0.012); // (MOH: lots more elites)
 function makeElite(e) {
   const pool = ELITE_LIST.filter(k => k !== 'splitting' || e.r < 22); // (no splitting tanks or carriers)
   const k = pool[Math.floor(Math.random() * pool.length)];
@@ -3273,7 +3286,7 @@ function fire(x, y, a, color, kind, p) {
   if (crit && s.cascade && !kind) for (let i = 0; i < 2 * s.cascade; i++) { const c = a + (i % 2 ? 1 : -1) * (0.18 + 0.12 * Math.floor(i / 2)); // (Cascade: crits split)
     bullets.push({ x, y, vx: Math.cos(c) * speed, vy: Math.sin(c) * speed, dmg: s.dmg * mult * 0.5, crit: true, hits: [], color, pierce: s.pierce, bounces: 0, size: s.bulletSize, owner: p ? p.id : -1 }); }
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
-    pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0) + (m.noGuns && abm('summoner') ? 1 : 0),
+    pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0),
     bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : kind === 'bomb' ? 5 : 0),
     missile: kind === 'missile', rail: kind === 'rail', owner: p ? p.id : -1,
     ...(kind === 'bomb' ? { bomb: true, fuse: BOMB_FUSE, blast: (m.blast || 70) * (abm('bomber') ? 1.35 : 1) + s.explosive * 12 } : {}) });
@@ -3387,7 +3400,8 @@ function killEnemy(e, src) {
   const drop = TYPES[e.type].drop ?? 0.07 * s.luck;
   if (Math.random() < drop) {
     const someoneDown = players.some(p => !p.alive);
-    const kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
+    let kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
+    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.5) kind = 'power'; // (MOH: hearts are rarer)
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
   if (s.pickpocket) run.coins += s.pickpocket; // (Pickpocket)
@@ -3515,6 +3529,145 @@ function nearestTarget(x, y, range) {
   for (const e of enemies) { if (TYPES[e.type].ghost || e.type === 'ice') continue; const d = Math.hypot(e.x - x, e.y - y); if (d < bd) { bd = d; best = e; } } // (homing shots ignore hazards)
   for (const bo of bosses) { if (!bossAlive(bo) || bo.shielded) continue; const d = Math.hypot(bo.x - x, bo.y - y) - bo.r; if (d < bd) { bd = d; best = bo; } }
   return best;
+}
+
+// ---------- SUMMONER: a whip, minions and sentries ----------
+// The whip is its only attack of its own: it cracks at the nearest enemy in reach, hurts everything in an arc and TAGS it.
+// Minions (imps spit fireballs, hornets dive and ram) go for tagged enemies first and hit them 60% harder. Sentries are turrets.
+const WHIP_R = 120, WHIP_TAG = 4, TAG_BONUS = 1.6, SENTRY_LIFE = 12, MINION_CAP = 8;
+const minionsOf = p => { const m = p.ship.mod; return m.noGuns ? Math.min(MINION_CAP, (m.minions || 0) + run.s.drones + Math.floor(Math.max(0, run.s.shots - 2) / 2) + (abm('summoner') ? 1 : 0)) : 0; };
+// who a minion or sentry goes for: the nearest enemy or boss, with tagged ones counting as 220px closer
+function minionTarget(x, y, range) {
+  let best = null, bd = range;
+  for (const e of enemies) { if (e.dead || TYPES[e.type].ghost || e.type === 'ice') continue; const d = Math.hypot(e.x - x, e.y - y) - (e.tag > 0 ? 220 : 0); if (d < bd) { bd = d; best = e; } }
+  for (const bo of bosses) { if (!bossAlive(bo) || bo.shielded) continue; const d = Math.hypot(bo.x - x, bo.y - y) - bo.r - (bo.tag > 0 ? 220 : 0); if (d < bd) { bd = d; best = bo; } }
+  return best;
+}
+const minionAlive = t => t && !t.dead && (t.dying === undefined ? t.hp > 0 : bossAlive(t));
+function updateWhip(p, dt) {
+  p.whipT = (p.whipT ?? 0.3) - dt;
+  if (p.whipT > 0) return;
+  const s = run.s, m = p.ship.mod, R = WHIP_R + (p.ship.mk2 ? 25 : 0), tg = nearestTarget(p.x, p.y - 10, R);
+  if (!tg) { p.whipT = 0.05; return; }
+  const a = Math.atan2(tg.y - p.y, tg.x - p.x), dmg = s.dmg * (m.dmg || 1) * 2.2 * (curse('glass') ? 1.5 : 1), tag = WHIP_TAG + (abm('summoner') ? 2 : 0);
+  p.whipT = 0.8 * (s.fireDelay / 0.14) * (p.power > 0 ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1);
+  for (const e of enemies) { // everything in the arc in front of the lash
+    if (e.dead || TYPES[e.type].ghost || e.type === 'ice') continue;
+    if (Math.hypot(e.x - p.x, e.y - p.y) < R + e.r && Math.abs(angleDiff(Math.atan2(e.y - p.y, e.x - p.x), a)) < 1.1) { e.lastBy = p.id; run.fireAcc = (run.fireAcc || 0) + dmg * s.bossDmg * 0.5; damageEnemy(e, dmg, 'splash'); e.tag = tag; }
+  }
+  for (const bo of bosses) {
+    if (!bossAlive(bo) || bo.shielded) continue;
+    if (Math.hypot(bo.x - p.x, bo.y - p.y) - bo.r < R && Math.abs(angleDiff(Math.atan2(bo.y - p.y, bo.x - p.x), a)) < 1.3) { hitBoss(bo, dmg, bo.x, bo.y); bo.tag = tag; }
+  }
+  const x2 = p.x + Math.cos(a) * R, y2 = p.y + Math.sin(a) * R;
+  bossFx.zaps.push({ x1: p.x, y1: p.y, x2, y2, life: 0.16, max: 0.16, whip: 1 }); netRec(['wh', Math.round(p.x), Math.round(p.y), Math.round(x2), Math.round(y2)]);
+  beep(1700, 0.05, 'sawtooth', 0.035, -1100);
+}
+function updateMinions(p, dt) {
+  const n = minionsOf(p), mins = p.mins ||= [], s = run.s, m = p.ship.mod;
+  while (mins.length < n) { const k = mins.length; mins.push({ x: p.x, y: p.y, k: k % 3 === 2 ? 1 : 0, cd: 0.5 + k * 0.2, st: 0, dt: 0 }); burst(p.x, p.y, '#ff9a3d', 8, 120); } // (a new one pops out)
+  mins.length = n;
+  const rateK = (s.fireDelay / 0.14) * (p.power > 0 ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1);
+  mins.forEach((q, i) => {
+    q.cd -= dt;
+    const a = time * 1.6 + i / n * TAU, tg = minionTarget(p.x, p.y, 500), lean = tg ? Math.min(1, 90 / (Math.hypot(tg.x - p.x, tg.y - p.y) || 1)) * 0.35 : 0; // (they lean toward the fight)
+    const hx = p.x + Math.cos(a) * 54 + (tg ? (tg.x - p.x) * lean : 0), hy = p.y - 8 + Math.sin(a) * 38 + (tg ? (tg.y - p.y) * lean : 0);
+    const home = k => { q.x += (hx - q.x) * k; q.y += (hy - q.y) * k; };
+    if (q.k === 0) { // IMP: hovers close and spits fireballs
+      home(1 - Math.exp(-dt * 7));
+      const t2 = minionTarget(q.x, q.y, 470);
+      if (t2 && q.cd <= 0) {
+        q.cd = 1.05 * rateK;
+        fire(q.x, q.y - 6, Math.atan2(t2.y - q.y, t2.x - q.x), '#ff9a3d', undefined, p);
+        const b = bullets[bullets.length - 1];
+        if (b) { b.dmg *= 1.9 * (t2.tag > 0 ? TAG_BONUS : 1); b.size += 1; b.vx *= 0.85; b.vy *= 0.85; b.minion = true; }
+      }
+    } else if (q.st === 0) { // HORNET, waiting
+      home(1 - Math.exp(-dt * 7));
+      const t2 = minionTarget(q.x, q.y, 400);
+      if (t2 && q.cd <= 0) { q.st = 1; q.dt = 0; q.tg = t2; beep(900, 0.08, 'sawtooth', 0.03, 500); }
+    } else if (q.st === 1) { // HORNET, diving at its target
+      q.dt += dt;
+      if (!minionAlive(q.tg) || q.dt > 0.75) { q.st = 2; q.cd = 1.7 * rateK; return; }
+      const d = Math.hypot(q.tg.x - q.x, q.tg.y - q.y) || 1;
+      q.x += (q.tg.x - q.x) / d * 780 * dt; q.y += (q.tg.y - q.y) / d * 780 * dt;
+      if (d < (q.tg.r || 20) + 10) { // it rams
+        const dmg = s.dmg * (m.dmg || 1) * 3.0 * (q.tg.tag > 0 ? TAG_BONUS : 1); run.fireAcc = (run.fireAcc || 0) + dmg * s.bossDmg * 0.5; // (counts toward the firepower bosses are sized for)
+        if (q.tg.dying === undefined) { q.tg.lastBy = p.id; damageEnemy(q.tg, dmg, 'splash'); } else hitBoss(q.tg, dmg, q.tg.x, q.tg.y);
+        burst(q.x, q.y, '#ffd23d', 8, 160); beep(300, 0.08, 'square', 0.04, -150);
+        q.st = 2; q.cd = 1.7 * rateK;
+      }
+    } else { // HORNET, flying back
+      const d = Math.hypot(hx - q.x, hy - q.y);
+      if (d < 26) q.st = 0; else { q.x += (hx - q.x) / d * 640 * dt; q.y += (hy - q.y) / d * 640 * dt; }
+    }
+  });
+}
+function updateSentries(dt) {
+  for (const q of run.sentries) {
+    q.age += dt;
+    if ((q.cd -= dt) > 0) continue;
+    const tg = minionTarget(q.x, q.y, 480), o = players.find(p => p.id === q.owner);
+    if (!tg) { q.cd = 0.1; continue; }
+    q.cd = q.tier ? 0.24 : 0.32;
+    fire(q.x, q.y - 12, Math.atan2(tg.y - q.y, tg.x - q.x), o?.color || '#7df9ff', undefined, o);
+    const b = bullets[bullets.length - 1];
+    if (b) { b.dmg *= (q.tier ? 1.5 : 1.15) * (tg.tag > 0 ? TAG_BONUS : 1); b.minion = true; }
+  }
+  run.sentries = run.sentries.filter(q => q.age < q.life);
+}
+// drawing: the minions, an orange mark on tagged enemies, and the sentries
+function drawMinions(p) {
+  const t = performance.now() / 1000;
+  p.mins.forEach((q, i) => {
+    const mv = Math.hypot(q.x - (q.lx ?? q.x), q.y - (q.ly ?? q.y)); // (a hornet faces the way it's flying)
+    if (mv > 5) q.fa = Math.atan2(q.y - q.ly, q.x - q.lx) + Math.PI / 2;
+    q.lx = q.x; q.ly = q.y;
+    ctx.save(); ctx.translate(q.x, q.y);
+    const flap = Math.sin(t * 32 + i * 2) * 0.5 + 0.5;
+    if (q.k === 0) { // IMP: a little red devil with wings and horns
+      glow('#ff7a3a', 12);
+      ctx.fillStyle = 'rgba(255,170,90,0.55)';
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 4, -1); ctx.lineTo(sd * (11 + flap * 3), -9 - flap * 3); ctx.lineTo(sd * 9, 4); ctx.closePath(); ctx.fill(); }
+      ctx.fillStyle = '#c0301f'; ctx.strokeStyle = '#ffb08a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffb08a';
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * 3, -5); ctx.lineTo(sd * 6, -11); ctx.lineTo(sd * 6.5, -4); ctx.closePath(); ctx.fill(); }
+      ctx.fillStyle = '#ffe93d'; ctx.fillRect(-4, -1, 2.5, 2.5); ctx.fillRect(1.5, -1, 2.5, 2.5);
+    } else { // HORNET: striped, with blurry wings and a stinger
+      ctx.rotate(q.st === 1 || mv > 5 ? q.fa || 0 : 0); glow('#ffd23d', 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * 7, -2, 6, 3 + flap * 2, sd * (0.5 + flap * 0.3), 0, TAU); ctx.fill(); }
+      ctx.fillStyle = '#ffd23d'; ctx.beginPath(); ctx.ellipse(0, 1, 5, 8, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2a1a05'; ctx.fillRect(-5, 0, 10, 2.5); ctx.fillRect(-4.5, 4, 9, 2.5);
+      ctx.beginPath(); ctx.arc(0, -7, 3.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#ff3a2a'; ctx.beginPath(); ctx.moveTo(-2, 9); ctx.lineTo(0, 14); ctx.lineTo(2, 9); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  });
+}
+function drawTagMarks() {
+  const t = performance.now() / 1000;
+  const mark = (x, y, r) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(t * 2); ctx.strokeStyle = '#ffb36b'; ctx.lineWidth = 2; glow('#ff8a3a', 10); ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 4; i++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(r - 4, 0); ctx.lineTo(r + 6, 0); ctx.stroke(); }
+    ctx.restore();
+  };
+  for (const e of enemies) if (e.tag > 0 && !e.dead) mark(e.x, e.y, e.r + 8);
+  for (const b of bosses) if (b.tag > 0 && b.dying <= 0) mark(b.x, b.y, b.r + 10);
+}
+function drawSentries() {
+  const t = performance.now() / 1000;
+  for (const q of run.sentries) {
+    const o = players.find(p => p.id === q.owner), c = o?.color || '#7df9ff', left = Math.max(0, 1 - q.age / q.life);
+    ctx.save(); ctx.translate(q.x, q.y); glow(c, 12);
+    ctx.fillStyle = 'rgba(10,14,30,0.9)'; ctx.strokeStyle = c; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-12, 10); ctx.lineTo(-7, -2); ctx.lineTo(7, -2); ctx.lineTo(12, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); // (the tower)
+    ctx.save(); ctx.translate(0, -12 + Math.sin(t * 3 + q.x) * 2); ctx.rotate(t * 2); ctx.fillStyle = hexA(c, 0.35);
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(6, 0); ctx.lineTo(0, 8); ctx.lineTo(-6, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); // (its crystal)
+    ctx.shadowBlur = 0; ctx.globalAlpha = 0.7; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 20, -Math.PI / 2, -Math.PI / 2 + TAU * left); ctx.stroke(); // (time left)
+    ctx.restore();
+  }
 }
 
 // ---------- bosses ----------
@@ -3645,7 +3798,7 @@ function updateDrain(b, dt) {
 }
 
 const bossAlive = b => b.dying <= 0 && !b.downed && !(b.cine < CINE_LEN); // (THE ABYSS can't be touched during its entrance)
-const isEnraged = b => (b.hp < b.max / 2 && b.gimmick !== 'sonnet' && b.gimmick !== 'zero') || b.forceRage; // (ZERO's rage is its third form) // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
+const isEnraged = b => (b.hp < b.max * (run?.moh ? 0.7 : 0.5) && b.gimmick !== 'sonnet' && b.gimmick !== 'zero') || b.forceRage; // (ZERO's rage is its third form) // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
 
 // distance from point (px,py) to the segment a-b (for the Sol & Luna tether)
 function distToSeg(px, py, ax, ay, bx, by) {
@@ -4981,6 +5134,46 @@ const LASH_WARN = 0.75, LASH_OUT = 0.16, LASH_HOLD = 0.3, LASH_BACK = 0.55;
 const ERUPT_WARN = 1.0, ERUPT_END = 1.9, ERUPT_W = 30;
 const STARE_LOCK = 1.15, STARE_FIRE = 1.4, STARE_BEAM = 0.28, STARE_END = 1.95, STARE_W = 20; // eyes in the dark
 const GRASP_LOCK = 0.25, GRASP_CLOSE = 1.15, GRASP_END = 1.9, GRASP_R = 62;                    // the hands
+// MOH: THE HANDS. Hands of shadow (the same ones THE ABYSS has) reach in from the dark all through the run and close on a ship.
+// A ring shows where, and they only follow you for a moment, so there's always time to slip away. Rarer in boss fights, never on
+// someone who was just hit, and never at the very start: [x, y, side, age, target] (see updateMohHands)
+const MOH_HAND = '#8a1030';
+function updateMohHands(dt) {
+  if (!run.moh) return;
+  const ps = living(), byId = id => ps.find(p => p.id === id) || ps[0]; // (a hand whose target fell goes for someone else)
+  for (const Hd of run.hands) {
+    Hd[3] = r2(Hd[3] + dt);
+    const p = byId(Hd[4]);
+    if (Hd[3] < GRASP_LOCK && p) { Hd[0] = Math.round(p.x); Hd[1] = Math.round(p.y); }
+    if (Hd[3] >= GRASP_CLOSE && Hd[3] - dt < GRASP_CLOSE) { shake = Math.max(shake, 12); beep(70, 0.35, 'square', 0.1, -40); burst(Hd[0], Hd[1], MOH_HAND, 18, 220); }
+    if (Hd[3] >= GRASP_CLOSE && Hd[3] < GRASP_CLOSE + 0.35) for (const q of ps) if (Math.hypot(q.x - Hd[0], q.y - Hd[1]) < GRASP_R + q.r * 0.4) hurt(q);
+  }
+  run.hands = run.hands.filter(Hd => Hd[3] < GRASP_END);
+  if (state !== 'play' || !ps.length || bossWarn > 0 || run.warp || (run.clock || 0) < 15) return;
+  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 8 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
+  const cand = ps.filter(q => q.inv <= 0 && !(q.phaseOn > 0));
+  if (!cand.length) { run.handT = 0.4; return; }
+  const p = randomOf(cand);
+  run.hands.push([Math.round(p.x), Math.round(p.y), p.x < W / 2 ? 1 : -1, 0, p.id]);
+  run.handT = Math.max(6, 11.5 - level * 0.45) * (bosses.length ? 1.7 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.75 + Math.random() * 0.5);
+  beep(48, 1.1, 'sawtooth', 0.08, 25);
+}
+function drawMohHands() {
+  if (!run?.hands?.length) return;
+  const t = performance.now() / 1000, flick = Math.sin(t * 40) * 0.5 + 0.5;
+  ctx.save(); ctx.lineCap = 'round';
+  for (const [hx, hy, side, age] of run.hands) {
+    if (age < 0) continue;
+    if (age < GRASP_CLOSE) { // a closing ring where it will grab
+      const k = age / GRASP_CLOSE;
+      ctx.globalAlpha = 0.08 + k * 0.15; ctx.fillStyle = '#ff2a3a'; ctx.beginPath(); ctx.arc(hx, hy, GRASP_R, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.35 + k * 0.45 + flick * 0.2; ctx.strokeStyle = '#ff2a3a'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(hx, hy, GRASP_R * (1.5 - k * 0.5), 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1; drawShadowHand(hx, hy, side, age, MOH_HAND);
+  }
+  ctx.restore();
+}
 const DELUGE_T = 2.4, DELUGE_GAP = 150, WHISPER_T = 3.2;
 const WHISPERS = ['you can\'t win', 'stay with me', 'it\'s so cold here', 'no one is coming', 'let go', 'we see you', 'why do you fight', 'this is the end', 'come closer'];
 const ABYSS_PATTERNS = { // its moves in each phase (it picks at random)
@@ -5419,7 +5612,7 @@ function updateOrbiters(b, dt, enraged) {
 }
 
 function updateBoss(b, dt) {
-  b.t += dt; b.flash = Math.max(0, b.flash - dt);
+  b.t += dt; b.flash = Math.max(0, b.flash - dt); if (b.tag > 0) b.tag -= dt;
 
   b.kick = Math.max(0, b.kick - dt * 4);
   b.hitKick = Math.max(0, b.hitKick - dt * 8);
@@ -5511,7 +5704,7 @@ function updateBoss(b, dt) {
 
   const enraged = isEnraged(b);
   // BOSS_ATTACK_SLOWDOWN spaces attacks out; enraging and repeat loops speed them up only a little
-  const rate = BOSS_ATTACK_SLOWDOWN / (1 + 0.2 * mut('hellfire')) * (mode === 1 && !net.playing ? SOLO_EASE : 1) * (b.atkMult || 1) * (enraged ? 0.8 : 1) * Math.max(0.75, 1 - b.loop * 0.08)
+  const rate = BOSS_ATTACK_SLOWDOWN / (1 + 0.2 * mut('hellfire')) * (mode === 1 && !net.playing && !run.moh ? SOLO_EASE : 1) * (b.atkMult || 1) * (enraged ? 0.8 : 1) * Math.max(0.75, 1 - b.loop * 0.08)
     * Math.max(0.72, 1 - ((bossCount - 1) % BOSS_CYCLE) * 0.04) // later fights in a cycle attack faster
     * (GIMMICKS[b.gimmick]?.rate?.(b) ?? 1) * (b.super && ascendOf(b) ? ascendOf(b).rate : 1);
   b.spin += dt * (enraged ? 1.8 : 0.9);
@@ -5693,6 +5886,7 @@ function onEncounterBeaten(enc, last) {
   run.coins = (run.coins || 0) + (run.rush ? 60 : 30); // shop money (Boss Rush has few other kills)
   if (!enc.hitTaken) unlockAch('flawless');
   if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) unlockAch('clutch');
+  if (last.final && run.moh) unlockAch('moh');
   if (last.final) { unlockAch('omega'); clearAbyssMark(); if (Object.keys(run.curses || {}).length >= 3) unlockAch('cursed'); }
   if (last.secret) unlockAch('zero');
   if (last.nemesis) unlockAch('nemesis');
@@ -5932,10 +6126,11 @@ function update(dt) {
       } else
       beep(880 + p.id * 110, 0.04, 'square', 0.012);
     }
+    if (m.noGuns && !holstered()) { updateWhip(p, dt); updateMinions(p, dt); } // (a SUMMONER's whip and minions)
     if (dronesOf(p) && !holstered()) {
       p.droneT -= dt;
       if (p.droneT <= 0) {
-        // (a SUMMONER's drones are its only guns: they fire faster with its fire rate, power-ups and LEGION, and they aim)
+        // (drones that aim: a SUMMONER has minions instead, see updateMinions)
         const own = m.noGuns, rate = own ? s.fireDelay / 0.14 * (m.fireRate || 1) * (p.power > 0 ? 0.6 : 1) * (abActive(p, 'summoner') ? 0.5 : 1) * (p.sapped > 0 ? 1.7 : 1) : 1;
         p.droneT = Math.max(p.droneT, -0.05) + (s.swarm ? 0.125 : 0.25) * rate; // (Drone Swarm: twice as fast)
         for (let k = 0; k < dronesOf(p); k++) {
@@ -6005,6 +6200,7 @@ function update(dt) {
   updateGlitch(dt); // (GLITCH SECTOR: its glitches play out, and wind down if you warp away mid-glitch)
   if (run.goldT > 0 && !bosses.length && bossWarn <= 0 && !run.warp && (run.goldT -= dt) <= 0) spawnGoldShard();
   updateEliteHazards(dt); updateHail(dt); // (and its elite one, from Endless cycle 2)
+  updateMohHands(dt); updateSentries(dt); // (MOH: the hands; a SUMMONER's sentries)
   spawnT -= dt;
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
@@ -6148,7 +6344,7 @@ function update(dt) {
   for (const e of enemies) {
     if (e.dead) continue;
     // Cryo Rounds: frozen enemies move, turn and shoot slower
-    e.slow = Math.max(0, (e.slow || 0) - dt);
+    e.slow = Math.max(0, (e.slow || 0) - dt); if (e.tag > 0) e.tag -= dt; // (a SUMMONER's tag wears off)
     const edt = (e.slow > 0 ? dt * (s.cryo >= 2 ? 0.4 : 0.55) : dt) * (e.elite === 'swift' ? 1.6 : 1); // (swift elites do everything faster)
     if (e.elite === 'regen' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.1 * dt);
     e.t += edt; e.spin += edt * 2; e.flash = Math.max(0, e.flash - dt);
@@ -6590,6 +6786,7 @@ function drawShip(p) {
     } else { glow('#ffffff', 12); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(-5, -5, 10, 10); }
     ctx.restore();
   }
+  if (p.mins?.length) drawMinions(p); // (a SUMMONER's minions)
   if (run.s.blades) { // spinning shuriken blades
     const n = 1 + run.s.blades;
     ctx.save(); ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(224,244,255,0.12)'; ctx.lineWidth = 1;
@@ -9599,6 +9796,12 @@ function drawBossFx(layer) {
     ctx.restore();
   }
   for (const z of bossFx.zaps) { // chain lightning arcs
+    if (z.whip) { // a SUMMONER's whip: a quick curved crack
+      const k = z.life / z.max, mx = (z.x1 + z.x2) / 2 + (z.y2 - z.y1) * 0.25 * (1 - k * 0.6) * (z.x1 < z.x2 ? 1 : -1), my = (z.y1 + z.y2) / 2 - (z.x2 - z.x1) * 0.25 * (1 - k * 0.6) * (z.x1 < z.x2 ? 1 : -1);
+      ctx.save(); ctx.lineCap = 'round'; ctx.globalAlpha = k; glow('#ff9a3d', 14); ctx.strokeStyle = '#ffb36b'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(z.x1, z.y1); ctx.quadraticCurveTo(mx, my, z.x2, z.y2); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore(); continue;
+    }
     ctx.save(); ctx.globalAlpha = z.life / z.max; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 2.5; glow('#7df9ff', 15);
     ctx.beginPath(); ctx.moveTo(z.x1, z.y1);
     for (let i = 1; i < 6; i++) {
@@ -9686,6 +9889,7 @@ function drawWorld() {
   for (const bo of bosses) drawBoss(bo);
   for (const bo of bosses) drawGlitchPost(bo);
   for (const bo of bosses) { drawGimmick(bo); drawRageMove(bo); drawGlitchOver(bo); }
+  drawMohHands(); drawTagMarks(); drawSentries();
   const shots = [], ink = [], hearts = [], goldRings = [], pages = [], speech = [], blades = [], gxb = [], spears = [];
   for (const b of eBullets) {
     const c = b.color || '#ff4d4d';
@@ -9900,7 +10104,7 @@ function drawHUD() {
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
-  if (muts.length) { ctx.fillStyle = '#ff9a3d'; ctx.font = 'bold 11px system-ui'; ctx.fillText(muts.join(' · '), 16, combo > 1 ? 84 : 64); }
+  if (muts.length) { ctx.fillStyle = run.moh ? '#ff4a5a' : '#ff9a3d'; ctx.font = 'bold 11px system-ui'; ctx.fillText(run.moh ? '✋ MOH · it gets worse every sector' : muts.join(' · '), 16, combo > 1 ? 84 : 64, Math.max(100, W - 156)); }
   const curses = CURSES.filter(c => curse(c.id)).map(c => c.name); // (and the run's curses)
   if (curses.length) { ctx.fillStyle = '#ff5a70'; ctx.font = 'bold 11px system-ui'; ctx.fillText('🌀 ' + curses.join(' · '), 16, (combo > 1 ? 84 : 64) + (muts.length ? 16 : 0)); }
 
@@ -10062,6 +10266,12 @@ function settingsButtons(y) {
 
 let pauseView = 'main'; // pause menu view: main, settings, room or offline cheats
 const cheats = { invincible: false };
+// the cheat menu is hidden: type the secret code in the offline pause menu (on a phone: tap the YOUR BUILD box 7 times).
+// Only the code's fingerprint is kept here
+const CHEAT_LEN = 8, CHEAT_HASH = 264744940;
+let secretBuf = '', secretTaps = 0, secretTapT = 0, secretZone = null;
+const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
+function secretKey(k) { secretBuf = (secretBuf + k.toLowerCase()).slice(-CHEAT_LEN); return secretBuf.length === CHEAT_LEN && fnv(secretBuf) === CHEAT_HASH; }
 function restartRun() {
   if (net.role === 'guest' || !run) return;
   paused = false; pauseView = 'main';
@@ -10095,13 +10305,15 @@ function drawPause() {
   if (online && !guest && !paused) items.push(['⏸  PAUSE FOR EVERYONE  [P]', '#ffe93d', () => forcePause(true)]);
   items.push(['SETTINGS', '#9ab', () => { pauseView = 'settings'; }]);
   if (online && !guest) items.push([`PLAYERS & ROOM${net.locked ? '  🔒' : ''}`, '#c08dff', () => { pauseView = 'room'; sel = 0; }]);
-  if (!guest) { if (!online) items.push(['CHEATS  [K]', '#ff5dc8', () => { pauseView = 'cheats'; sel = 0; }]); items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
+  if (!guest) { items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
   if (online) items.push([guest ? 'LEAVE GAME' : 'CLOSE ROOM', '#ff5a70', () => leaveOnline(guest ? 'You left the game' : undefined)]);
   const wide = W >= 760, bw = wide ? 250 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
   const bx = wide ? W / 2 - 290 : (W - bw) / 2, by = 116;
   items.forEach(([label, color, act], i) => button(label, bx, by + gap * i, bw, bh, color, act));
   if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
   else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * items.length + 6, Math.min(420, W - 32));
+  // (the hidden phone way into the cheats: tap the top of the YOUR BUILD box 7 times: see the pointerdown handler)
+  secretZone = !online && !guest ? (wide ? { x: W / 2 - 20, y: by, w: Math.min(320, W / 2 - 40), h: 34 } : { x: (W - Math.min(420, W - 32)) / 2, y: by + gap * items.length + 6, w: Math.min(420, W - 32), h: 34 }) : null;
 }
 function drawCheats() {
   title('LOCAL CHEATS', 68, '#ff5dc8', 42);
@@ -10110,6 +10322,9 @@ function drawCheats() {
   let y = 132;
   button(`INVINCIBILITY: ${cheats.invincible ? 'ON' : 'OFF'}`, bx, y, bw, bh, cheats.invincible ? '#9dff5d' : '#ff5a70', () => {
     cheats.invincible = !cheats.invincible; showToast(`INVINCIBILITY ${cheats.invincible ? 'ON' : 'OFF'}`);
+  }); y += gap;
+  button(`GALLERY REVEAL: ${meta.galleryCheat ? 'ON' : 'OFF'}`, bx, y, bw, bh, meta.galleryCheat ? '#ff5dc8' : '#8a5a9a', () => {
+    meta.galleryCheat = !meta.galleryCheat; saveMeta(); showToast(meta.galleryCheat ? 'ALL BOSSES REVEALED — PRACTICE ENABLED' : 'GALLERY REVEAL OFF');
   }); y += gap;
   button('FULL HEAL + REVIVE TEAM', bx, y, bw, bh, '#5dffc8', () => {
     for (const p of players) {
@@ -10334,7 +10549,8 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
+  } else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
+  else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
   const nCurse = cleanCurses(meta.curseSel).length, rw = Math.round(bw * 0.6);
@@ -10848,7 +11064,7 @@ function drawGallery() {
   const cols = W >= 900 ? 7 : W >= 640 ? 5 : W >= 440 ? 3 : 2, gap = 8, rows = Math.ceil(list.length / cols);
   const cw = Math.min(130, (W - 32 - gap * (cols - 1)) / cols), ch = Math.max(70, Math.min(116, (viewH - 190) / Math.min(rows, 5) - gap));
   const x0 = (W - (cw * cols + gap * (cols - 1))) / 2, y0 = 112, t = performance.now() / 1000;
-  const cheatY = y0 + rows * (ch + gap) + 4, backY = cheatY + (net.role ? 0 : 48);
+  const cheatY = y0 + rows * (ch + gap) + 4, backY = cheatY;
   menuScrollMax = galleryPick < 0 ? Math.max(0, backY + 40 - (viewH - 12)) : 0;
   menuScroll.gallery = clampMenuScroll('gallery');
   ctx.save(); ctx.beginPath(); ctx.rect(0, 108, W, viewH - 108); ctx.clip(); ctx.translate(0, -menuScroll.gallery);
@@ -10882,9 +11098,6 @@ function drawGallery() {
   });
   if (galleryPick < 0) {
     const bw = Math.min(300, W - 32), bx = (W - bw) / 2;
-    if (!net.role) button(`GALLERY CHEAT: ${meta.galleryCheat ? 'ON' : 'OFF'}`, bx, cheatY, bw, 40, meta.galleryCheat ? '#ff5dc8' : '#667', () => {
-      meta.galleryCheat = !meta.galleryCheat; saveMeta(); showToast(meta.galleryCheat ? 'ALL BOSSES REVEALED — PRACTICE ENABLED' : 'GALLERY CHEAT OFF');
-    });
     button('BACK  [Esc]', bx, backY, bw, 40, '#7df9ff', () => go('menu'));
     ctx.restore();
     if (menuScrollMax > 0) {
@@ -12944,7 +13157,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.6';
+const BUILD = '2026.10.06.7';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13224,10 +13437,10 @@ function packSnap() {
     rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd, linkPower: s.linkPower },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
-      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0)]),
+      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
-      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.gt || 0, r2(e.gv || 0)]),
+      e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.gt || 0, r2(e.gv || 0), r1(e.tag || 0)]),
     ...packBullets(s),
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color, l.flare ? 1 : 0]),
@@ -13242,6 +13455,8 @@ function packSnap() {
     lk: linkList(), cu: Object.keys(run.curses || {}), // (co-op links; the run's curses)
     td: [r2(run.tide || 0), r2(run.tideW || 0)], // (EVENT HORIZON's gravity tide: guests pull their own ships)
     gw: run.glitchy ? 1 : 0,
+    hd: run.hands.length ? run.hands : 0, // (MOH's hands)
+    sn: run.sentries.length ? run.sentries.map(q => [Math.round(q.x), Math.round(q.y), r1(q.age), r1(q.life), q.owner, q.tier ? 1 : 0]) : 0, // (a SUMMONER's sentries)
     gl: [r2(run.flipW || 0), r2(run.flipT || 0), run.tear ? [run.tear.y, run.tear.h, r2(run.tear.t), run.tear.dx] : 0], // (GLITCH SECTOR: flipped controls, and a tear)
     pc: run.dokiMet ? 0 : run.pinkCoins || 0, // (pink coins found so far)
     ev: net.events.splice(0),
@@ -13261,7 +13476,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired', 'emerald', 'ccT', 'trap', 'skate']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired', 'emerald', 'ccT', 'trap', 'skate', 'tag']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -13558,6 +13773,8 @@ function applySnap(s) {
   paused = !!s.pa; level = s.lv; levelT = s.lt; score = s.sc; combo = s.co; bossWarn = s.bw; bossCount = s.bc; time = s.t; run.clock = num(s.ck, 0, 1e7, run.clock || 0);
   screenFlash = Math.max(screenFlash, s.sf); shake = Math.max(shake, s.sh);
   if (s.rs && typeof s.rs === 'object') for (const k of SNAP_STATS) run.s[k] = num(s.rs[k], 0, 1e4, run.s[k]); // (only the stats the HUD needs, as plain numbers)
+  run.hands = Array.isArray(s.hd) ? s.hd.slice(0, 6).filter(h => Array.isArray(h) && h.length >= 5 && h.slice(0, 5).every(Number.isFinite)).map(h => h.slice(0, 5)) : []; // (MOH's hands)
+  run.sentries = Array.isArray(s.sn) ? s.sn.slice(0, 8).filter(a => Array.isArray(a) && a.length >= 6 && a.slice(0, 5).every(Number.isFinite)).map(a => ({ x: a[0], y: a[1], age: a[2], life: Math.max(1, a[3]), owner: a[4], tier: a[5] ? 1 : 0 })) : []; // (a SUMMONER's sentries)
   Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr, wonStandard: !!s.ws });
   s.pl.forEach((a, i) => {
     const p = players[i]; if (!p) return;
@@ -13568,6 +13785,11 @@ function applySnap(s) {
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
     p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11]; p.gone = !!a[12];
     p.abCd = num(a[13], 0, 99, 0); p.abOn = num(a[14], 0, 30, 0);
+    if (Array.isArray(a[15])) { // (a SUMMONER's minions: they glide toward where the host has them: see guestFrame)
+      const ms = p.mins ||= [], n = Math.min(MINION_CAP, Math.floor(a[15].length / 3));
+      for (let j = 0; j < n; j++) { const x = a[15][j * 3], y = a[15][j * 3 + 1]; if (!Number.isFinite(x) || !Number.isFinite(y)) continue; const q = ms[j] ||= { x, y }; q.tx = x; q.ty = y; q.k = a[15][j * 3 + 2] === 1 ? 1 : 0; q.st = 0; }
+      ms.length = n;
+    } else if (p.mins) p.mins = [];
   });
   // enemies keep their identity between snapshots (by id) so they can glide along a timeline
   const byId = new Map(enemies.map(e => [e.id, e])), seen = new Set();
@@ -13576,7 +13798,7 @@ function applySnap(s) {
     const e = Object.assign(old || { x: a[1], y: a[2] }, { type, vx: a[3], vy: a[4], hp: a[5], maxHp: a[6], flash: a[7], healFx: a[8], slow: a[9],
       spin: a[10], aimA: a[11], state: a[12], timer: a[13], fire: a[14], t: a[15], pulse: a[16], aiming: !!a[17],
       dest: a[18] ? { x: a[18][0], y: a[18][1] } : null, guardedT: a[19], r: a[20], color: TYPES[type].color, id, elite: a[22] || undefined,
-      gt: okIdx(a[23], GX_LOOK + 1) ? a[23] : 0, gv: num(a[24], 0, 2, 0), ...(old ? {} : { born: time }) }); // (a GLITCH enemy's bug, and when it started downloading)
+      gt: okIdx(a[23], GX_LOOK + 1) ? a[23] : 0, gv: num(a[24], 0, 2, 0), tag: num(a[25], 0, 30, 0), ...(old ? {} : { born: time }) }); // (a GLITCH enemy's bug, and when it started downloading)
     let tr = net.etr.get(id); if (!tr) net.etr.set(id, tr = newTrack());
     trackPush(tr, s.ts, [a[1], a[2]]); seen.add(id);
     return e;
@@ -13654,6 +13876,7 @@ function replayEvent(ev) {
     case 'g': if (bossFx.ghosts.length < 60) bossFx.ghosts.push({ x: ev[1], y: ev[2], rot: ev[3], sides: num(ev[4], 3, 16, 6), r: ev[5], color: ev[6],
       life: num(ev[7], 0, 5, 0.5), max: num(ev[7], 0.01, 5, 0.5), shape: ev[8], t: ev[9], super: ev[10] === 1 }); break;
     case 'z': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.2, max: 0.2 }); break;
+    case 'wh': bossFx.zaps.push({ x1: ev[1], y1: ev[2], x2: ev[3], y2: ev[4], life: 0.16, max: 0.16, whip: 1 }); break; // (a SUMMONER's whip)
     case 's': beep(num(ev[1], 20, 8000, 440), num(ev[2], 0.01, 3, 0.1), OSC_TYPES.includes(ev[3]) ? ev[3] : 'square', num(ev[4], 0, 0.2, 0.05), num(ev[5], -8000, 8000, 0)); break;
     case 'o': showToast(String(ev[1]).slice(0, 120)); break;
     case 'gs': if (typeof ev[1] === 'string') noteGoldShard(ev[1]); break; // (a golden shard: found for everyone)
@@ -13668,6 +13891,7 @@ function replayEvent(ev) {
 }
 // a guest's frame: move my own ship, glide everything else along until the next snapshot, run local effects
 function guestFrame(dt) {
+  for (const p of players) if (p.mins) for (const q of p.mins) { const k = 1 - Math.exp(-dt * 16); q.x += ((q.tx ?? q.x) - q.x) * k; q.y += ((q.ty ?? q.y) - q.y) * k; } // (a SUMMONER's minions glide)
   // gamepads: START opens your menu (only the host can pause everyone); in a menu, the stick moves and A picks;
   // otherwise A/X/bumper/trigger use your ability (gamepad N is player N on this computer)
   padState = [readPad(0), readPad(1), readPad(2), readPad(3)];
