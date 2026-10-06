@@ -1181,6 +1181,18 @@ const UPGRADES = [
   { id: 'ricochet', name: 'Ricochet',         r: 'rare',   max: 2, desc: 'Bullets bounce off the screen edges',    apply: s => s.ricochet++ },
   { id: 'explosive', name: 'Explosive Rounds', r: 'rare',  max: 2, desc: 'Hits explode, damaging nearby enemies',  apply: s => s.explosive++ },
   { id: 'cryo',     name: 'Cryo Rounds',      r: 'rare',   max: 2, desc: 'Hits freeze enemies, slowing them and their attacks', apply: s => s.cryo++ },
+  // ----- build-changers: each one changes how you play, not just a number -----
+  { id: 'gamble',   name: 'Loaded Dice',      r: 'rare',   max: 1, desc: 'Every bullet hits for a random 0.4× to 2.6× damage', apply: s => s.gamble = 1 },
+  { id: 'laststand', name: 'Last Stand',      r: 'epic',   max: 1, desc: 'On your last life: +70% damage and +20% speed', apply: s => s.laststand = 1 },
+  { id: 'frenzy',   name: 'Bloodrush',        r: 'rare',   max: 2, desc: 'Each kill: guns 4% faster for 3s (stacks 10×)', apply: s => s.frenzy++ },
+  { id: 'anchor',   name: 'Anchor Down',      r: 'rare',   max: 2, desc: 'Hold still for a moment: fire 30% faster',  apply: s => s.anchor++ },
+  { id: 'pulse',    name: 'Pulse Cannon',     r: 'epic',   max: 1, desc: 'Every 10th volley also fires a railgun slug', apply: s => s.pulse = 1 },
+  { id: 'shrapnel', name: 'Shrapnel',         r: 'rare',   max: 2, desc: 'Enemies burst into 4 shards when they die (+3 per stack)', apply: s => s.shrapnel++ },
+  { id: 'bounty',   name: 'Bounty Hunter',    r: 'common', max: 3, desc: '+1 coin from every kill',                    apply: s => s.bounty++ },
+  { id: 'soul',     name: 'Soul Harvest',     r: 'epic',   max: 1, desc: 'Every 20 kills: +4% damage for the rest of the run', apply: s => s.soul = 1 },
+  { id: 'spite',    name: 'Spite',            r: 'rare',   max: 2, desc: 'Getting hit fires a ring of 16 bullets (+8 per stack)', apply: s => s.spite++ },
+  { id: 'overdrive', name: 'Overdrive',       r: 'rare',   max: 1, desc: 'Every 8s your guns fire twice as fast for 2s', apply: s => s.overdrive = 1 },
+  { id: 'goldgun',  name: 'Golden Gun',       r: 'epic',   max: 1, desc: '+1% damage per 10 coins you hold (up to +60%)', apply: s => s.goldgun = 1 },
   { id: 'siphon',   name: 'Siphon',           r: 'rare',   max: 3, desc: 'Every 40 kills restores a life (fewer per stack)', apply: s => s.siphon++ },
   { id: 'chrono',   name: 'Chrono Field',     r: 'rare',   max: 2, desc: 'Enemy bullets move 15% slower',          apply: s => s.chrono *= 0.85 },
   { id: 'missiles', name: 'Micro Missiles',   r: 'rare',   max: 2, desc: 'Launch homing missiles that explode on impact', apply: s => s.missiles++ },
@@ -1236,7 +1248,8 @@ function newStats() {
     maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1 + 0.2 * metaLv('luck'), crit: 0, homing: 0, drones: 0,
     aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * metaLv('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
-    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1, linkPower: 1 };
+    explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1, linkPower: 1,
+    gamble: 0, laststand: 0, frenzy: 0, anchor: 0, pulse: 0, shrapnel: 0, bounty: 0, soul: 0, spite: 0, overdrive: 0, goldgun: 0 };
 }
 // ability cards only show up when they'd do something
 const abCardOk = u => !(u.ab || u.ship) || (!curse('powerless') && (!u.ship || players.some(p => !p.gone && shipBase(p) === u.ship)));
@@ -2047,7 +2060,8 @@ const abilityOf = p => ABILITIES[shipBase(p)] || ABILITIES.striker;
 const abTier = p => p.ship.mk2 === true ? 1 : 0;
 const abCdOf = p => abilityOf(p).cd[abTier(p)] * (p.ship.mk ? MK_UP[p.ship.mk].cd : 1) * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
 const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
-const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1); // (Wraiths are faster while phased)
+const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1) // (Wraiths are faster while phased)
+  * (run.s.laststand && p.lives === 1 ? 1.2 : 1); // (Last Stand)
 // which keys fire each control scheme's ability
 const AB_KEYS = { wasd: ['KeyQ', 'KeyE', 'ShiftLeft'], arrows: ['ShiftRight', 'Enter', 'Slash', 'Numpad0', 'ControlRight'], ijkl: ['KeyU', 'KeyO'], mouse: ['Space'] };
 const localSchemes = () => CONTROLS[net.role ? net.localN : mode] || CONTROLS[1];
@@ -3210,7 +3224,9 @@ function fire(x, y, a, color, kind, p) {
   const speed = kind === 'rail' ? 1500 : kind === 'missile' ? 420 : s.bulletSpeed * (m.bulletSpeed || 1) * (kind === 'bomb' ? BOMB_SPEED : 1);
   const rage = p && m.rage ? 1 + m.rage * Math.max(0, maxLivesOf(p) - p.lives) : 1; // Berserker: stronger when hurt
   const mult = (kind === 'rail' ? 8 : kind === 'missile' ? 2 : 1) * (crit ? (s.vampire ? 5 : 3) : 1) * (m.dmg || 1) * rage // (Vampire Rounds: 5x crits)
-    * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()); // (RAMPAGE, the GLASS CANNON curse, evolved ships)
+    * (p && abActive(p, 'berserker') ? 2 : 1) * (curse('glass') ? 1.5 : 1) * (1 + EVO_DMG * evoTier()) // (RAMPAGE, the GLASS CANNON curse, evolved ships)
+    * (s.gamble ? 0.4 + Math.random() * 2.2 : 1) * (s.laststand && p?.lives === 1 ? 1.7 : 1) // (Loaded Dice; Last Stand)
+    * (1 + 0.04 * (run.soulN || 0)) * (s.goldgun ? 1 + Math.min(0.6, (run.coins || 0) / 1000) : 1); // (Soul Harvest; Golden Gun)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
     pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0) + (m.noGuns && abm('summoner') ? 1 : 0),
@@ -3329,6 +3345,10 @@ function killEnemy(e, src) {
     const kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
+  if (s.bounty) run.coins += s.bounty; // (Bounty Hunter)
+  if (s.frenzy) { run.frenzyN = Math.min(10, (run.frenzyN || 0) + 1); run.frenzyT = 3; } // (Bloodrush)
+  if (s.soul && run.kills % 20 === 0) { run.soulN = (run.soulN || 0) + 1; popups.push({ x: e.x, y: e.y - 20, text: `SOUL +${run.soulN * 4}%`, life: 1, hot: true }); } // (Soul Harvest)
+  if (s.shrapnel) { const n = 1 + s.shrapnel * 3, o = Math.random() * TAU; for (let i = 0; i < n; i++) fire(e.x, e.y, o + i / n * TAU, '#ffb13d', undefined, null); } // (Shrapnel)
   if (s.siphon) { // every N kills, heal whoever is lowest
     run.siphonKills = (run.siphonKills || 0) + 1;
     const p = living().filter(q => q.lives < maxLivesOf(q)).sort((a, b) => a.lives - b.lives)[0];
@@ -5680,6 +5700,7 @@ function hurt(p) {
   p.lives--; p.inv = 2 + run.s.invBonus; p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
+  if (run.s.spite) { const n = 8 + run.s.spite * 8; for (let i = 0; i < n; i++) fire(p.x, p.y, i / n * TAU, '#ff5a70', undefined, p); } // (Spite)
   if (p.lives <= 0 && run.s.phoenix > 0) { phoenixBlast(p); return true; }
   if (p.lives <= 0) {
     p.alive = false;
@@ -5811,12 +5832,17 @@ function update(dt) {
 
     // auto fire (held during THE ABYSS's entrance, and around DOKI DOLL: see holstered)
     p.shotT -= dt;
+    p.stillT = Math.hypot(p.x - (p._lx ?? p.x), p.y - (p._ly ?? p.y)) < 60 * dt ? (p.stillT || 0) + dt : 0; p._lx = p.x; p._ly = p.y; // (Anchor Down)
+    if (run.frenzyT > 0 && (run.frenzyT -= dt) <= 0) run.frenzyN = 0; // (Bloodrush wears off)
     if (p.reloadT > 0 && (p.reloadT -= dt) <= 0) { p.ammo = m.cylinder; beep(1600, 0.05, 'square', 0.03); } // (GUNSLINGER: reloaded, click)
     if (p.shotT <= 0 && !holstered() && !(p.reloadT > 0) && !m.noGuns) {
       const powered = p.power > 0;
       // keep leftover time so fire rate (and Overclock) isn't rounded down to whole frames
       p.shotT = Math.max(p.shotT, -0.05) + s.fireDelay * (m.fireRate || 1) * (powered ? 0.6 : 1) * (p.sapped > 0 ? 1.7 : 1) // (a Sapper slows your guns)
-        * (abActive(p, 'berserker') ? 0.7 : 1); // (RAMPAGE: faster fire)
+        * (abActive(p, 'berserker') ? 0.7 : 1) // (RAMPAGE: faster fire)
+        / (1 + 0.04 * s.frenzy * (run.frenzyT > 0 ? run.frenzyN || 0 : 0)) // (Bloodrush)
+        * (s.anchor && p.stillT > 0.4 ? Math.pow(0.77, s.anchor) : 1) * (s.overdrive && (run.time || time) % 8 < 2 ? 0.5 : 1); // (Anchor Down; Overdrive)
+      if (s.pulse && (p.volleys = (p.volleys || 0) + 1) % 10 === 0) fire(p.x, p.y - 16, -Math.PI / 2, p.color, 'rail', p); // (Pulse Cannon)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
       for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, m.bombs ? 'bomb' : undefined, p);
       for (let i = 0; i < s.rear; i++) fire(p.x, p.y + 14, Math.PI / 2 + (i - (s.rear - 1) / 2) * 0.25, p.color, undefined, p);
@@ -12834,7 +12860,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.1';
+const BUILD = '2026.10.06.2';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
