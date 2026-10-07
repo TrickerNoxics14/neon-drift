@@ -1463,7 +1463,6 @@ addEventListener('keydown', e => {
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
     if (inMenu && (pauseView === 'settings' || pauseView === 'room' || pauseView === 'cheats') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
-    if (inMenu && !net.playing && pauseView === 'main' && /^[0-9]$/.test(e.key) && secretKey(e.key)) { pauseView = 'cheats'; sel = 0; secretBuf = ''; beep(880, 0.15, 'triangle', 0.05, 400); return; }
     if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
       if (e.code === 'KeyP') { if (net.role === 'host') forcePause(!paused); return; }
@@ -1572,10 +1571,7 @@ cv.addEventListener('pointerdown', e => {
     try { cv.setPointerCapture?.(e.pointerId); } catch (err) {} // (can fail if the finger is already gone)
     return;
   }
-  if (state === 'play' && paused && !net.playing && pauseView === 'main' && secretZone && w.x >= secretZone.x && w.x <= secretZone.x + secretZone.w && w.y >= secretZone.y && w.y <= secretZone.y + secretZone.h) { // (the hidden way into the cheats)
-    const now = performance.now(); secretTaps = now - secretTapT < 1200 ? secretTaps + 1 : 1; secretTapT = now;
-    if (secretTaps >= 7) { secretTaps = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); return; }
-  }
+  secretClick(w);
   if (state === 'play' && !paused && !menuOpen && run) {
     if (e.pointerType !== 'mouse' && inHud(() => touchPauseHit(w.x, w.y))) { if (net.playing) toggleMenu(); else { paused = true; pauseView = 'main'; sel = 0; } return; } // (the pause button)
     if (e.pointerType !== 'mouse' && net.camZ && inHud(() => touchZoomHit(w.x, w.y))) { // (an upright phone's zoom button)
@@ -10496,12 +10492,17 @@ function settingsButtons(y) {
 
 let pauseView = 'main'; // pause menu view: main, settings, room or offline cheats
 const cheats = { invincible: false };
-// the cheat menu is hidden: type the secret code in the offline pause menu (on a phone: tap the YOUR BUILD box 7 times).
-// Only the code's fingerprint is kept here
-const CHEAT_LEN = 8, CHEAT_HASH = 264744940;
-let secretBuf = '', secretTaps = 0, secretTapT = 0, secretZone = null;
-const fnv = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
-function secretKey(k) { secretBuf = (secretBuf + k.toLowerCase()).slice(-CHEAT_LEN); return secretBuf.length === CHEAT_LEN && fnv(secretBuf) === CHEAT_HASH; }
+// the cheat menu is hidden: in the offline pause menu, click three invisible spots in order (the top-left corner, the top-right
+// corner, then the bottom middle), each within 6 seconds of the one before. No sound or sign until the menu opens
+const SECRET_SPOTS = [() => [0, 0, 80, 80], () => [W - 80, 0, 80, 80], () => [W / 2 - 70, H - 80, 140, 80]];
+let secretStep = 0, secretT = 0;
+function secretClick(w) {
+  if (!(state === 'play' && paused && !net.playing && pauseView === 'main')) { secretStep = 0; return; }
+  const now = performance.now(), hit = i => { const [x, y, sw, sh] = SECRET_SPOTS[i](); return w.x >= x && w.x <= x + sw && w.y >= y && w.y <= y + sh; };
+  if (now - secretT > 6000) secretStep = 0;
+  if (hit(secretStep) && hitButton(w.x, w.y) < 0) { secretStep++; secretT = now; if (secretStep >= 3) { secretStep = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); } }
+  else secretStep = hit(0) && hitButton(w.x, w.y) < 0 ? 1 : 0; // (a wrong spot starts over; a spot with a real button on it never counts)
+}
 function restartRun() {
   if (net.role === 'guest' || !run) return;
   paused = false; pauseView = 'main';
@@ -10542,8 +10543,6 @@ function drawPause() {
   items.forEach(([label, color, act], i) => button(label, bx, by + gap * i, bw, bh, color, act));
   if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
   else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * items.length + 6, Math.min(420, W - 32));
-  // (the hidden phone way into the cheats: tap the top of the YOUR BUILD box 7 times: see the pointerdown handler)
-  secretZone = !online && !guest ? (wide ? { x: W / 2 - 20, y: by, w: Math.min(320, W / 2 - 40), h: 34 } : { x: (W - Math.min(420, W - 32)) / 2, y: by + gap * items.length + 6, w: Math.min(420, W - 32), h: 34 }) : null;
 }
 function drawCheats() {
   title('LOCAL CHEATS', 68, '#ff5dc8', 42);
@@ -13411,7 +13410,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.07.1';
+const BUILD = '2026.10.07.2';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
