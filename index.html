@@ -1456,9 +1456,16 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   ensureAudio();
-  if (state === 'play' && run && net.role !== 'guest' && !localSchemes().some(sc => sc.includes('ijkl')) && ((e.code === 'KeyK' && recent('KeyL')) || (e.code === 'KeyL' && recent('KeyK')))) { // (the hidden cheat menu: hold K and L together (or tap them one right after the other), offline or as the host. Again to go back to the game)
+  if (net.role === 'guest' && state === 'play' && menuOpen && pauseView === 'cheats' && !net.cheatOk && (/^[a-zA-Z0-9]$/.test(e.key) || e.key === 'Backspace')) { // (typing the cheat code)
+    let t = net.cheatTyped || '';
+    t = e.key === 'Backspace' ? t.slice(0, -1) : (t + e.key.toLowerCase()).slice(0, CHEAT_LEN);
+    net.cheatTyped = t; net.cheatNo = false;
+    if (t.length === CHEAT_LEN) cheatAuthSend(t);
+    return;
+  }
+  if (state === 'play' && run && !localSchemes().some(sc => sc.includes('ijkl')) && ((e.code === 'KeyK' && recent('KeyL')) || (e.code === 'KeyL' && recent('KeyK')))) { // (the hidden cheat menu: hold K and L together (or tap them one right after the other), offline or as the host. Again to go back to the game)
     if (net.playing) { // (online the game keeps going behind your menu)
-      if (menuOpen && pauseView === 'cheats') { menuOpen = false; pauseView = 'main'; } else { menuOpen = true; paused = false; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
+      if (menuOpen && pauseView === 'cheats') { menuOpen = false; pauseView = 'main'; } else { menuOpen = true; paused = false; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); if (net.role === 'guest') cheatGuestOpen(); }
     } else if (paused && pauseView === 'cheats') { paused = false; pauseView = 'main'; } else { paused = true; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
     return;
   }
@@ -6160,6 +6167,7 @@ function flashHurt(p, amount) {
 // returns true if the hit landed (broke a shield or cost a life)
 function hurt(p) {
   if (cheats.invincible && (!net.playing || net.role === 'host')) return false; // (online, only the host can have cheats: it runs the game)
+  if (p.cheatInv) return false; // (a guest cheated with the owner's code)
   if (p.inv > 0 || !p.alive || p.phaseOn > 0 || abActive(p, 'juggernaut')) return false; // (Wraiths are untouchable while phased; so is a FORTRESS)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
   const doki = dokiBoss(); if (doki) dokiAdd(doki, -DOKI_HURT); // (DOKI DOLL thinks you're no fun when you get hit)
@@ -10503,10 +10511,10 @@ const cheats = { invincible: false };
 const SECRET_SPOTS = [() => [0, 0, 80, 80], () => [W - 80, 0, 80, 80], () => [W / 2 - 70, H - 80, 140, 80]];
 let secretStep = 0, secretT = 0;
 function secretClick(w) {
-  if (!(state === 'play' && (paused || menuOpen) && net.role !== 'guest' && pauseView === 'main')) { secretStep = 0; return; }
+  if (!(state === 'play' && (paused || menuOpen) && pauseView === 'main')) { secretStep = 0; return; }
   const now = performance.now(), hit = i => { const [x, y, sw, sh] = SECRET_SPOTS[i](); return w.x >= x && w.x <= x + sw && w.y >= y && w.y <= y + sh; };
   if (now - secretT > 6000) secretStep = 0;
-  if (hit(secretStep) && hitButton(w.x, w.y) < 0) { secretStep++; secretT = now; if (secretStep >= 3) { secretStep = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); } }
+  if (hit(secretStep) && hitButton(w.x, w.y) < 0) { secretStep++; secretT = now; if (secretStep >= 3) { secretStep = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); if (net.role === 'guest') cheatGuestOpen(); } }
   else secretStep = hit(0) && hitButton(w.x, w.y) < 0 ? 1 : 0; // (a wrong spot starts over; a spot with a real button on it never counts)
 }
 function restartRun() {
@@ -10530,7 +10538,7 @@ function drawPause() {
     button('BACK  [Esc]', (W - bw) / 2, y + 6, bw, 42, '#9ab', () => { pauseView = 'main'; });
     return;
   }
-  if (pauseView === 'cheats' && (!online || !guest)) { drawCheats(); return; }
+  if (pauseView === 'cheats') { if (guest) drawGuestCheats(); else drawCheats(); return; }
   if (pauseView === 'room' && online && !guest) { drawRoomMenu(); return; }
   title(!online ? 'PAUSED' : paused ? (guest ? 'PAUSED BY HOST' : 'PAUSED FOR EVERYONE') : 'MENU', 64, '#7df9ff', 48);
   if (online && !paused) fitText('The game keeps going for everyone — your ship is still out there!', 98, 13, '#ffb13d', 'bold');
@@ -10550,6 +10558,59 @@ function drawPause() {
   if (wide) drawBuildPanel(W / 2 - 20, by, Math.min(320, W / 2 - 40));
   else drawBuildPanel((W - Math.min(420, W - 32)) / 2, by + gap * items.length + 6, Math.min(420, W - 32));
 }
+// ----- cheats as a guest: the host only does what a guest asks if the guest knows the owner's code (the game only has its
+// SHA-256 fingerprint). Wrong guesses are limited, and everyone in the game sees a "P2 used a cheat" note -----
+const CHEAT_SALT = 'pnd-cheat|', CHEAT_SHA = '41083ddc5c80065039ce285e1817297486fa752d08e084b63cfc0cf59d4ed00c', CHEAT_LEN = 10;
+async function sha256Hex(s) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+const cheatPwOk = async pw => typeof pw === 'string' && pw.length === CHEAT_LEN && /^[a-z0-9]+$/.test(pw) && !!globalThis.crypto?.subtle && (await sha256Hex(CHEAT_SALT + pw)) === CHEAT_SHA;
+function cheatHeal() { for (const p of players) { if (!p.alive && !p.gone) revive(p, living()[0], false); if (p.alive) { p.lives = maxLivesOf(p); p.shield = 1; } } }
+function cheatPower() { // (up to 5 times)
+  if (!run || (run.cheatBoost || 0) >= 5) return false;
+  run.cheatBoost = (run.cheatBoost || 0) + 1; run.s.dmg *= 1.5; run.s.fireDelay *= 0.85; run.s.speed *= 1.1; run.s.bossDmg *= 1.25; return true;
+}
+// (host) a guest asked for a cheat, or to check its code
+async function guestCheat(conn, d) {
+  if (!net.playing || !run || (conn.cheatBad || 0) >= 8) return;
+  const now = performance.now(); if (now - (conn.cheatAt || 0) < 120) return; conn.cheatAt = now; // (no flooding)
+  const pw = d.cheatAuth !== undefined ? d.cheatAuth : d.pw;
+  if (!(await cheatPwOk(pw))) { conn.cheatBad = (conn.cheatBad || 0) + 1; try { conn.send({ cheatNo: 1 }); } catch (e) {} return; }
+  if (d.cheatAuth !== undefined) { try { conn.send({ cheatOk: 1 }); } catch (e) {} return; }
+  const mine = (conn.slots || []).map(id => players[id]).filter(Boolean), who = (conn.slots || []).map(id => 'P' + (id + 1)).join(' & ');
+  let what = null;
+  if (d.cheat === 'inv') { const on = !mine.some(p => p.cheatInv); for (const p of mine) p.cheatInv = on; what = `INVINCIBLE ${on ? 'ON' : 'OFF'}`; }
+  else if (d.cheat === 'heal') { cheatHeal(); what = 'HEAL'; }
+  else if (d.cheat === 'power') { what = cheatPower() ? 'POWER UP' : null; }
+  else if (d.cheat === 'clear') { eBullets = []; lasers = []; what = 'CLEAR BULLETS'; }
+  if (what) fxText(`${who} used a cheat: ${what}`, W / 2, H * 0.18, '#ff5dc8', 16, 2);
+}
+// (guest) check a code with the host, ask for a cheat, and open the menu (a phone has no keyboard: it asks with a pop-up)
+function cheatAuthSend(pw) { net.cheatPw = pw; net.cheatNo = false; try { net.host?.send({ cheatAuth: pw }); } catch (e) {} }
+function cheatSend(kind) { try { net.host?.send({ cheat: kind, pw: net.cheatPw }); } catch (e) {} }
+function cheatGuestOpen() {
+  if (net.cheatOk) return;
+  let stored = ''; try { stored = localStorage.getItem('pndCheatPw') || ''; } catch (e) {}
+  if (stored.length === CHEAT_LEN) cheatAuthSend(stored);
+  else if (touchMode) { const pw = String(prompt('Code?') || '').trim().toLowerCase(); if (pw.length === CHEAT_LEN) cheatAuthSend(pw); }
+}
+function drawGuestCheats() {
+  title('CHEATS', 68, '#ff5dc8', 42);
+  const bw = Math.min(360, W - 32), bx = (W - bw) / 2, bh = H < 700 ? 42 : 48, gap = bh + 10;
+  if (!net.cheatOk) { // asking for the code (the keys go to this box: see the keydown handler)
+    fitText(net.cheatNo ? 'Wrong code' : 'Type the code', 112, 16, net.cheatNo ? '#ff5a70' : '#c9a0ff', 'bold');
+    fitText(net.cheatTyped ? '•'.repeat(net.cheatTyped.length) : '_ _ _ _ _ _ _ _ _ _', 160, 26, '#ffffff', 'bold');
+    button('BACK  [Esc]', bx, 204, bw, 40, '#9ab', () => { pauseView = 'main'; sel = 0; });
+    return;
+  }
+  fitText('The host does these: everyone in the game feels them', 102, 13, '#c9a0ff');
+  let y = 132;
+  button('INVINCIBILITY (YOUR SHIP): TOGGLE', bx, y, bw, bh, '#9dff5d', () => { cheatSend('inv'); showToast('ASKED THE HOST'); }); y += gap;
+  button('FULL HEAL + REVIVE TEAM', bx, y, bw, bh, '#5dffc8', () => { cheatSend('heal'); showToast('ASKED THE HOST'); }); y += gap;
+  button('POWER UP', bx, y, bw, bh, '#ffe93d', () => { cheatSend('power'); showToast('ASKED THE HOST'); }); y += gap;
+  button('CLEAR ENEMY BULLETS', bx, y, bw, bh, '#7df9ff', () => { cheatSend('clear'); showToast('ASKED THE HOST'); }); y += gap;
+  button(`GALLERY REVEAL: ${meta.galleryCheat ? 'ON' : 'OFF'}`, bx, y, bw, bh, meta.galleryCheat ? '#ff5dc8' : '#8a5a9a', () => { meta.galleryCheat = !meta.galleryCheat; saveMeta(); showToast(meta.galleryCheat ? 'ALL BOSSES REVEALED' : 'GALLERY REVEAL OFF'); }); y += gap;
+  button('+1,000 SHARDS (YOURS)', bx, y, bw, bh, '#ffb13d', () => { meta.shards += 1000; saveMeta(); showToast('1,000 SHARDS ADDED'); }); y += gap;
+  button('BACK  [Esc]', bx, y + 4, bw, 40, '#9ab', () => { pauseView = 'main'; sel = 0; });
+}
 function drawCheats() {
   title('LOCAL CHEATS', 68, '#ff5dc8', 42);
   fitText(net.playing ? 'You are the host: everyone in the game feels these' : 'Offline · cheats may affect run results', 102, 13, '#c9a0ff');
@@ -10561,17 +10622,9 @@ function drawCheats() {
   button(`GALLERY REVEAL: ${meta.galleryCheat ? 'ON' : 'OFF'}`, bx, y, bw, bh, meta.galleryCheat ? '#ff5dc8' : '#8a5a9a', () => {
     meta.galleryCheat = !meta.galleryCheat; saveMeta(); showToast(meta.galleryCheat ? 'ALL BOSSES REVEALED — PRACTICE ENABLED' : 'GALLERY REVEAL OFF');
   }); y += gap;
-  button('FULL HEAL + REVIVE TEAM', bx, y, bw, bh, '#5dffc8', () => {
-    for (const p of players) {
-      if (!p.alive && !p.gone) revive(p, living()[0], false);
-      if (p.alive) { p.lives = maxLivesOf(p); p.shield = 1; }
-    }
-    showToast('TEAM RESTORED');
-  }); y += gap;
+  button('FULL HEAL + REVIVE TEAM', bx, y, bw, bh, '#5dffc8', () => { cheatHeal(); showToast('TEAM RESTORED'); }); y += gap;
   button(`POWER UP${run?.cheatBoost ? `  (${run.cheatBoost}/5)` : ''}`, bx, y, bw, bh, '#ffe93d', () => {
-    if (!run || (run.cheatBoost || 0) >= 5) { showToast(run ? 'POWER BOOST LIMIT REACHED' : 'START A RUN FIRST'); return; }
-    run.cheatBoost = (run.cheatBoost || 0) + 1;
-    run.s.dmg *= 1.5; run.s.fireDelay *= 0.85; run.s.speed *= 1.1; run.s.bossDmg *= 1.25;
+    if (!cheatPower()) { showToast(run ? 'POWER BOOST LIMIT REACHED' : 'START A RUN FIRST'); return; }
     showToast(`POWER BOOST ${run.cheatBoost}/5`);
   }); y += gap;
   button('+1,000 SHARDS', bx, y, bw, bh, '#ffb13d', () => {
@@ -13416,7 +13469,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.07.6';
+const BUILD = '2026.10.08.1';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13578,8 +13631,7 @@ function onHello(conn, h) {
     broadcastLobby();
     return;
   }
-  // a game is running: public rooms let people drop in (taking over slots of players who left first)
-  if (!net.public) { refuse(conn); return; }
+  // a game is running: anyone with the code can drop in (taking over slots of players who left first), unless the room is locked
   const free = players.map((p, i) => p.gone ? i : -1).filter(i => i >= 0), ids = [];
   let next = players.length;
   for (let k = 0; k < n; k++) ids.push(free.length ? free.shift() : next++);
@@ -13597,6 +13649,7 @@ function onHostData(conn, d) {
   if (typeof d.ping === 'number') { conn.send({ pong: d.ping }); return; } // (a guest measuring its ping)
   if (d.hello) { if (!conn._pub) onHello(conn, d.hello); return; } // (the public address is only for looking)
   if (!conn.slots) return;
+  if (d.cheat !== undefined || d.cheatAuth !== undefined) { guestCheat(conn, d); return; } // (cheats: only with the owner's code)
   if (d.scr) { conn.scr = cleanScr(d.scr) || conn.scr; return; } // (they turned their phone, or resized the window, in the lobby)
   const k = d.k ?? 0; // which of their players this is about — only ever one of their own
   if (!okIdx(k, conn.slots.length)) return;
@@ -13660,7 +13713,6 @@ function onGuestLeft(conn, kicked) {
   } else { compactSlots(); broadcastLobby(); }
 }
 function startOnline() {
-  if (net.conns.length < 1) { showToast('Waiting for at least one friend to join'); return; }
   compactSlots(); // (RUN AGAIN: leave out anyone who left)
   const ships = net.slots.map(s => s.ship), cos = net.slots.map(s => s.cos || COS_DEFAULT);
   // a phone in the game (a small screen, upright or sideways): the world stays wide for the computers, but no taller than 720,
@@ -13779,7 +13831,7 @@ function keepAlive(peer, onLost) {
 const JOIN_WAIT = 12, JOIN_TRIES = 3; // seconds per try, and how many tries
 const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi, or a phone on mobile data) can block online play: once the game has loaded, try turning the VPN off on both devices, or switch the phone to Wi-Fi.';
 async function joinGame(code, attempt = 1) {
-  Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0 });
+  Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0, cheatOk: false, cheatNo: false, cheatTyped: '', cheatPw: '' });
   Object.assign(net, { role: 'guest', status: attempt > 1 ? `Still connecting… (try ${attempt} of ${JOIN_TRIES})` : 'Connecting…', slots: [], myId: 0, mine: [], joinFail: null, lastCode: code });
   go('lobby');
   const failed = msg => { net.status = msg; net.joinFail = code; net.peer = null; };
@@ -13820,6 +13872,8 @@ const okSize = (w, h) => Number.isFinite(w) && Number.isFinite(h) && w >= 200 &&
 const cleanMine = you => [].concat(you).filter(i => okIdx(i, MAX_ONLINE)).slice(0, 4);
 function onGuestData(d) {
   if (!d || typeof d !== 'object') return;
+  if (d.cheatOk) { net.cheatOk = true; net.cheatNo = false; try { localStorage.setItem('pndCheatPw', net.cheatPw || ''); } catch (e) {} return; } // (the host accepted my cheat code)
+  if (d.cheatNo) { net.cheatNo = true; net.cheatOk = false; net.cheatTyped = ''; net.cheatPw = ''; try { localStorage.removeItem('pndCheatPw'); } catch (e) {} return; }
   if (typeof d.pong === 'number') { const r = performance.now() - d.pong; if (r >= 0 && r < 5000) net.rtt = net.rtt ? net.rtt * 0.7 + r * 0.3 : r; return; }
   if (Array.isArray(d.sc)) { // a piece of a snapshot: put them back together, newest wins (older ones that arrive late are dropped)
     const [sn, i, parts, piece] = d.sc;
@@ -14472,8 +14526,8 @@ function drawLobby() {
   else button(net.mine.length > 1 ? 'CHANGE SHIP  [C]' : 'CHANGE MY SHIP  [C]', bx, by + 20, bw, mobile ? 36 : 40, P_COLORS[me], () => openShipSelect(1, true));
   if (host) {
     const n = net.slots.length;
-    const ready = net.conns.length > 0; // (needs at least one friend from another computer)
-    button(ready ? `START  ·  ${n} PLAYERS  [Enter]` : 'WAITING FOR FRIENDS…', bx, by + (mobile ? 62 : 68), bw, mobile ? 38 : 44, ready ? '#9dff5d' : '#667', startOnline);
+    // (you can start alone: friends can drop in with the code while the game is running, until you lock the room)
+    button(net.conns.length ? `START  ·  ${n} PLAYERS  [Enter]` : 'START ALONE  (friends can join later)  [Enter]', bx, by + (mobile ? 62 : 68), bw, mobile ? 38 : 44, '#9dff5d', startOnline);
   }
   button('LEAVE  [Esc]', bx, by + (host ? (mobile ? 108 : 120) : (mobile ? 62 : 68)), bw, mobile ? 36 : 40, '#ff5a70', () => leaveOnline());
   if (host) { // who can get in: public or private, and locked or open

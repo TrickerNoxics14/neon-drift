@@ -9,8 +9,8 @@ A roguelite neon shooter — solo, local co-op for up to 4 on one keyboard, or o
 1. Everyone opens the link above.
 2. One player clicks **ONLINE CO-OP → HOST A PRIVATE GAME** and shares the 4-digit room code with their friends.
 3. Friends click **JOIN WITH A CODE** and type it. Sharing a computer? Set **PLAYERS ON THIS PC** first (they split the keyboard like local co-op).
-4. Pick your ship right in the lobby. With several players on one computer, each one changes their own ship with their own keys (**A/D**, **←/→** or **J/L**), or clicks their own slot. The host presses **START**.
-5. Once everyone is in, the host can press **LOCK ROOM [K]**: nobody new can get in, not even with the code.
+4. Pick your ship right in the lobby. With several players on one computer, each one changes their own ship with their own keys (**A/D**, **←/→** or **J/L**), or clicks their own slot. The host presses **START**: you can even start alone, and friends can still join with the code while the game is running (they drop in as new ships).
+5. Once everyone is in, the host can press **LOCK ROOM [K]**: nobody new can get in, not even with the code (and that includes mid-game).
 
 Want to play with anyone? **HOST A PUBLIC GAME** puts your room on **BROWSE PUBLIC GAMES**, where anyone can join, even after the game starts. Every public room now announces itself. The list used to be kept in one random player's browser, so a single player on a VPN or a strict network could make every public game disappear for everyone. Now a room only fails to show up if *your* computer can't reach it (and then you couldn't have joined it anyway).
 
