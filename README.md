@@ -100,6 +100,7 @@ THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a re
 Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for those three recordings, all the music is played live by the browser from notes written in the code.
 
 ### Bosses
+**Regenerating bosses:** leave a boss alone for about 4 seconds (3 in MOH) and it starts to heal (2% of its health per second, 3% in MOH), with a green REGENERATING tag on its health bar. It never heals past its next phase mark (the 50% enrage, THE ABYSS's phases...), so a phase is never undone, and any hit stops it at once. Keep shooting!
 
 Every boss has its own shape. The Warden is a fortress shield, Hexcore a hex nut, Stormcaller a storm cloud, The Hive a beehive, Phantom a ghost, Chronos a pocket watch, The Oracle one giant eye, and so on. The team bosses get their own shapes too: stars, a sun and a crescent moon, cut gems, a sword and more.
 

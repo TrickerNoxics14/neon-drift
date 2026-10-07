@@ -5619,7 +5619,20 @@ function updateBoss(b, dt) {
   b.rage = Math.max(0, b.rage - dt);
   b.appear = Math.max(0, b.appear - dt * 3);
   b.shieldHit = Math.max(0, b.shieldHit - dt);
-  b.healT = Math.max(0, (b.healT || 0) - dt);
+  b.healT = Math.max(0, (b.healT || 0) - dt); b.regenT = Math.max(0, (b.regenT || 0) - dt);
+  // REGENERATING: leave a boss alone for a few seconds and it starts to heal (never past its next phase mark, so a phase is never undone)
+  if (b.entered && b.dying <= 0 && !b.downed && b.doki === undefined && !(b.reboot > 0) && !(b.xf >= 0) && !b.shielded) {
+    b.idleT = (b.idleT || 0) + dt;
+    if (b.idleT >= (run?.moh ? 3 : 4) && b.hp < b.max) {
+      if (!b._rgText) b.regenCap = ([0.25, 0.33, 0.5, 0.66, 0.7, 0.75].find(m => m * b.max > b.hp + 1) ?? 1) * b.max; // (worked out once, when it starts)
+      const cap = b.regenCap ?? b.max;
+      if (b.hp < cap) {
+        b.hp = Math.min(cap, b.hp + b.max * (run?.moh ? 0.03 : 0.02) * dt); b.regenT = 0.3;
+        if (!b._rgText) { b._rgText = true; fxText('REGENERATING...', b.x, Math.max(40, b.y - b.r - 30), '#5dff7a', 20, 1.2); }
+        if ((b._rgT = (b._rgT || 0) - dt) <= 0) { b._rgT = 0.4; burst(b.x + (Math.random() - 0.5) * b.r, b.y + (Math.random() - 0.5) * b.r, '#5dff7a', 5, 80); }
+      }
+    }
+  }
   if (b.downed) { b.spin += dt * 0.3; return; } // a fallen twin just waits (see updateEncounter)
   if (b.cine < CINE_LEN) { abyssCineStep(b, dt); return; } // THE ABYSS's entrance
   if (b.drain) updateDrain(b, dt);
@@ -5848,7 +5861,7 @@ function hitBoss(b, dmg, fx, fy) {
     g.onHit?.(b, dmg);
   }
   if (ascendOf(b) && b.entered) { if (b.xf >= 0) return false; if (b.super) dmg *= ascendOf(b).armor; }
-  b.hp -= dmg; b.flash = 0.06; b.lastHit = time;
+  b.hp -= dmg; b.flash = 0.06; b.lastHit = time; b.idleT = 0; b._rgText = false; // (a hit stops its regenerating)
   dmgNumber(b, dmg, true);
   b.hitKick = Math.min(1, b.hitKick + 0.15);
   if (b.hp > 0) return true;
@@ -10193,6 +10206,7 @@ function drawHUD() {
     else if (bo.shielded) { status = 'SHIELDED'; statusColor = '#5dff7a'; }
     else if (bo.regen) { status = 'REGENERATING'; statusColor = '#5dff7a'; }
     else if (bo.healT > 0) { status = 'HEALING'; statusColor = '#ff2d55'; }
+    else if (bo.regenT > 0) { status = 'REGENERATING'; statusColor = '#5dff7a'; }
     else if (bo.beast) { status = 'THE BEAST · CAN\'T BE HURT · HACK THE COMPUTERS!'; statusColor = '#ff3d3d'; }
     else if (bo.sus) { status = 'WHO DUNNIT? · FIND THE MURDERER'; statusColor = '#ff9ccf'; }
     else if (bo.tired > 0) { status = 'DIZZY · ×2 DAMAGE'; statusColor = '#ffffff'; }
@@ -13161,7 +13175,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.8';
+const BUILD = '2026.10.06.9';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13474,7 +13488,7 @@ const roundDeep = v => typeof v === 'number' ? r2(v) : Array.isArray(v) ? v.map(
 // is only sent when a boss first appears and then once a second, and guests remember it
 const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
-  'faceA', 'bigAtk', 'cracks', 'healT', 'regen',
+  'faceA', 'bigAtk', 'cracks', 'healT', 'regen', 'regenT',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
   'tents', 'erupt', 'dark', 'darkR', 'maw', 'mawN', 'phase', 'grid', 'inv', 'invW', 'stop', 'stopW', 'body', 'judge', 'nova', 'special',
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
