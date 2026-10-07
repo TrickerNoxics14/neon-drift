@@ -1462,6 +1462,10 @@ addEventListener('keydown', e => {
   const inMenu = paused || menuOpen; // (paused, or online, a menu of your own while the game keeps going)
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
+    if (e.code === 'Backquote' && !net.playing && run) { // (the hidden cheat menu: the ` key, offline only. Press it again to go back to the game)
+      if (paused && pauseView === 'cheats') { paused = false; pauseView = 'main'; } else { paused = true; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
+      return;
+    }
     if (inMenu && (pauseView === 'settings' || pauseView === 'room' || pauseView === 'cheats') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
     if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
@@ -10492,7 +10496,7 @@ function settingsButtons(y) {
 
 let pauseView = 'main'; // pause menu view: main, settings, room or offline cheats
 const cheats = { invincible: false };
-// the cheat menu is hidden: in the offline pause menu, click three invisible spots in order (the top-left corner, the top-right
+// the cheat menu is hidden: press the ( ` ) key (see the keydown handler). On a phone, in the offline pause menu, click three invisible spots in order (the top-left corner, the top-right
 // corner, then the bottom middle), each within 6 seconds of the one before. No sound or sign until the menu opens
 const SECRET_SPOTS = [() => [0, 0, 80, 80], () => [W - 80, 0, 80, 80], () => [W / 2 - 70, H - 80, 140, 80]];
 let secretStep = 0, secretT = 0;
@@ -13410,7 +13414,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.07.2';
+const BUILD = '2026.10.07.3';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
