@@ -2427,7 +2427,7 @@ function start(m, ships, cosList) {
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
   if (curse('slim')) run.rerolls = 0;
-  if (run.moh) { run.s.maxLives = Math.max(1, run.s.maxLives - 1); run.handT = 14; } // (MOH: one life fewer, and the first hand comes a while in)
+  if (run.moh) { run.s.maxLives = Math.max(1, run.s.maxLives - 1); run.handT = 8; } // (MOH: one life fewer, and the first hand comes a while in)
   lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
@@ -2528,8 +2528,8 @@ function startNextCycle() {
   return m;
 }
 const mut = id => (run && (run.mut[id] || 0) + (run.moh ? mohMut(id) : 0)) || 0; // how many times a mutator has stacked this run (MOH has them from the start, and they grow with the sectors)
-const mohMut = id => ({ swift: Math.min(2, 1 + Math.floor(level / 6)), armored: Math.min(3, 1 + Math.floor(level / 4)), frenzy: level >= 5 ? 2 : 1,
-  hellfire: Math.min(3, 1 + Math.floor(level / 5)), titans: level >= 6 ? 2 : 1, volatile: level >= 4 ? 1 : 0 }[id] || 0);
+const mohMut = id => ({ swift: Math.min(3, 1 + Math.floor(level / 5)), armored: Math.min(3, 1 + Math.floor(level / 3)), frenzy: level >= 3 ? 3 : 2,
+  hellfire: Math.min(4, 1 + Math.floor(level / 4)), titans: level >= 5 ? 3 : 2, volatile: level >= 8 ? 2 : level >= 3 ? 1 : 0 }[id] || 0);
 function addMutator() {
   // prefer ones not active yet; once all are in play, they start stacking
   const fresh = MUTATORS.filter(m => !mut(m.id)), pool = fresh.length ? fresh : MUTATORS;
@@ -5150,12 +5150,12 @@ function updateMohHands(dt) {
   }
   run.hands = run.hands.filter(Hd => Hd[3] < GRASP_END);
   if (state !== 'play' || !ps.length || bossWarn > 0 || run.warp || (run.clock || 0) < 15) return;
-  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 8 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
+  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 4 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
   const cand = ps.filter(q => q.inv <= 0 && !(q.phaseOn > 0));
   if (!cand.length) { run.handT = 0.4; return; }
   const p = randomOf(cand);
   run.hands.push([Math.round(p.x), Math.round(p.y), p.x < W / 2 ? 1 : -1, 0, p.id]);
-  run.handT = Math.max(6, 11.5 - level * 0.45) * (bosses.length ? 1.7 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.75 + Math.random() * 0.5);
+  run.handT = Math.max(4.5, 8.5 - level * 0.4) * (bosses.length ? 1.7 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.75 + Math.random() * 0.5);
   beep(48, 1.1, 'sawtooth', 0.08, 25);
 }
 function drawMohHands() {
@@ -6205,10 +6205,14 @@ function update(dt) {
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
     const seq0 = enemyIdSeq; spawnEnemy();
+    if (run.moh) for (let k = 0, extra = Math.random() < Math.min(0.65, 0.3 + level * 0.03) ? 1 + (Math.random() < 0.4 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in packs)
     if (glitchWorld()) for (const e of enemies) if (e.id > seq0) glitchEnemyInit(e); // (GLITCH variants of every enemy)
     spawnT = Math.max(0.18, 0.9 - level * 0.07) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
+  }
+  else if (run.moh && bosses.length && bossWarn <= 0 && !run.warp && bosses.every(b => b.entered && b.dying <= 0) && (run.addT = (run.addT ?? 5) - dt) <= 0) { // (MOH: the boss's friends keep arriving all through the fight)
+    spawnEnemy(); run.addT = Math.max(3.2, 6 - level * 0.25) / Math.min(2, Math.sqrt(players.length));
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
@@ -13157,7 +13161,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.06.7';
+const BUILD = '2026.10.06.8';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';

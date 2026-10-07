@@ -206,7 +206,7 @@ A little companion that follows your ship around (Hangar â†’ Skins & Cosmetics â
 
 ### MOH
 
-A fourth run type (press **E** on the menu, or in the lobby): standard sectors and bosses, but built to be as hard as it can be while staying fair. You start with 2 lives, enemies are tougher, faster and more frequent from the first sector (and it gets worse every few sectors), there are far more elites, hearts are rarer, and bosses attack faster, have more health and enrage at 70% instead of 50%. And **hands** reach in from the dark all run long: a red ring shows where, and a hand of shadow closes on it about a second later. They follow you only for a moment, never come at someone who was just hit, and are rarer during boss fights, so a normal reaction is always enough. MOH pays 50% more shards, and destroying THE ABYSS in it earns the **Out of the Hands** trophy.
+A fourth run type (press **E** on the menu, or in the lobby): standard sectors and bosses, but built to be as hard as it can be while staying fair. You start with 2 lives, enemies are tougher, faster and about twice as many (often arriving in packs) from the first sector, and it gets worse every few sectors; there are far more elites, hearts are rarer, and bosses attack faster, have more health, enrage at 70% instead of 50%, and keep getting reinforcements all through the fight. And **hands** reach in from the dark all run long: a red ring shows where, and a hand of shadow closes on it about a second later. They follow you only for a moment, never come at someone who was just hit, and are rarer during boss fights, so a normal reaction is always enough. MOH pays 50% more shards, and destroying THE ABYSS in it earns the **Out of the Hands** trophy.
 
 ### Boss Rush medals
 
