@@ -1456,7 +1456,7 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   ensureAudio();
-  if (state === 'play' && run && net.role !== 'guest' && ((e.code === 'KeyK' && recent('KeyL')) || (e.code === 'KeyL' && recent('KeyK')))) { // (the hidden cheat menu: hold K and L together (or tap them one right after the other), offline or as the host. Again to go back to the game)
+  if (state === 'play' && run && net.role !== 'guest' && !localSchemes().some(sc => sc.includes('ijkl')) && ((e.code === 'KeyK' && recent('KeyL')) || (e.code === 'KeyL' && recent('KeyK')))) { // (the hidden cheat menu: hold K and L together (or tap them one right after the other), offline or as the host. Again to go back to the game)
     if (net.playing) { // (online the game keeps going behind your menu)
       if (menuOpen && pauseView === 'cheats') { menuOpen = false; pauseView = 'main'; } else { menuOpen = true; paused = false; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
     } else if (paused && pauseView === 'cheats') { paused = false; pauseView = 'main'; } else { paused = true; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
@@ -13416,7 +13416,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.07.5';
+const BUILD = '2026.10.07.6';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
