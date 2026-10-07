@@ -1456,16 +1456,19 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   ensureAudio();
+  if (state === 'play' && run && net.role !== 'guest' && ((e.code === 'KeyK' && keys.KeyM) || (e.code === 'KeyM' && keys.KeyK))) { // (the hidden cheat menu: hold M and K together, offline or as the host. Again to go back to the game)
+    if (e.code === 'KeyK') { toggleSetting('music'); toast = null; } // (M had already flipped the music, so flip it back)
+    if (net.playing) { // (online the game keeps going behind your menu)
+      if (menuOpen && pauseView === 'cheats') { menuOpen = false; pauseView = 'main'; } else { menuOpen = true; paused = false; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
+    } else if (paused && pauseView === 'cheats') { paused = false; pauseView = 'main'; } else { paused = true; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
+    return;
+  }
   if (e.code === 'KeyM') { toggleSetting('music'); showToast(settings.music ? 'MUSIC ON' : 'MUSIC OFF'); return; }
   if (e.code === 'KeyF' && state !== 'joinCode') { toggleFullscreen(); return; }
   if (onlineKey(e)) return; // online menus, the room-code box, and guest-only keys
   const inMenu = paused || menuOpen; // (paused, or online, a menu of your own while the game keeps going)
   if (state === 'play' && !inMenu && (e.code === 'Enter' || e.code === 'Space') && skipAbyssIntro()) return;
   if (state === 'play') {
-    if (e.code === 'Backquote' && !net.playing && run) { // (the hidden cheat menu: the ` key, offline only. Press it again to go back to the game)
-      if (paused && pauseView === 'cheats') { paused = false; pauseView = 'main'; } else { paused = true; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); }
-      return;
-    }
     if (inMenu && (pauseView === 'settings' || pauseView === 'room' || pauseView === 'cheats') && e.code === 'Escape') { pauseView = 'main'; sel = 0; return; }
     if (net.playing) { // online: Esc opens your own menu (the game keeps going); only the host can pause everyone (P, or in the menu)
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
@@ -6157,7 +6160,7 @@ function flashHurt(p, amount) {
 
 // returns true if the hit landed (broke a shield or cost a life)
 function hurt(p) {
-  if (cheats.invincible && !net.playing) return false;
+  if (cheats.invincible && (!net.playing || net.role === 'host')) return false; // (online, only the host can have cheats: it runs the game)
   if (p.inv > 0 || !p.alive || p.phaseOn > 0 || abActive(p, 'juggernaut')) return false; // (Wraiths are untouchable while phased; so is a FORTRESS)
   if (encounter) encounter.hitTaken = true; // for the Flawless achievement
   const doki = dokiBoss(); if (doki) dokiAdd(doki, -DOKI_HURT); // (DOKI DOLL thinks you're no fun when you get hit)
@@ -10496,12 +10499,12 @@ function settingsButtons(y) {
 
 let pauseView = 'main'; // pause menu view: main, settings, room or offline cheats
 const cheats = { invincible: false };
-// the cheat menu is hidden: press the ( ` ) key (see the keydown handler). On a phone, in the offline pause menu, click three invisible spots in order (the top-left corner, the top-right
+// the cheat menu is hidden: hold M and K together (see the keydown handler). On a phone, in the offline pause menu, click three invisible spots in order (the top-left corner, the top-right
 // corner, then the bottom middle), each within 6 seconds of the one before. No sound or sign until the menu opens
 const SECRET_SPOTS = [() => [0, 0, 80, 80], () => [W - 80, 0, 80, 80], () => [W / 2 - 70, H - 80, 140, 80]];
 let secretStep = 0, secretT = 0;
 function secretClick(w) {
-  if (!(state === 'play' && paused && !net.playing && pauseView === 'main')) { secretStep = 0; return; }
+  if (!(state === 'play' && (paused || menuOpen) && net.role !== 'guest' && pauseView === 'main')) { secretStep = 0; return; }
   const now = performance.now(), hit = i => { const [x, y, sw, sh] = SECRET_SPOTS[i](); return w.x >= x && w.x <= x + sw && w.y >= y && w.y <= y + sh; };
   if (now - secretT > 6000) secretStep = 0;
   if (hit(secretStep) && hitButton(w.x, w.y) < 0) { secretStep++; secretT = now; if (secretStep >= 3) { secretStep = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); } }
@@ -10528,7 +10531,7 @@ function drawPause() {
     button('BACK  [Esc]', (W - bw) / 2, y + 6, bw, 42, '#9ab', () => { pauseView = 'main'; });
     return;
   }
-  if (pauseView === 'cheats' && !online) { drawCheats(); return; }
+  if (pauseView === 'cheats' && (!online || !guest)) { drawCheats(); return; }
   if (pauseView === 'room' && online && !guest) { drawRoomMenu(); return; }
   title(!online ? 'PAUSED' : paused ? (guest ? 'PAUSED BY HOST' : 'PAUSED FOR EVERYONE') : 'MENU', 64, '#7df9ff', 48);
   if (online && !paused) fitText('The game keeps going for everyone — your ship is still out there!', 98, 13, '#ffb13d', 'bold');
@@ -10550,7 +10553,7 @@ function drawPause() {
 }
 function drawCheats() {
   title('LOCAL CHEATS', 68, '#ff5dc8', 42);
-  fitText('Offline only · cheats may affect run results', 102, 13, '#c9a0ff');
+  fitText(net.playing ? 'You are the host: everyone in the game feels these' : 'Offline · cheats may affect run results', 102, 13, '#c9a0ff');
   const bw = Math.min(360, W - 32), bx = (W - bw) / 2, bh = H < 700 ? 42 : 48, gap = bh + 10;
   let y = 132;
   button(`INVINCIBILITY: ${cheats.invincible ? 'ON' : 'OFF'}`, bx, y, bw, bh, cheats.invincible ? '#9dff5d' : '#ff5a70', () => {
@@ -13414,7 +13417,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.07.3';
+const BUILD = '2026.10.07.4';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
