@@ -40,7 +40,7 @@ If joining doesn't work: make sure you all refreshed the page (Ctrl+F5) so you h
 
 ## Features
 
-12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 20 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 21 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
 Standard, Endless, Boss Rush & MOH modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
 
@@ -102,7 +102,7 @@ Listen to any song in the **Music Room** (Settings, or press **J** on the menu),
 ### Bosses
 **Regenerating bosses:** leave a boss alone for about 4 seconds (3 in MOH) and it starts to heal (2% of its health per second, 3% in MOH), with a green REGENERATING tag on its health bar. It never heals past its next phase mark (the 50% enrage, THE ABYSS's phases...), so a phase is never undone, and any hit stops it at once. Keep shooting!
 
-Every boss has its own shape. The 6-7 is a yellow block with a 6 and a 7 that take turns shooting from their own side (enraged, it throws rings of bullets: 6-7!). The Warden is a fortress shield, Hexcore a hex nut, Stormcaller a storm cloud, The Hive a beehive, Phantom a ghost, Chronos a pocket watch, The Oracle one giant eye, and so on. The team bosses get their own shapes too: stars, a sun and a crescent moon, cut gems, a sword and more.
+Every boss has its own shape. VERITY is a glossy sphere with a halo ring: it starts out helpful, its orbs home in on you, and enraged it POSSESSES you with rings of orbs. The 6-7 is a yellow block with a 6 and a 7 that take turns shooting from their own side (enraged, it throws rings of bullets: 6-7!). The Warden is a fortress shield, Hexcore a hex nut, Stormcaller a storm cloud, The Hive a beehive, Phantom a ghost, Chronos a pocket watch, The Oracle one giant eye, and so on. The team bosses get their own shapes too: stars, a sun and a crescent moon, cut gems, a sword and more.
 
 At half health a boss gets **ENRAGED**. It roars, blows away the bullets around it, and transforms in its own way. The Warden's shield plates burst off and its battlements turn into spikes. Hexcore melts down white-hot. Null Seraph grows blood-red wings and a crown. The Wyrm catches fire from head to tail. The Architect's tiers fly apart. The Singularity collapses to a pinpoint and bursts back out. Every solo boss also learns a new move that it only uses when enraged:
 
@@ -203,7 +203,7 @@ THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a t
 
 ### Pets
 
-A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone, Starling, Banana and 6-7 can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone, Starling, Banana, 6-7 and Verity can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
 
 ### MOH
 
