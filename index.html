@@ -5503,7 +5503,7 @@ function drawMohDark() {
   for (const p of players) if (!p.alive && p.wreck) hole(p.wreck.x, p.wreck.y, 70);
   for (const q of pickups) hole(q.x, q.y, 40);
   for (const s of run.sentries || []) hole(s.x, s.y, 80);
-  ctx.drawImage(darkCv, 0, 0, W, H);
+  if (darkCv.width && darkCv.height) ctx.drawImage(darkCv, 0, 0, W, H);
   ctx.save(); ctx.globalAlpha = Math.min(1, k); // what still shows in the dark: enemies (red outlines), shots (a red glint), and the hands and eyes
   ctx.strokeStyle = 'rgba(255,40,70,0.75)'; ctx.lineWidth = 2; ctx.beginPath();
   for (const e of enemies) { if (e.dead || TYPES[e.type].ghost) continue; ctx.moveTo(e.x + e.r, e.y); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); }
@@ -8220,7 +8220,7 @@ function drawAbyssDark() {
   for (const p of living()) hole(p.x, p.y, R);
   for (const p of players) if (!p.alive && p.wreck) hole(p.wreck.x, p.wreck.y, 70); // so teammates can find you
   for (const k of pickups) hole(k.x, k.y, 40);
-  ctx.drawImage(darkCv, 0, 0, W, H);
+  if (darkCv.width && darkCv.height) ctx.drawImage(darkCv, 0, 0, W, H);
   // tentacles show as faint red outlines writhing in the dark (they still hurt, so you must be able to see them)
   ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = hexA(b.color, 0.45); ctx.lineWidth = 2;
   for (let i = 0; i < TENT_N; i++) {
@@ -8261,6 +8261,7 @@ function staticNoise(alpha) { // TV static over the whole screen
 function screenTear(n, amp) { // slices of the screen shoved sideways
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
   const cw = cv.width, ch = cv.height, k = cw / W;
+  if (!cw || !ch) { ctx.restore(); return; } // (a canvas with no size can't be copied)
   for (let i = 0; i < n; i++) { const sy = Math.random() * ch, sh = 4 + Math.random() * ch * 0.06; ctx.drawImage(cv, 0, sy, cw, sh, (Math.random() - 0.5) * amp * k, sy, cw, sh); }
   ctx.restore();
 }
@@ -10539,7 +10540,7 @@ function drawBlackout() {
   for (const p of players) { if (p.alive) light(p.x, p.y, 170); else if (p.wreck) light(p.wreck.x, p.wreck.y, 80, 0.7); }
   for (const b of bosses) light(b.x, b.y, b.r * 1.8, 0.6);
   d.fillStyle = 'rgba(0,0,0,0.6)'; for (const l of lasers) d.fillRect((l.x - l.w) * s, 0, l.w * 2 * s, h); // (beam warnings show)
-  ctx.save(); ctx.shadowBlur = 0; ctx.drawImage(blackCv, 0, 0, W, H);
+  ctx.save(); ctx.shadowBlur = 0; if (blackCv.width && blackCv.height) ctx.drawImage(blackCv, 0, 0, W, H);
   // enemy bullets still glow in the dark (smaller than in the light)
   drawGlowDots(eBullets.map(b => ({ x: b.x, y: b.y, r: (b.r || 5) * 0.7, color: b.color === ABYSS_INK ? '#ff1f3d' : b.color || '#ff4d4d' })), false);
   ctx.restore();
@@ -13839,7 +13840,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.18';
+const BUILD = '2026.10.08.19';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
