@@ -36,13 +36,13 @@ If joining doesn't work: make sure you all refreshed the page (Ctrl+F5) so you h
 - **Controllers:** left stick or D-pad to fly, A, X, RB or RT for your ability, START to pause, A to pick and B to go back in menus, and Y / B / X / A to answer DOKI DOLL. It rumbles when you get hit. Up to 4 controllers work for local co-op. On an Xbox, open the game in Microsoft Edge and the controller should work the same way.
 - **Phones and tablets:** drag anywhere to fly (your ship sits just above your finger). The round button in the bottom right uses your ability, **II** in the top left pauses, and **⛶** on the menu goes fullscreen. Your phone buzzes when you get hit.
 - **Ability:** Space, Q, E, Shift or right-click (gamepad: A, X or a right bumper/trigger; touch screens get a button)
-- **P / Esc:** pause (see your build, settings, restart with **R**) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
+- **P / Esc:** pause (see your build, settings, restart with **R**, which takes a second press so a run isn't lost by accident) · **M:** music · **F:** fullscreen · **1–4:** quick chat (online)
 - **Online:** **Esc** opens your own menu while the game keeps going for everyone (settings, leave game). The host's menu also has **PAUSE FOR EVERYONE** (or press **P**).
 - Local co-op: 2P = WASD (ability Q) + arrows/mouse (Right Shift / right-click) · 3P = mouse, WASD, arrows · 4P adds IJKL (ability U)
 
 ## Features
 
-12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 21 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
+12 ship classes, all free (each with stronger MK II to MK V versions to unlock), each with its own ability · 33 upgrades · 34 enemy types · 22 boss fights (each solo boss has its own gimmick, plus team bosses and a nightmare final boss, THE ABYSS) ·
 8 upgrade evolutions · ships that evolve as you power up · ship mastery · elite zones in Endless · co-op Link Beams · a mid-run shop · elite enemies · three secret bosses · 8 kinds of TURBULENCE ·
 Standard, Endless, Boss Rush & MOH modes · 15 Hangar upgrades · 13 ship skins + 29 cosmetics (trails, bullet colors, kill effects, pets) · a boss gallery · a secret zone · Boss Rush medals · 8 hidden golden shards · 47 achievements · online quick chat (1–4) · an original soundtrack (below)
 
@@ -100,6 +100,8 @@ The style is heavy rock in space: distorted guitars in both ears, a growling bas
 THE ABYSS has its own song, **Flamewall**, made by the game's creator. It's a recording (`abyss.mp3`) that loops through the whole final fight. The secret bosses have recorded songs too: **Death** for the first one (`zero.mp3`), and **Doki Doki** for the pink one (`doki.mp3`). The Glitch Sector plays **Normal World** (`glitch.mp3`).
 
 Listen to any song in the **Music Room** (Settings, or press **J** on the menu), and press **B** there to switch between its rock, metal and rage versions. Except for those three recordings, all the music is played live by the browser from notes written in the code.
+
+The Settings screen has a **MUSIC VOLUME** and a **SOUND VOLUME** (0%, 25%, 50%, 75% or 100%, each its own), and a **TIPS & HINTS** switch that hides the tips shown on screen (boss hints included). Your settings are kept in your browser.
 
 ### Bosses
 **Regenerating bosses:** leave a boss alone for about 4 seconds (3 in MOH) and it starts to heal (2% of its health per second, 3% in MOH), with a green REGENERATING tag on its health bar. It never heals past its next phase mark (the 50% enrage, THE ABYSS's phases...), so a phase is never undone, and any hit stops it at once. Keep shooting!
@@ -227,6 +229,10 @@ Every duelist has the same two moves:
 - **REFLECT** (**E** for WASD, **Enter** for arrows, **O** for IJKL, **V** for the mouse, **left bumper** on a gamepad, or the touch button beside DASH): a bubble around your ship for 0.7 seconds. Any spell that touches it turns around and flies back at whoever fired it, at the same speed. About 7 seconds to recharge.
 
 To keep it fair, every duelist flies the same plain ship: 3 lives, the same speed and guns, no ship abilities, no hangar upgrades, and no mid-match upgrade picks. A mouse is no quicker than the keys. The ship you pick is only its look. With three or four players it's a free-for-all, and the last ship flying wins. A downed ship is out for good in PvP: no wrecks to revive. Duels need two ships offline (use 2-PLAYER CO-OP or online); the duel's best score is kept separately from co-op. Friends can join a PvP lobby the same way as any other online game.
+
+### Co-op results
+
+The results screen of a co-op run lists each player's own kills, damage dealt and revives, in their colour. A kill goes to the player who last hit the enemy. Damage goes to the player who last hit an enemy or fired the shot that hit a boss, but environmental hazards (meteors, bolts, flares) don't count for anyone. A revive counts for the teammate who brought the player back. Duels don't show these lines.
 
 ### Boss Rush medals
 

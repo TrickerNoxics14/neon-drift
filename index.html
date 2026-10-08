@@ -99,9 +99,16 @@ skyLayers();
 window.addEventListener('resize', resize); resize();
 
 // ---------- settings (persist between sessions) ----------
-const settings = { music: true, sfx: true, shake: true, dmgNums: true, calm: false, fps: false, lowfx: false }; // (calm = fewer flashes; lowfx = PERFORMANCE MODE)
+const settings = { music: true, sfx: true, musicVol: 4, sfxVol: 4, shake: true, dmgNums: true, hints: true, calm: false, fps: false, lowfx: false }; // (calm = fewer flashes; lowfx = PERFORMANCE MODE; musicVol and sfxVol are quarters: 0-4)
 try { Object.assign(settings, JSON.parse(localStorage.getItem('neonDriftSettings')) || {}); } catch (e) {}
 resize(); // (again, now that PERFORMANCE MODE's setting is known)
+// volume: 0%, 25%, 50%, 75%, 100% (music and sound effects each have their own)
+function cycleVolume(key) {
+  settings[key] = (settings[key] + 1) % 5;
+  try { localStorage.setItem('neonDriftSettings', JSON.stringify(settings)); } catch (e) {}
+  applyVolumes();
+  beep(600, 0.08, 'triangle', 0.05);
+}
 function toggleSetting(key) {
   settings[key] = !settings[key];
   try { localStorage.setItem('neonDriftSettings', JSON.stringify(settings)); } catch (e) {}
@@ -133,8 +140,8 @@ function ensureAudio() {
 }
 function applyVolumes() {
   if (!ac) return;
-  sfxBus.gain.value = settings.sfx ? 1 : 0;
-  musicBus.gain.value = settings.music ? MUSIC_LEVEL : 0;
+  sfxBus.gain.value = settings.sfx ? settings.sfxVol / 4 : 0;
+  musicBus.gain.value = settings.music ? MUSIC_LEVEL * settings.musicVol / 4 : 0;
 }
 
 const beepLast = {};
@@ -490,7 +497,7 @@ function prepRecorded(s) {
   }
   return el;
 }
-const recordedVolume = s => settings.music ? s.gain * MUSIC_LEVEL * (paused || state === 'upgrade' ? 0.45 : 1) : 0;
+const recordedVolume = s => settings.music ? s.gain * MUSIC_LEVEL * settings.musicVol / 4 * (paused || state === 'upgrade' ? 0.45 : 1) : 0;
 function fadeEl(el, target) { el.volume = Math.max(0, Math.min(1, el.volume + Math.max(-0.02, Math.min(0.02, target - el.volume)))); }
 // every recorded song except `keep` fades out, then pauses
 function fadeOthers(keep) { for (const el of Object.values(rec.els)) if (el !== keep && !el.paused) { fadeEl(el, 0); if (el.volume <= 0) el.pause(); } }
@@ -1523,7 +1530,7 @@ addEventListener('keydown', e => {
       if (e.code === 'Escape') { if (paused && net.role === 'host') forcePause(false); else toggleMenu(); return; }
       if (e.code === 'KeyP') { if (net.role === 'host') forcePause(!paused); return; }
     } else if (e.code === 'KeyP' || e.code === 'Escape') { paused = !paused; pauseView = 'main'; sel = 0; return; }
-    if (inMenu && e.code === 'KeyR' && net.role !== 'guest') { restartRun(); return; }
+    if (inMenu && e.code === 'KeyR' && net.role !== 'guest') { sure('restart', restartRun, 'Restart the run?'); return; }
     if (!inMenu && /^Digit[1-4]$/.test(e.code)) { // quick chat (or, while DOKI DOLL is asking, an answer)
       const k = +e.code.slice(5) - 1;
       if (dokiAsking()) answerDoki(k); else sendEmote(k);
@@ -1808,6 +1815,11 @@ const BOSSES = [
   { name: 'VERITY', style: 'verity', color: '#ffd400', sides: 8, r: 56, rageMove: 'possess', rageTitle: 'DON\'T LEAVE ME',
     hint: 'VERITY knows where you are going, not where you are. Its orbs home in on you. It heals while you ignore it, so keep shooting! Enraged, it swells up and POSSESSES: rings of orbs that won\'t let go.',
     patterns: ['verity', 'verityknows', 'fan', 'verityknows', 'spiral'] },
+  // a crystal that bends light: four crystals turn on its rim, and while one is left its body is shielded (blasts can't reach
+  // them: bullets can). Enraged, it reforms them with SHATTER!
+  { name: 'THE REFRACTOR', style: 'refractor', color: '#7df9ff', sides: 6, r: 52, gimmick: 'refract', rageMove: 'shatter', rageTitle: 'SHATTER!',
+    hint: 'THE REFRACTOR: four crystals turn on its rim, and its body is shielded until they\'re broken. Shoot the crystals (blasts won\'t reach them)!',
+    patterns: ['refract', 'ring', 'refract', 'spiral'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
   { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
@@ -2155,7 +2167,8 @@ function makePlayer(id, x, shipId, cos) {
   if (runType === 'pvp') ship = { ...ship, mod: {}, mk: 0, mk2: false };
   const m = ship.mod;
   const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1), inv: 2, power: 0, shield: m.aegis ? 1 : 0, alive: true,
-    shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT };
+    shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT,
+    kills: 0, dmg: 0, revives: 0 }; // (what this player did this run: shown on the results screen in co-op)
   p.lives = maxLivesOf(p);
   p.abCd = abCdOf(p) * AB_START; p.abOn = 0;
   return p;
@@ -2328,7 +2341,7 @@ function useAbility(p, dx = 0, dy = 0) {
     for (const b of eBullets) if (Math.random() < 0.3) burst(b.x, b.y, b.color || '#ff8080', 2, 90);
     eBullets = [];
     for (const e of enemies) hitEnemy(e, dps * 1.2);
-    for (const bo of bosses) hitBoss(bo, dps * 1.6, bo.x, bo.y);
+    for (const bo of bosses) hitBoss(bo, dps * 1.6, bo.x, bo.y, p.id);
     if (abm('striker')) { healAll(1); for (const q of living()) burst(q.x, q.y, '#5dff7a', 14, 140); } // (Mending Nova)
     screenFlash = Math.max(screenFlash, 0.5); shake = Math.max(shake, 16);
     for (let i = 0; i < 3; i++) fxRing(p.x, p.y, 10, Math.max(W, H) * (0.5 + i * 0.3), 0.5 + i * 0.15, i === 1 ? '#ffffff' : p.color, 6 - i * 1.5, i * 0.08);
@@ -2339,7 +2352,7 @@ function useAbility(p, dx = 0, dy = 0) {
     const ax = p.remote ? x0 - (x1 - x0) : x0, ay = p.remote ? y0 - (y1 - y0) : y0; // (the guest is already at the end)
     p.inv = Math.max(p.inv, 0.4);
     for (const e of enemies) if (distToSeg(e.x, e.y, ax, ay, p.x, p.y) < e.r + 20) hitEnemy(e, dps * 0.5);
-    for (const bo of bosses) if (distToSeg(bo.x, bo.y, ax, ay, p.x, p.y) < bo.r + 20) hitBoss(bo, dps * 0.4);
+    for (const bo of bosses) if (distToSeg(bo.x, bo.y, ax, ay, p.x, p.y) < bo.r + 20) hitBoss(bo, dps * 0.4, undefined, undefined, p.id);
     const seg = [Math.round(ax), Math.round(ay), Math.round(p.x), Math.round(p.y)];
     addAbFx(['dash', ...seg, p.color]);
     if (abm('interceptor')) addAbFx(['burn', ...seg]); // (Afterburner: a trail of fire, see updateAbFx)
@@ -2351,7 +2364,7 @@ function useAbility(p, dx = 0, dy = 0) {
   } else if (id === 'piercer') { // RAILSHOT (Overcharged Rail: the beam stays, burning, see updateAbFx)
     const w = tier ? 30 : 24;
     for (const e of enemies) if (e.y < p.y && Math.abs(e.x - p.x) < w / 2 + e.r) hitEnemy(e, dps * (tier ? 1.6 : 1.2));
-    for (const bo of bosses) if (bo.y < p.y + bo.r && Math.abs(bo.x - p.x) < w / 2 + bo.r) hitBoss(bo, dps * (tier ? 2.6 : 2), p.x, bo.y);
+    for (const bo of bosses) if (bo.y < p.y + bo.r && Math.abs(bo.x - p.x) < w / 2 + bo.r) hitBoss(bo, dps * (tier ? 2.6 : 2), p.x, bo.y, p.id);
     addAbFx([abm('piercer') ? 'beamx' : 'beam', Math.round(p.x), Math.round(p.y - 20), w, p.color]);
     shake = Math.max(shake, 10); beep(160, 0.5, 'sawtooth', 0.08, 1200);
   } else if (id === 'medic') { // LIFELINE
@@ -2396,7 +2409,7 @@ function useAbility(p, dx = 0, dy = 0) {
     for (const bo of bosses) if (bossAlive(bo)) {
       bossFx.zaps.push({ x1: p.x, y1: p.y, x2: bo.x, y2: bo.y, life: 0.2, max: 0.2 });
       netRec(['z', Math.round(p.x), Math.round(p.y), Math.round(bo.x), Math.round(bo.y)]);
-      hitBoss(bo, dps * (tier ? 1.1 : 0.8) * (boosted ? 1.35 : 1), p.x, bo.y);
+      hitBoss(bo, dps * (tier ? 1.1 : 0.8) * (boosted ? 1.35 : 1), p.x, bo.y, p.id);
     }
     fxRing(p.x, p.y, 12, 120, 0.4, p.color, 5);
     burst(p.x, p.y, p.color, 18 + (tier ? 8 : 0), 220);
@@ -2442,7 +2455,7 @@ function updateAbFx(dt) {
       const hit = kind === 'burn' ? distToSeg(e.x, e.y, a[0], a[1], a[2], a[3]) < e.r + 14 : e.y < a[1] && Math.abs(e.x - a[0]) < a[2] / 2 + e.r;
       if (hit) damageEnemy(e, dps * (kind === 'burn' ? 0.12 : 0.25), 'splash');
     }
-    if (kind === 'beamx') for (const bo of bosses) if (bo.y < a[1] + bo.r && Math.abs(bo.x - a[0]) < a[2] / 2 + bo.r) hitBoss(bo, dps * 0.25, a[0], bo.y);
+    if (kind === 'beamx') for (const bo of bosses) if (bo.y < a[1] + bo.r && Math.abs(bo.x - a[0]) < a[2] / 2 + bo.r) hitBoss(bo, dps * 0.25, a[0], bo.y, p.id);
   }
 }
 
@@ -2495,7 +2508,7 @@ function updateLinks(dt) {
         const crew = Math.max(2, l.n || 2), strength = (1 + Math.min(3, (crew - 2) * 0.7)) * (run.s.linkPower || 1);
         const beamW = LINK_W * strength, beamPower = Math.max(10, dps * 0.45) * strength;
         for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && e.y < my + e.r && Math.abs(e.x - mx) < beamW / 2 + e.r) { e.lastBy = a.id; damageEnemy(e, beamPower, 'splash'); }
-        for (const bo of bosses) if (bo.y < my + bo.r && Math.abs(bo.x - mx) < beamW / 2 + bo.r) hitBoss(bo, dps * 0.22 * strength, mx, bo.y);
+        for (const bo of bosses) if (bo.y < my + bo.r && Math.abs(bo.x - mx) < beamW / 2 + bo.r) hitBoss(bo, dps * 0.22 * strength, mx, bo.y, a.id);
         shake = Math.max(shake, 4);
       }
       continue;
@@ -3489,6 +3502,8 @@ function damageEnemy(e, dmg, src) {
   if (e.guardedT > 0) dmg *= 0.5; // shielded by a Guardian
   if (run?.s.executioner && e.hp < (e.maxHp || e.hp) * 0.3) dmg *= 1 + run.s.executioner; // (Executioner: finish off the wounded)
   e.hp -= dmg; e.flash = 0.08;
+  // (the player who last hit it gets the damage, except for hazards that hit everything)
+  if (src !== 'meteor' && src !== 'bolt' && src !== 'flare' && players[e.lastBy]) players[e.lastBy].dmg = (players[e.lastBy].dmg || 0) + dmg;
   dmgNumber(e, dmg, false);
   if (e.gt && e.hp > 0 && src !== 'flare' && src !== 'turret') gxEnemyHit(e); // (a GLITCH BUFFER fills up)
   if (run.s.cryo) e.slow = 1 + run.s.cryo * 0.5;
@@ -3521,6 +3536,7 @@ function killEnemy(e, src) {
   combo = Math.min(s.comboMax, combo + 1); comboT = s.comboTime;
   meta.stats.kills++; // saved at the end of the run
   const killer = players[e.lastBy];
+  if (killer) killer.kills = (killer.kills || 0) + 1; // (for the results screen)
   if (killer?.alive) {
     if (s.abKill) killer.abCd = Math.max(0, killer.abCd - 0.3); // (Kill Charger)
     if (s.abm_berserker && abActive(killer, 'berserker')) { // (Bloodthirst: kills feed the Rampage)
@@ -3636,7 +3652,7 @@ function bombBlast(b) {
   b.blown = b.dead = true;
   const s = run.s, R = b.blast || 70;
   for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && Math.hypot(e.x - b.x, e.y - b.y) < R + e.r) { e.lastBy = b.owner; damageEnemy(e, b.dmg, 'splash'); }
-  for (const bo of bosses) if (bossAlive(bo) && Math.hypot(bo.x - b.x, bo.y - b.y) < R + bo.r) hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
+  for (const bo of bosses) if (bossAlive(bo) && Math.hypot(bo.x - b.x, bo.y - b.y) < R + bo.r) hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y, b.owner);
   if (b.mega) { // MEGATON: it blows away the enemy bullets around it too (every one on the screen, with the Payload card)
     for (const e of eBullets) if (b.wipe || Math.hypot(e.x - b.x, e.y - b.y) < R) e.dead = true;
     screenFlash = Math.max(screenFlash, 0.4);
@@ -3671,7 +3687,7 @@ function updateBlades() {
       if (s.stormHalo && Math.random() < 0.5) chainLightning(x, y, 3, dmg); // Storm Halo evolution
     }
     for (const b of eBullets) if (!b.dead && b.fuse === undefined && Math.hypot(b.x - x, b.y - y) < (b.r || 5) + 9) { b.dead = true; burst(b.x, b.y, b.color || '#ff4d4d', 5, 100); }
-    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id), x, y); }
+    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id), x, y, p.id); }
   }
 }
 
@@ -3730,7 +3746,7 @@ function updateWhip(p, dt) {
   }
   for (const bo of bosses) {
     if (!bossAlive(bo) || bo.shielded) continue;
-    if (Math.hypot(bo.x - p.x, bo.y - p.y) - bo.r < R && Math.abs(angleDiff(Math.atan2(bo.y - p.y, bo.x - p.x), a)) < 1.3) { hitBoss(bo, dmg, bo.x, bo.y); bo.tag = tag; }
+    if (Math.hypot(bo.x - p.x, bo.y - p.y) - bo.r < R && Math.abs(angleDiff(Math.atan2(bo.y - p.y, bo.x - p.x), a)) < 1.3) { hitBoss(bo, dmg, bo.x, bo.y, p.id); bo.tag = tag; }
   }
   const x2 = p.x + Math.cos(a) * R, y2 = p.y + Math.sin(a) * R;
   bossFx.zaps.push({ x1: p.x, y1: p.y, x2, y2, life: 0.16, max: 0.16, whip: 1 }); netRec(['wh', Math.round(p.x), Math.round(p.y), Math.round(x2), Math.round(y2)]);
@@ -3766,7 +3782,7 @@ function updateMinions(p, dt) {
       q.x += (q.tg.x - q.x) / d * 780 * dt; q.y += (q.tg.y - q.y) / d * 780 * dt;
       if (d < (q.tg.r || 20) + 10) { // it rams
         const dmg = s.dmg * (m.dmg || 1) * 3.0 * (q.tg.tag > 0 ? TAG_BONUS : 1); run.fireAcc = (run.fireAcc || 0) + dmg * s.bossDmg * 0.5; // (counts toward the firepower bosses are sized for)
-        if (q.tg.dying === undefined) { q.tg.lastBy = p.id; damageEnemy(q.tg, dmg, 'splash'); } else hitBoss(q.tg, dmg, q.tg.x, q.tg.y);
+        if (q.tg.dying === undefined) { q.tg.lastBy = p.id; damageEnemy(q.tg, dmg, 'splash'); } else hitBoss(q.tg, dmg, q.tg.x, q.tg.y, p.id);
         burst(q.x, q.y, '#ffd23d', 8, 160); beep(300, 0.08, 'square', 0.04, -150);
         q.st = 2; q.cd = 1.7 * rateK;
       }
@@ -4167,6 +4183,13 @@ const BOSS_ATTACKS = {
     for (let i = 0; i < n; i++) bossShot({ ...b, x: sx }, a + (i - (n - 1) / 2) * 0.18, 270, 5);
     fxText(b.side > 0 ? '7' : '6', sx, b.y - b.r - 14, b.color, 26, 0.6);
     b.atkT = 0.8 * rate; beep(b.side > 0 ? 520 : 390, 0.1, 'square', 0.04);
+  },
+  refract(b, enraged, rate, target) { // the light bends: a fan aimed at you, and a few shots bounce back the way they came
+    if (!target) return;
+    const a = Math.atan2(target.y - b.y, target.x - b.x), n = enraged ? 5 : 3;
+    for (let i = 0; i < n; i++) bossShot(b, a + (i - (n - 1) / 2) * 0.16, 260, 5);
+    for (let i = 0; i < 2; i++) bossShot(b, a + Math.PI + (i - 0.5) * 0.5, 200, 5);
+    b.atkT = 0.9 * rate; beep(660, 0.1, 'triangle', 0.04);
   },
   spiral(b, enraged, rate) {
     b.aim += 0.32;
@@ -4860,6 +4883,25 @@ const GIMMICKS = {
     afterAttack(b, enraged) { b.heat = Math.min(1, (b.heat || 0) + (b.atkT >= 0.5 ? 0.085 : 0.011) * (enraged ? 1.15 : 1)); },
     rate: b => 1 - (b.heat || 0) * 0.35,
     dmg: b => b.vent > 0 ? 2 : 1,
+  },
+  refract: { // four crystals turn on its rim: while one is left, its body is shielded, so break them (bullets, not blasts)
+    update(b, dt) {
+      if (!b.shards) b.shards = [0, 1, 2, 3].map(i => i / 4 * TAU);
+      b.shards = b.shards.map(a => a + dt * 0.7);
+    },
+    dmg(b, fx, fy) {
+      if (!b.shards?.length) return 1;
+      const i = b.shards.findIndex(a => Math.hypot(fx - (b.x + Math.cos(a) * b.r * 1.05), fy - (b.y + Math.sin(a) * b.r * 1.05)) < 32);
+      if (i < 0) { // shielded: say so, now and then
+        if (!(time - (b.shieldTxt ?? -9) < 0.8)) { b.shieldTxt = time; fxText('SHIELDED: break a crystal', b.x, b.y - b.r - 24, '#c9f7ff', 16, 1); beep(1500, 0.05, 'triangle', 0.02); }
+        return 0;
+      }
+      const a = b.shards.splice(i, 1)[0], sx = b.x + Math.cos(a) * b.r * 1.05, sy = b.y + Math.sin(a) * b.r * 1.05;
+      burst(sx, sy, '#c9f7ff', 16, 220); fxRing(sx, sy, 4, 40, 0.3, '#c9f7ff', 3);
+      beep(1100 + b.shards.length * 120, 0.2, 'triangle', 0.06, 300);
+      fxText(b.shards.length ? `${b.shards.length} LEFT` : 'BODY EXPOSED!', b.x, b.y - b.r - 30, '#ffffff', 20, 1.2);
+      return 0;
+    },
   },
   halo: {
     update(b, dt, enraged) {
@@ -5798,6 +5840,16 @@ const RAGE_MOVES = {
       }
       return 'quiet';
     } },
+  shatter: { name: 'SHATTER!', len: 2.6, cd: 7, // it reforms all four crystals, then throws two rings of light outward
+    start(b, s) { s.a = Math.random() * TAU; },
+    update(b, s, dt) {
+      if (at(s, dt, 0.3)) { b.shards = [0, 1, 2, 3].map(i => s.a + i / 4 * TAU); fxText('PRISM REFORMS!', b.x, b.y - b.r - 30, b.color, 22, 1.4); beep(900, 0.4, 'sine', 0.06, 500); }
+      for (const [t, off] of [[1.0, 0], [1.6, Math.PI / 12]]) if (at(s, dt, t)) {
+        for (let i = 0; i < 14; i++) { const a = off + i / 14 * TAU; eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * 180 * BOSS_BULLET_SPEED, vy: Math.sin(a) * 180 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b }); }
+        beep(700, 0.2, 'triangle', 0.05, 300); shake = Math.max(shake, 8);
+      }
+      return 'quiet';
+    } },
   sixseven: { name: '6-7!', len: 3.4, cd: 7, // rings of bullets, one after another, each one turning the other way
     update(b, s, dt) {
       for (let k = 0; k < 4; k++) if (at(s, dt, 0.4 + k * 0.7)) {
@@ -6264,7 +6316,7 @@ function updateBoss(b, dt) {
 }
 
 // returns false if the hit was blocked (shield) or didn't count
-function hitBoss(b, dmg, fx, fy) {
+function hitBoss(b, dmg, fx, fy, by) { // (by: the player who hit it, for the results screen)
   if (!bossAlive(b)) return false;
   if (b.shielded) { // Aegis' shield: no damage, just a flash and a ping
     if (b.shieldHit <= 0) beep(1500, 0.04, 'triangle', 0.02);
@@ -6278,6 +6330,7 @@ function hitBoss(b, dmg, fx, fy) {
   }
   if (ascendOf(b) && b.entered) { if (b.xf >= 0) return false; if (b.super) dmg *= ascendOf(b).armor; }
   b.hp -= dmg; b.flash = 0.06; b.lastHit = time; b.idleT = 0; b._rgText = false; // (a hit stops its regenerating)
+  if (players[by]) players[by].dmg = (players[by].dmg || 0) + dmg;
   dmgNumber(b, dmg, true);
   b.hitKick = Math.min(1, b.hitKick + 0.15);
   if (b.hp > 0) return true;
@@ -6353,6 +6406,7 @@ const REVIVE_TIME = 2.5, REVIVE_RANGE = 70;
 // earned: true when a teammate brought them back (not the automatic rejoin at a new sector)
 function revive(p, by, earned) {
   if (earned) { meta.stats.revives++; unlockAch('revive'); if (meta.stats.revives >= 10) unlockAch('revive10'); }
+  if (earned && by) by.revives = (by.revives || 0) + 1; // (the teammate who brought them back)
   p.alive = true; p.lives = 1; p.inv = 2.5; p.power = 0; p.shield = 0;
   if (p.wreck) { p.x = p.wreck.x; p.y = p.wreck.y; }
   else { p.x = by ? by.x : W / 2; p.y = by ? Math.min(H - 40, by.y + 40) : H - 100; }
@@ -6704,9 +6758,9 @@ function update(dt) {
         continue;
       }
       if (b.bomb) { if (hitsWyrmBody(bo, b) || distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) < bo.r + b.size) bombBlast(b); continue; } // (BOMBER)
-      if (hitsWyrmBody(bo, b)) { b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner) * 0.6); if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // body: 60%
+      if (hitsWyrmBody(bo, b)) { b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner) * 0.6, undefined, undefined, b.owner); if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // body: 60%
       if (distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) >= bo.r + b.size) continue;
-      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y);
+      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y, b.owner);
       if ((b.missile || s.explosive) && bossFx.rings.length < 40) fxRing(b.x, b.y, 4, 30, 0.2, '#ffb13d', 2);
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
@@ -8464,6 +8518,13 @@ const BOSS_SHAPES = {
     g.addColorStop(0, mixHex('#fff3a6', '#ff5a1a', k)); g.addColorStop(0.55, mixHex('#ffd400', '#b8200a', k)); g.addColorStop(1, mixHex('#b88a00', '#3a0a00', k));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 0.92 * r, 0, TAU); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(-0.38 * r, -0.42 * r, 0.22 * r, 0.12 * r, -0.6, 0, TAU); ctx.fill();
+  } },
+  refractor: { mode: 'up', eye: [0, 0, 1], path(r) { // a cut crystal: a hexagon, with a point at the top
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + i / 6 * TAU; ctx.lineTo(Math.cos(a) * 0.92 * r, Math.sin(a) * 0.92 * r); }
+    ctx.closePath();
+  }, detail(r, b) { // the four crystals on its rim, turning
+    for (const a of b.shards || []) { ctx.save(); ctx.rotate(a); ctx.translate(1.05 * r, 0); ctx.rotate(Math.PI / 4); ctx.fillStyle = '#c9f7ff'; ctx.fillRect(-7, -7, 14, 14); ctx.restore(); }
   } },
   sixseven: { mode: 'up', eye: [0, -0.7, 0.4], path(r) { // a rounded yellow block, like a sticker
     ctx.beginPath(); ctx.roundRect(-0.95 * r, -0.95 * r, 1.9 * r, 1.9 * r, 0.3 * r);
@@ -10786,7 +10847,7 @@ function drawHUD() {
     ctx.font = `900 ${Math.min(56, W / 9)}px system-ui`; ctx.fillText(info.team ? 'TEAM BOSS' : 'WARNING', W / 2, H / 2 - 14);
     ctx.shadowBlur = 0; fitText(`${info.name} APPROACHING${info.final ? ' — FINAL BOSS' : ''}`, H / 2 + 30, 16, '#ffb0bb');
   }
-  if (hint && !paused && !menuOpen) {
+  if (hint && settings.hints && !paused && !menuOpen) {
     ctx.save(); ctx.globalAlpha = Math.min(1, hint.life);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '15px system-ui'; ctx.fillStyle = '#cde';
@@ -10796,8 +10857,9 @@ function drawHUD() {
   if (paused || (menuOpen && state === 'play')) drawPause();
 }
 
-const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'],
+const SETTING_LIST = [['music', 'MUSIC  [M]'], ['sfx', 'SOUND EFFECTS'], ['shake', 'SCREEN SHAKE'], ['dmgNums', 'DAMAGE NUMBERS'], ['hints', 'TIPS & HINTS'],
   ['calm', 'REDUCED FLASHING'], ['fps', 'SHOW FPS'], ['lowfx', 'PERFORMANCE MODE']];
+const SETTING_ITEMS = SETTING_LIST.length + 3; // (the toggles, the two volumes and fullscreen: how many the settings screen lists)
 function toggleFullscreen() {
   try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
 }
@@ -10806,6 +10868,8 @@ function settingsButtons(y) {
   const cols = W >= 640 ? 2 : 1, gap = 8, bh = cols > 1 ? 42 : 38, bw = Math.min(cols > 1 ? 250 : 300, (W - 32 - gap) / cols);
   const x0 = (W - (bw * cols + gap * (cols - 1))) / 2;
   const items = [...SETTING_LIST.map(([k, label]) => [`${label}:  ${settings[k] ? 'ON' : 'OFF'}`, settings[k] ? '#5dff7a' : '#778', () => toggleSetting(k)]),
+    [`MUSIC VOLUME:  ${settings.musicVol * 25}%`, '#c08dff', () => cycleVolume('musicVol')],
+    [`SOUND VOLUME:  ${settings.sfxVol * 25}%`, '#c08dff', () => cycleVolume('sfxVol')],
     [`FULLSCREEN  [F]:  ${document.fullscreenElement ? 'ON' : 'OFF'}`, document.fullscreenElement ? '#5dff7a' : '#778', toggleFullscreen]];
   items.forEach(([label, color, act], i) => button(label, x0 + (i % cols) * (bw + gap), y + Math.floor(i / cols) * (bh + gap), bw, bh, color, act));
   return y + Math.ceil(items.length / cols) * (bh + gap);
@@ -10823,6 +10887,14 @@ function secretClick(w) {
   if (now - secretT > 6000) secretStep = 0;
   if (hit(secretStep) && hitButton(w.x, w.y) < 0) { secretStep++; secretT = now; if (secretStep >= 3) { secretStep = 0; pauseView = 'cheats'; sel = 0; beep(880, 0.15, 'triangle', 0.05, 400); if (net.role === 'guest') cheatGuestOpen(); } }
   else secretStep = hit(0) && hitButton(w.x, w.y) < 0 ? 1 : 0; // (a wrong spot starts over; a spot with a real button on it never counts)
+}
+// the destructive buttons (restart, end the run, close the room) take a second press: the first one arms them for three seconds
+const armedAt = {};
+const isSure = key => performance.now() < (armedAt[key] || 0);
+function sure(key, act, msg) {
+  if (isSure(key)) { armedAt[key] = 0; act(); return; }
+  armedAt[key] = performance.now() + 3000; beep(330, 0.08, 'square', 0.04);
+  showToast(`${msg}  Press again to confirm.`, 3);
 }
 function restartRun() {
   if (net.role === 'guest' || !run) return;
@@ -10857,8 +10929,8 @@ function drawPause() {
   if (online && !guest && !paused) items.push(['⏸  PAUSE FOR EVERYONE  [P]', '#ffe93d', () => forcePause(true)]);
   items.push(['SETTINGS', '#9ab', () => { pauseView = 'settings'; }]);
   if (online && !guest) items.push([`PLAYERS & ROOM${net.locked ? '  🔒' : ''}`, '#c08dff', () => { pauseView = 'room'; sel = 0; }]);
-  if (!guest) { items.push(['RESTART  [R]', '#ffe93d', restartRun]); items.push(['END RUN  (keeps shards)', '#ff5a70', () => endRun()]); }
-  if (online) items.push([guest ? 'LEAVE GAME' : 'CLOSE ROOM', '#ff5a70', () => leaveOnline(guest ? 'You left the game' : undefined)]);
+  if (!guest) { items.push([isSure('restart') ? 'REALLY RESTART?  [R]' : 'RESTART  [R]', '#ffe93d', () => sure('restart', restartRun, 'Restart the run?')]); items.push([isSure('end') ? 'REALLY END THE RUN?' : 'END RUN  (keeps shards)', '#ff5a70', () => sure('end', () => endRun(), 'End the run?')]); }
+  if (online) items.push([guest ? 'LEAVE GAME' : isSure('close') ? 'REALLY CLOSE THE ROOM?' : 'CLOSE ROOM', '#ff5a70', guest ? () => leaveOnline('You left the game') : () => sure('close', () => leaveOnline(), 'Close the room?')]);
   const wide = W >= 760, bw = wide ? 250 : Math.min(300, W - 32), bh = wide ? 42 : 38, gap = wide ? 50 : 44;
   const bx = wide ? W / 2 - 290 : (W - bw) / 2, by = 116;
   items.forEach(([label, color, act], i) => button(label, bx, by + gap * i, bw, bh, color, act));
@@ -11000,7 +11072,7 @@ function drawBuildPanel(x, y, w) {
 function drawSettings() {
   title('SETTINGS', 80, '#7df9ff', 52);
   const contentTop = H < 700 ? 124 : 130, bw = Math.min(280, W - 32);
-  const toggleEnd = contentTop + Math.ceil((SETTING_LIST.length + 1) / (W >= 640 ? 2 : 1)) * ((W >= 640 ? 42 : 38) + 8);
+  const toggleEnd = contentTop + Math.ceil(SETTING_ITEMS / (W >= 640 ? 2 : 1)) * ((W >= 640 ? 42 : 38) + 8);
   const contentBottom = toggleEnd + 112;
   menuScrollMax = Math.max(0, contentBottom - (H - 12));
   menuScroll.settings = clampMenuScroll('settings');
@@ -11821,21 +11893,24 @@ function drawOver() {
     [`+◆ ${run.earned} shards${curseBonus() ? `  (🌀 +${Math.round(curseBonus() * 100)}% from TURBULENCE)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
   ];
   lines.forEach(([t, c, s], i) => fitText(t, cy + 56 + i * 30, s, c, i === 2 ? 'bold' : ''));
-  // run stats: time, kills and damage, then the ships
-  const shipsLine = `⏱ ${fmtTime(run.clock || 0)}  ·  ${run.kills || 0} kills  ·  ${fmtBig(run.dmgDone || 0)} damage  ·  ` + players.map(p => (mode > 1 ? `P${p.id + 1} ` : '') + p.ship.name).join('  ·  ');
+  // run stats: time, kills and damage, then the ships (co-op: each player's own kills, damage and revives, in their colours)
+  const coop = players.length > 1 && !run.pvp, shift = coop ? players.length * 16 : 0;
+  const shipsLine = `⏱ ${fmtTime(run.clock || 0)}  ·  ${run.kills || 0} kills  ·  ${fmtBig(run.dmgDone || 0)} damage` + (coop ? '' : '  ·  ' + players.map(p => (mode > 1 ? `P${p.id + 1} ` : '') + p.ship.name).join('  ·  '));
   fitText(shipsLine, cy + 140, 13, '#9ab', 'bold');
+  const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  if (coop) players.forEach((p, i) => fitText(`P${p.id + 1} ${p.ship.name}  ·  ${plural(p.kills || 0, 'kill')}  ·  ${fmtBig(p.dmg || 0)} damage  ·  ${plural(p.revives || 0, 'revive')}`, cy + 158 + i * 16, 12, p.color, 'bold'));
   const build = UPGRADES.filter(u => run.owned[u.id]).map(u => run.owned[u.id] > 1 ? `${u.name} ×${run.owned[u.id]}` : u.name).join(' · ');
   ctx.font = '12px system-ui';
-  wrap(build || 'No upgrades taken', Math.min(600, W - 32)).slice(0, 2).forEach((l, i) => fitText(l, cy + 162 + i * 18, 12, '#789'));
+  wrap(build || 'No upgrades taken', Math.min(600, W - 32)).slice(0, 2).forEach((l, i) => fitText(l, cy + 162 + shift + i * 18, 12, '#789'));
   // ship mastery: where each ship flown from this computer stands now (and any level-ups this run)
   const ups = run.masteryUps || [], mine = [...new Set(myShipIds())].slice(0, 2);
   fitText(mine.map(id => {
     const lv = masteryLv(id), up = ups.filter(u => u.id === id).pop();
     return `${SHIPS.find(s => s.id === id).name} ${'★'.repeat(lv)}${'☆'.repeat(MASTERY_MAX - lv)}` + (lv < MASTERY_MAX ? ` ${masteryXp(id)}/${MASTERY_XP[lv]} XP` : ' MASTERED')
       + (up ? (up.lv >= MASTERY_MAX ? '  ·  SIGNATURE TRAIL UNLOCKED!' : `  ·  LEVEL UP! +◆${MASTERY_SHARDS[up.lv]}`) : '');
-  }).join('     '), cy + 204, 13, ups.length ? '#ffd23d' : '#a89a6a', 'bold');
+  }).join('     '), cy + 204 + shift, 13, ups.length ? '#ffd23d' : '#a89a6a', 'bold');
   const bw = Math.min(260, W - 32), bx = (W - bw) / 2;
-  let by = cy + 228;
+  let by = cy + 228 + shift;
   const again = run.victory && !run.rush ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
   // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
   if (run.victory && !run.rush && net.role !== 'guest') {
@@ -11851,7 +11926,7 @@ function drawOver() {
   if (net.role === 'host') {
     button(again, bx, by, bw, 40, '#7df9ff', () => startOnline());
     button('BACK TO LOBBY', bx, by + 48, bw, 40, '#9dff5d', backToLobby);
-    button('CLOSE ROOM', bx, by + 96, bw, 40, '#ff5a70', () => leaveOnline());
+    button(isSure('close') ? 'REALLY CLOSE THE ROOM?' : 'CLOSE ROOM', bx, by + 96, bw, 40, '#ff5a70', () => sure('close', () => leaveOnline(), 'Close the room?'));
     return;
   }
   button(again, bx, by, bw, 40, '#7df9ff', () => start(mode, run.ships));
@@ -11890,7 +11965,7 @@ const ZONES = [
   { id: 'prism', name: 'PRISM REACH', sub: 'Living crystal that bends the light', color: '#d08dff', tints: ['#3a1a6e', '#0d4a5e'],
     hazard: 'PRISMS', hazardDesc: 'Any shot through a prism splits in three, yours AND theirs',
     hint: 'PRISM REACH: shoot through a prism to split your shots in three. Careful: enemy shots split too!',
-    bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS', 'DAWNNY', 'SHADOW'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
+    bosses: ['NULL SERAPH', 'PHANTOM', 'THE ORACLE', 'CHRONOS', 'DAWNNY', 'SHADOW', 'THE REFRACTOR'], bias: { mirror: 2.2, bouncer: 2, splitter: 2, orbiter: 1.8, warper: 1.6, zigzag: 1.5 } },
   // the secret zone: it only shows up on the route map once you've beaten ZERO, and ZERO lives there (see glitchZeroDue)
   { id: 'glitch', name: 'GLITCH SECTOR', sub: 'Where the code of space comes apart', color: '#ff3df2', tints: ['#2a0a3a', '#0a2a3a'], secret: true,
     hazard: 'GLITCHES', hazardDesc: 'The screen tears, enemies teleport, and your controls flip for a moment',
@@ -13840,7 +13915,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.21';
+const BUILD = '2026.10.08.24';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -14140,6 +14215,7 @@ function packSnap() {
     pw: run.pvpWins || [], pr: run.pvpRound || 1, pb: r2(run.pvpBreak || 0), pn: run.pvpLast ?? -1, // (a duel's rounds)
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0, r2(p.reflectT || 0), r2(p.dashT || 0), r1(p.reflectCd || 0)]),
+    ps: players.map(p => [p.kills || 0, Math.round(p.dmg || 0), p.revives || 0]), // (each player's kills, damage and revives: the results screen)
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
       e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.gt || 0, r2(e.gv || 0), r1(e.tag || 0)]),
@@ -14179,7 +14255,7 @@ const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'patt
   'cine', 'voidEyes', 'hands', 'whisper', 'phaseAt',
   'fort', 'phased', 'phaseTo', 'ramp', 'copyT', 'copyName', 'flakN', 'haloUp', // (NEMESIS)
   'doki', 'ask', 'possessed', 'charmed', 'pout', 'paw', 'pawT', 'patterns', // (DOKI DOLL)
-  'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired', 'emerald', 'ccT', 'trap', 'skate', 'tag']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
+  'shards', 'super', 'xf', 'run', 'title', 'color', 'ghostColor', 'glitch', 'gx', 'zform', 'reboot', 'lagT', 'stolen', 'mech', 'sus', 'beast', 'pcs', 'ships', 'knives', 'tired', 'emerald', 'ccT', 'trap', 'skate', 'tag']; // (gimmicks, rage moves, THE ABYSS's entrance and hazards)
 function packBoss(b) {
   const o = {}, full = !net.bossSent.has(b) || net.snapN % 20 === 0;
   if (full) { net.bossSent.add(b); for (const k in b) if (k !== 'hint' && k !== 'drain' && k[0] !== '_') o[k] = roundDeep(b[k]); } // (_fields stay on the host)
@@ -14545,6 +14621,7 @@ function applySnap(s) {
       ms.length = n;
     } else if (p.mins) p.mins = [];
   });
+  if (Array.isArray(s.ps)) s.ps.forEach((a, i) => { const p = players[i]; if (p && Array.isArray(a)) Object.assign(p, { kills: num(a[0], 0, 1e6, 0), dmg: num(a[1], 0, 1e9, 0), revives: num(a[2], 0, 1e4, 0) }); }); // (each player's results)
   // enemies keep their identity between snapshots (by id) so they can glide along a timeline
   const byId = new Map(enemies.map(e => [e.id, e])), seen = new Set();
   enemies = s.en.map(a => {
