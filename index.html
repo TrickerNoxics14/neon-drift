@@ -925,6 +925,7 @@ const META_ITEMS = [
   { id: 'combo',   name: 'Combo Keeper',    desc: 'Combos last 25% longer',             costs: [120, 300] },
   { id: 'medkit',  name: 'Field Medic',     desc: 'Revive teammates 25% faster',        costs: [120, 300] },
   { id: 'bounty',  name: 'Boss Bounty',     desc: '+20 shards per boss defeated',       costs: [200, 450, 900] },
+  { id: 'twin',    name: 'Twin Reactor',    desc: '2x damage (2x DPS) per level, stacks', costs: [1000, 1000, 1000] },
 ];
 const COS_DEFAULT = { skin: 'skin_default', trail: 'trail_none', bullet: 'bullet_default', kill: 'kill_default', pet: 'pet_none' };
 // (abyssMark: lost to THE ABYSS and haven't beaten it since — the menu stays corrupted; curseSel: the curses picked for the next run)
@@ -1329,7 +1330,7 @@ const SIPHON_KILLS = [0, 40, 28, 18];
 
 function newStats() {
   const ml = k => runType === 'pvp' ? 0 : metaLv(k); // (a duel is fair: nobody brings their hangar upgrades into it)
-  return { fireDelay: 0.14 * Math.pow(0.92, ml('guns')), dmg: 1 + 0.06 * ml('ammo'), shots: 2, pierce: 0, speed: 420 * (1 + 0.05 * ml('engine')),
+  return { fireDelay: 0.14 * Math.pow(0.92, ml('guns')), dmg: (1 + 0.06 * ml('ammo')) * Math.pow(2, ml('twin')), shots: 2, pierce: 0, speed: 420 * (1 + 0.05 * ml('engine')),
     maxLives: 3 + ml('hull'), magnet: ml('tractor'), luck: 1 + 0.2 * ml('luck'), crit: 0, homing: 0, drones: 0,
     aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * ml('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
@@ -1980,28 +1981,53 @@ const TEAMS = [
       { name: 'GALE',  bond: 1, style: 'hexcore', shape: 'swirl', color: '#9dff5d', sides: 5, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['spiral', 'fan'] },
       { name: 'EMBER', bond: 2, style: 'storm',   shape: 'flame',  color: '#ff9a3d', sides: 7, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['ring', 'mines'] },
       { name: 'VOID',  bond: 3, style: 'phantom', shape: 'ring', color: '#c08dff', sides: 8, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['laser', 'fan'] }] },
+  // six voices in a ring, and one spotlight: only the voice in the spotlight can be hurt, and the light moves on every few seconds
+  { name: 'THE CONGREGATION', kind: 'choir',
+    hint: 'THE CONGREGATION: six voices sing in a ring, but only the one in the spotlight can be hurt. The spotlight moves every few seconds, so watch the light!',
+    members: [
+      { name: 'HYMN',     style: 'warden',  shape: 'warden',  color: '#ff2a5a', sides: 5, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['ring', 'fan'] },
+      { name: 'PSALM',    style: 'hexcore', shape: 'hexcore', color: '#ff5a2a', sides: 6, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['spiral', 'fan'] },
+      { name: 'CANTICLE', style: 'seraph',  shape: 'seraph',  color: '#e0405a', sides: 6, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['laser', 'ring'] },
+      { name: 'ANTHEM',   style: 'storm',   shape: 'flame',   color: '#ff3d3d', sides: 7, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['rain', 'ring'] },
+      { name: 'DIRGE',    style: 'phantom', shape: 'phantom', color: '#9a1030', sides: 5, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['blink', 'fan'] },
+      { name: 'REQUIEM',  style: 'hive',    shape: 'emerald', color: '#c0304a', sides: 4, r: 36, hpShare: 0.2, atkMult: 3, patterns: ['mines', 'fan'] }] },
+  // eight gods in a ring: four pairs take turns in the spotlight, and only the two in the light can be hurt (eight or more players)
+  { name: 'THE PANTHEON', kind: 'octet', hpMult: 6, // (only two voices can be hurt at a time: it needs the health to last)
+    hint: 'THE PANTHEON: eight gods in a ring, but only the two in the spotlight can be hurt. The light moves every few seconds, so watch the pairs!',
+    members: [
+      { name: 'AXIOM',  style: 'warden',      shape: 'ruby',        color: '#ff9d3d', sides: 5, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['ring', 'fan'] },
+      { name: 'KORA',   style: 'hexcore',     shape: 'swirl',       color: '#9dff5d', sides: 5, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['spiral', 'fan'] },
+      { name: 'VAEL',   style: 'storm',       shape: 'sapphire',    color: '#5d9dff', sides: 6, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['rain', 'laser'] },
+      { name: 'ORRIS',  style: 'seraph',      shape: 'shell',       color: '#ffd400', sides: 6, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['wave', 'ring'] },
+      { name: 'THALOS', style: 'hive',        shape: 'emerald',     color: '#5dff9d', sides: 4, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['mines', 'fan'] },
+      { name: 'NYX',    style: 'singularity', shape: 'singularity', color: '#c0c8ff', sides: 8, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['orbit', 'ring'] },
+      { name: 'IOTA',   style: 'storm',       shape: 'flame',       color: '#ff7ad9', sides: 7, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['blink', 'spiral'] },
+      { name: 'ELDRA',  style: 'phantom',     shape: 'moon',        color: '#b98cff', sides: 5, r: 34, hpShare: 0.15, atkMult: 4, patterns: ['blink', 'fan'] }] },
 ];
 const BOND_OFF_COLOR = 0.3; // damage share from players who aren't a Quartet boss's partner
 // how much of a hit from player `owner` a boss actually takes
 const bondMult = (bo, owner) => bo.bond === undefined || owner === bo.bond ? 1 : BOND_OFF_COLOR;
+const CHOIR_SPOT_T = 5; // seconds each voice holds the spotlight (THE CONGREGATION)
 const TRIAD_REGEN_DELAY = 3, TRIAD_REGEN_RATE = 0.04; // seconds untouched before healing; share of max hp per second
 const TWIN_REVIVE = () => mode === 1 ? 10 : 8; // seconds to finish off the second twin
 
 // each run fights 5 of the solo bosses and 2 team fights, then THE ABYSS.
-// the first team fight is always a duo; the second is the trio or another duo
+// the first team fight is a duo (or, with four or more players, THE CONGREGATION sometimes); the second is the trio, another duo, or the Quartet
 function buildBossOrder() {
   const soloIdx = BOSSES.map((b, i) => i).filter(i => !BOSSES[i].final), omega = BOSSES.findIndex(b => b.final);
   const singles = shuffle(soloIdx).slice(0, 5).map(i => ({ single: i }));
-  const duos = shuffle(TEAMS.map((t, i) => i).filter(i => !TEAMS[i].trio && !TEAMS[i].quad));
+  const duos = shuffle(TEAMS.map((t, i) => i).filter(i => TEAMS[i].members.length === 2));
   const trio = TEAMS.findIndex(t => t.trio), quad = TEAMS.findIndex(t => t.quad);
   // a full 4-player squad always meets the Quartet
-  const second = mode === 4 ? quad : Math.random() < 0.5 ? trio : duos[1];
-  return [singles[0], { team: duos[0] }, singles[1], singles[2], { team: second }, singles[3], singles[4], { single: omega }];
+  const choir = TEAMS.findIndex(t => t.kind === 'choir'), octet = TEAMS.findIndex(t => t.kind === 'octet');
+  const second = isMohType() ? choir : mode === 4 ? quad : mode >= 8 && Math.random() < 0.5 ? octet : Math.random() < 0.5 ? trio : duos[1]; // (MOH: THE CONGREGATION, always; eight or more players: THE PANTHEON sometimes)
+  const first = !isMohType() && mode >= 4 && Math.random() < 0.5 ? choir : duos[0]; // (four or more players, local or online: THE CONGREGATION sometimes opens)
+  return [singles[0], { team: first }, singles[1], singles[2], { team: second }, singles[3], singles[4], { single: omega }];
 }
 // Boss Rush: every solo boss, a team fight after every two, and THE ABYSS last (then ZERO, once you've earned it)
 function buildRushOrder() {
   const solos = shuffle(BOSSES.map((b, i) => i).filter(i => !BOSSES[i].final)).map(i => ({ single: i }));
-  const teams = shuffle(TEAMS.map((t, i) => i).filter(i => !TEAMS[i].quad || mode === 4)).map(i => ({ team: i }));
+  const teams = shuffle(TEAMS.map((t, i) => i).filter(i => (!TEAMS[i].quad || mode === 4) && (TEAMS[i].kind !== 'choir' || mode >= 4) && (TEAMS[i].kind !== 'octet' || mode >= 8))).map(i => ({ team: i })); // (THE CONGREGATION: four or more players; THE PANTHEON: eight or more)
   const out = [];
   while (solos.length || teams.length) { out.push(...solos.splice(0, 2)); if (teams.length) out.push(teams.shift()); }
   out.push({ single: BOSSES.findIndex(b => b.final) });
@@ -2607,7 +2633,7 @@ function start(m, ships, cosList, vsCpu = false) {
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
   if (curse('slim')) run.rerolls = 0;
-  if (run.moh) { run.s.maxLives = 1; run.handT = 4; } // (MOH: ONE life, and the first hand comes a little after you start)
+  if (run.moh) { run.s.maxLives = 1; run.handT = 3; } // (MOH: ONE life, and the first hand comes a little after you start)
   lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
@@ -3590,7 +3616,7 @@ function killEnemy(e, src) {
   if (Math.random() < drop) {
     const someoneDown = players.some(p => !p.alive);
     let kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
-    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.85) kind = 'power'; // (MOH: hearts are rarer)
+    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.92) kind = 'power'; // (MOH: hearts are rarer)
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
   if (s.pickpocket) run.coins += s.pickpocket; // (Pickpocket)
@@ -3884,7 +3910,7 @@ const BOSS_MIN_SECS = 18, TEAM_MIN_SECS = 24, FINAL_MIN_SECS = 70, BOSS_HIT_RATE
 const firepowerHp = secs => (run.dpsEst || 0) * BOSS_HIT_RATE * secs * (1 + 0.3 * mut('titans'));
 // +40% per fight through the first cycle, then a gentler +20% so endless stays beatable
 const bossBaseHp = () => 180 * Math.pow(1.4, Math.min(bossCount - 1, BOSS_CYCLE - 1)) * Math.pow(1.2, Math.max(0, bossCount - BOSS_CYCLE))
-  * (1 + 0.4 * (mode - 1)) * (1 + 0.3 * mut('titans')) * (run?.moh ? 1.2 : 1);
+  * (1 + 0.4 * (mode - 1)) * (1 + 0.3 * mut('titans')) * (run?.moh ? 1.35 : 1);
 // a boss arrives: every enemy still flying blows up (and their bullets fizzle), so it's just you, the boss and its minions
 function clearForBoss() {
   for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost) { burst(e.x, e.y, e.color, 14, 240); if (bossFx.rings.length < 40) fxRing(e.x, e.y, 4, e.r * 2.5, 0.3, e.color, 3); }
@@ -3938,11 +3964,11 @@ function spawnEncounter() {
     if (def.hint && !def.final) hint = { text: def.hint, life: 6 }; // (THE ABYSS's comes after its entrance)
   } else {
     const team = TEAMS[e.team], n = team.members.length;
-    const teamHp = Math.max(baseHp, firepowerHp(TEAM_MIN_SECS) / team.members.reduce((t, m) => t + m.hpShare, 0));
+    const teamHp = Math.max(baseHp, firepowerHp(TEAM_MIN_SECS) / team.members.reduce((t, m) => t + m.hpShare, 0)) * (team.hpMult || 1);
     encounter = { kind: team.kind, name: team.name, angle: -Math.PI / 2, tether: 0 };
     bosses = team.members.map((m, i) => {
       const slot = i - (n - 1) / 2; // -0.5/+0.5 for a pair, -1/0/+1 for a trio
-      const b = makeBoss(m, W / 2 + slot * W * (n > 3 ? 0.2 : n > 2 ? 0.28 : 0.44), teamHp * m.hpShare, loop, Math.sign(slot));
+      const b = makeBoss(m, W / 2 + slot * W * (n > 6 ? 0.12 : n > 5 ? 0.13 : n > 3 ? 0.2 : n > 2 ? 0.28 : 0.44), teamHp * m.hpShare, loop, Math.sign(slot));
       b.slot = i; b.lastHit = time;
       // two or three bosses firing at full rate is much denser than a solo boss, so each attacks slower
       // (Sol & Luna's tether is a hazard on its own, so they get the trio treatment)
@@ -4023,6 +4049,31 @@ function updateEncounter(dt) {
       if (Math.random() < dt * 12) particles.push({ x: b.x + (Math.random() - 0.5) * b.r * 2, y: b.y + b.r * 0.5, vx: 0, vy: -70, life: 0.6, max: 0.6, color: '#5dff7a', size: 2.5 });
     }
   }
+  if (encounter.kind === 'choir') { // one voice at a time can be hurt: the spotlight moves on every few seconds
+    encounter.spot = (encounter.spot ?? CHOIR_SPOT_T) - dt;
+    if (encounter.spot <= 0) { encounter.spot = CHOIR_SPOT_T; encounter.turn = (encounter.turn || 0) + 1; }
+    const live = bosses.filter(b => bossAlive(b) && b.entered);
+    const exposed = live.length ? live[(encounter.turn || 0) % live.length] : null;
+    if (exposed && encounter.exposed && exposed !== encounter.exposed) { // the light moves: say so
+      fxText(`${exposed.name} HAS THE SPOTLIGHT`, exposed.x, exposed.y - exposed.r - 30, exposed.color, 20, 1.4);
+      beep(880, 0.2, 'triangle', 0.05, 220);
+    }
+    if (exposed) encounter.exposed = exposed;
+    encounter.lit = exposed ? [exposed] : [];
+    for (const b of bosses) b.shielded = bossAlive(b) && b !== exposed; // (shielded from the moment it appears)
+  }
+  if (encounter.kind === 'octet') { // four pairs take turns in the spotlight: two voices at a time can be hurt
+    encounter.spot = (encounter.spot ?? CHOIR_SPOT_T) - dt;
+    if (encounter.spot <= 0) { encounter.spot = CHOIR_SPOT_T; encounter.turn = (encounter.turn || 0) + 1; }
+    const live = bosses.filter(b => bossAlive(b) && b.entered);
+    const lit = live.length ? [...new Set([0, 1].map(k => live[((encounter.turn || 0) * 2 + k) % live.length]))] : [];
+    if (encounter.lit && lit.some(b => !encounter.lit.includes(b))) { // the light moves: say whose turn it is
+      fxText(`${lit.map(b => b.name).join(' & ')} IN THE SPOTLIGHT`, lit[0].x, lit[0].y - lit[0].r - 30, lit[0].color, 20, 1.4);
+      beep(880, 0.2, 'triangle', 0.05, 220);
+    }
+    encounter.lit = lit;
+    for (const b of bosses) b.shielded = bossAlive(b) && !lit.includes(b); // (shielded from the moment it appears)
+  }
   if (encounter.kind === 'twins') {
     for (const b of bosses) {
       if (!b.downed) continue;
@@ -4052,6 +4103,11 @@ function bossHome(b, enraged, hoverY) {
     const R = Math.min(W * 0.36, 190), cy = H * (0.3 + Math.sin(time * 0.4) * 0.07);
     const a = encounter.angle + (b.side > 0 ? Math.PI : 0);
     return { x: W / 2 + Math.cos(a) * R, y: cy + Math.sin(a) * R * 0.75 };
+  }
+  if (encounter.kind === 'choir' || encounter.kind === 'octet') { // the voices in a slowly turning ring; each keeps its own place
+    const R = Math.min(W * 0.36, 200) * (bosses.length > 6 ? 1.2 : 1), a = time * 0.18 + b.slot * TAU / bosses.length;
+    const cy = W < 640 ? H * 0.42 : H * 0.34;
+    return { x: W / 2 + Math.cos(a) * R, y: cy + Math.sin(a) * R * 0.55 };
   }
   if (encounter.kind === 'quartet') { // a slowly turning diamond; each boss keeps its own slot
     const R = Math.min(W * 0.34, 190), a = time * 0.22 + b.slot * Math.PI / 2;
@@ -5396,12 +5452,12 @@ function updateMohHands(dt) {
   }
   run.hands = run.hands.filter(Hd => Hd[3] < GRASP_END);
   if (state !== 'play' || !ps.length || bossWarn > 0 || run.warp || (run.clock || 0) < 15) return;
-  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 2 ? 1 : 0) + (level >= 4 ? 1 : 0) + (level >= 7 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
+  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 2 ? 1 : 0) + (level >= 3 ? 1 : 0) + (level >= 5 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
   const cand = ps.filter(q => q.inv <= 0 && !(q.phaseOn > 0));
   if (!cand.length) { run.handT = 0.4; return; }
   const p = randomOf(cand);
   run.hands.push([Math.round(p.x), Math.round(p.y), p.x < W / 2 ? 1 : -1, 0, p.id]);
-  run.handT = Math.max(1.5, 4.8 - level * 0.35) * (bosses.length ? 1.2 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.7 + Math.random() * 0.5);
+  run.handT = Math.max(1.2, 4.2 - level * 0.4) * (bosses.length ? 1.2 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.7 + Math.random() * 0.5);
   beep(48, 1.1, 'sawtooth', 0.08, 25);
 }
 function drawMohHands() {
@@ -6095,7 +6151,7 @@ function updateBoss(b, dt) {
   // REGENERATING: leave a boss alone for a few seconds and it starts to heal (never past its next phase mark, so a phase is never undone)
   if (b.entered && b.dying <= 0 && !b.downed && b.doki === undefined && !(b.reboot > 0) && !(b.xf >= 0) && !b.shielded) {
     b.idleT = (b.idleT || 0) + dt;
-    if (b.idleT >= (run?.moh ? 1.8 : 4) && b.hp < b.max) {
+    if (b.idleT >= (run?.moh ? 1.4 : 4) && b.hp < b.max) {
       if (!b._rgText) b.regenCap = ([0.25, 0.33, 0.5, 0.66, 0.7, 0.75].find(m => m * b.max > b.hp + 1) ?? 1) * b.max; // (worked out once, when it starts)
       const cap = b.regenCap ?? b.max;
       if (b.hp < cap) {
@@ -6442,7 +6498,7 @@ function hurt(p) {
     if (run.s.angel) for (let i = 0; i < 18; i++) fire(p.x, p.y, i / 18 * Math.PI * 2, '#7df9ff', undefined, p); // Guardian Angel evolution
     return true;
   }
-  p.lives--; p.inv = (run.moh ? 1.5 : run.pvp ? 0.8 : 2) + run.s.invBonus; // (a duel's invincibility is short: a rival can't just hide behind it) p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
+  p.lives--; p.inv = (run.moh ? 1.2 : run.pvp ? 0.8 : 2) + run.s.invBonus; // (a duel's invincibility is short: a rival can't just hide behind it) p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
   if (run.s.bloodpact) run.pactN = (run.pactN || 0) + 1; // (Blood Pact)
@@ -6714,7 +6770,7 @@ function update(dt) {
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
   }
   else if (run.moh && bosses.length && bossWarn <= 0 && !run.warp && bosses.every(b => b.entered && b.dying <= 0) && (run.addT = (run.addT ?? 5) - dt) <= 0) { // (MOH: the boss's friends keep arriving all through the fight)
-    spawnEnemy(); run.addT = Math.max(1.6, 4 - level * 0.25) / Math.min(2, Math.sqrt(players.length));
+    spawnEnemy(); run.addT = Math.max(1.2, 3.5 - level * 0.3) / Math.min(2, Math.sqrt(players.length));
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
@@ -7986,6 +8042,19 @@ function drawEncounterFx() {
     ctx.strokeStyle = cut ? '#ff5a70' : '#ffffff'; ctx.lineWidth = cut ? 2.5 : 1.5; ctx.globalAlpha = (cut ? 0.5 : 0.3) + Math.sin(t * 6) * 0.12;
     ctx.setLineDash([6, 10]); ctx.lineDashOffset = -t * 40;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+  }
+  if (encounter.kind === 'choir') { // the ring of voices, and a bright ring around the one in the spotlight
+    const alive = bosses.filter(bossAlive);
+    ctx.strokeStyle = '#ff2a5a'; ctx.lineWidth = 1.2; ctx.globalAlpha = 0.25; ctx.setLineDash([]);
+    ctx.beginPath(); alive.forEach((b, i) => { const n = alive[(i + 1) % alive.length]; ctx.moveTo(b.x, b.y); ctx.lineTo(n.x, n.y); }); ctx.stroke();
+    const s = encounter.exposed;
+    if (s && bossAlive(s)) { ctx.globalAlpha = 0.5 + Math.sin(t * 6) * 0.2; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 1.5, 0, TAU); ctx.stroke(); }
+  }
+  if (encounter.kind === 'octet') { // the ring of eight, and a bright ring around each pair in the spotlight
+    const alive = bosses.filter(bossAlive);
+    ctx.strokeStyle = '#b98cff'; ctx.lineWidth = 1.2; ctx.globalAlpha = 0.25; ctx.setLineDash([]);
+    ctx.beginPath(); alive.forEach((b, i) => { const n = alive[(i + 1) % alive.length]; ctx.moveTo(b.x, b.y); ctx.lineTo(n.x, n.y); }); ctx.stroke();
+    for (const s of encounter.lit || []) if (bossAlive(s)) { ctx.globalAlpha = 0.5 + Math.sin(t * 6) * 0.2; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 1.5, 0, TAU); ctx.stroke(); }
   }
   if (encounter.kind === 'triad') { // faint resonance lines between surviving members
     const alive = bosses.filter(bossAlive);
@@ -11881,7 +11950,10 @@ function drawHangar() {
 }
 
 function drawOver() {
-  const cy = Math.max(150, H / 2 - 150);
+  // (a short window: tighter buttons, and the whole block moves up so the last button still fits)
+  const tight = H < 700, gapN = tight ? 40 : 48, btnH = tight ? 34 : 40, stackN = players.length > 1 && !run.pvp ? players.length * 16 : 0;
+  const extraN = run.victory && !run.rush && net.role !== 'guest' ? (tight ? 66 : 76) : 0;
+  const cy = Math.max(120, Math.min(Math.max(150, H / 2 - 150), H - (228 + stackN + extraN + 3 * gapN + btnH + 6)));
   if (run.newBest) {
     const pulse = 1 + Math.sin(performance.now() / 150) * 0.08;
     ctx.save(); ctx.translate(W / 2, cy - 55); ctx.scale(pulse, pulse); ctx.translate(-W / 2, -(cy - 55));
@@ -11928,9 +12000,9 @@ function drawOver() {
   const again = run.victory && !run.rush ? 'RUN AGAIN' : 'RUN AGAIN  [Space]'; // (Space presses whichever button is highlighted: the first one)
   // after beating THE ABYSS: keep this run going in Endless instead of starting over (the host decides online)
   if (run.victory && !run.rush && net.role !== 'guest') {
-    glitchButton('CONTINUE INTO ENDLESS  [E]', bx, by, bw, 44, '#ff3df2', continueEndless); // (something is wrong past the end...)
-    fitText(Math.random() < 0.06 ? 'S0METH1NG IS W4ITING' : 'Keep your ships, upgrades and score', by + 58, 12, '#c9a07a');
-    by += 76;
+    glitchButton('CONTINUE INTO ENDLESS  [E]', bx, by, bw, tight ? 36 : 44, '#ff3df2', continueEndless); // (something is wrong past the end...)
+    fitText(Math.random() < 0.06 ? 'S0METH1NG IS W4ITING' : 'Keep your ships, upgrades and score', by + (tight ? 50 : 58), 12, '#c9a07a');
+    by += extraN;
   }
   if (net.role === 'guest') { // online: the host decides what's next
     fitText('Waiting for the host…', by + 14, 15, '#9ab');
@@ -11938,15 +12010,15 @@ function drawOver() {
     return;
   }
   if (net.role === 'host') {
-    button(again, bx, by, bw, 40, '#7df9ff', () => startOnline());
-    button('BACK TO LOBBY', bx, by + 48, bw, 40, '#9dff5d', backToLobby);
-    button(isSure('close') ? 'REALLY CLOSE THE ROOM?' : 'CLOSE ROOM', bx, by + 96, bw, 40, '#ff5a70', () => sure('close', () => leaveOnline(), 'Close the room?'));
+    button(again, bx, by, bw, btnH, '#7df9ff', () => startOnline());
+    button('BACK TO LOBBY', bx, by + gapN, bw, btnH, '#9dff5d', backToLobby);
+    button(isSure('close') ? 'REALLY CLOSE THE ROOM?' : 'CLOSE ROOM', bx, by + 2 * gapN, bw, btnH, '#ff5a70', () => sure('close', () => leaveOnline(), 'Close the room?'));
     return;
   }
-  button(again, bx, by, bw, 40, '#7df9ff', () => start(mode, run.ships));
-  button('CHANGE SHIP', bx, by + 48, bw, 40, '#9dff5d', () => openShipSelect(mode));
-  button('HANGAR  [H]', bx, by + 96, bw, 40, '#ffe93d', () => go('hangar'));
-  button('MAIN MENU', bx, by + 144, bw, 40, '#9ab', () => go('menu'));
+  button(again, bx, by, bw, btnH, '#7df9ff', () => start(mode, run.ships));
+  button('CHANGE SHIP', bx, by + gapN, bw, btnH, '#9dff5d', () => openShipSelect(mode));
+  button('HANGAR  [H]', bx, by + 2 * gapN, bw, btnH, '#ffe93d', () => go('hangar'));
+  button('MAIN MENU', bx, by + 3 * gapN, bw, btnH, '#9ab', () => go('menu'));
 }
 
 // ---------- zones: a run travels through space zone by zone (like the areas of Rabbit and Steel) ----------
@@ -13929,7 +14001,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.25';
+const BUILD = '2026.10.08.33';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -14237,7 +14309,7 @@ function packSnap() {
     pk: pickups.map(k => [Math.round(k.x), Math.round(k.y), k.kind, r2(k.t)]),
     lz: lasers.map(l => [Math.round(l.x), r2(l.warn), r2(l.fire), l.w, l.color, l.flare ? 1 : 0]),
     bo: bosses.map(packBoss),
-    ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether } : null,
+    ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether, lit: (encounter.lit || []).map(b => b.name) } : null,
     sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
     of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
     zn: run.zone, rh: run.route, ro: state === 'route' ? run.routeOpts : null, ms: run.musicSeed, wp: run.warp ? [r2(run.warp.t), run.warp.to] : 0,
@@ -14673,6 +14745,9 @@ function applySnap(s) {
   }).filter(Boolean);
   for (const name of net.btr.keys()) if (!bosses.some(b => b.name === name)) net.btr.delete(name);
   encounter = s.ec;
+  if (encounter && Array.isArray(encounter.lit)) { // who's in the spotlight (the host sends their names)
+    encounter.lit = bosses.filter(b => encounter.lit.includes(b.name)); encounter.exposed = encounter.lit[0] || null;
+  }
   shop = s.sp ? { items: s.sp.map(a => ({ kind: a[0], u: a[1] ? UPGRADES.find(u => u.id === a[1]) : null, price: a[2], sold: !!a[3] })) } : null;
   run.coins = s.cn;
   offer = s.of && Array.isArray(s.of.c) ? { title: String(s.of.ti).slice(0, 80), bossReward: !!s.of.br, cards: s.of.c.slice(0, 6).map(id => UPGRADES.find(u => u.id === id)).filter(Boolean) } : null;
