@@ -1798,6 +1798,11 @@ const BOSSES = [
   { name: 'SHADOW', style: 'shadow', color: '#ff3b4a', sides: 8, r: 50, gimmick: 'shadow', rageMove: 'chaosblast', rageTitle: 'INHIBITORS OFF',
     hint: 'SHADOW: race him to the CHAOS EMERALD! Grab it first and he freezes. If he gets it, spears appear around you: slip out through a gap before they fly.',
     patterns: ['spear', 'homing', 'skate', 'spindash', 'blink', 'spear', 'skate'] },
+  // a nod to the 6-7 meme: a 6 and a 7 that take turns to shoot, each from its own side (see the sixseven attack). Enraged, it
+  // throws rings of bullets that spin the other way each time (its rage move, 6-7!)
+  { name: '6-7', style: 'sixseven', color: '#ffe93d', sides: 6, r: 56, rageMove: 'sixseven', rageTitle: '6-7 OVERLOAD',
+    hint: '6-7: the 6 and the 7 take turns to shoot, from their own side. Keep moving between them, and watch the rings when it\'s enraged!',
+    patterns: ['sixseven', 'fan', 'sixseven', 'ring'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
   { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
@@ -4135,6 +4140,14 @@ const BOSS_ATTACKS = {
     for (let i = 0; i < n; i++) bossShot(b, a + (i - (n - 1) / 2) * 0.14, 290, 5);
     b.atkT = 0.7 * rate; beep(320, 0.1, 'triangle', 0.04);
   },
+  sixseven(b, enraged, rate, target) { // the 6 and the 7 take turns: each fires a fan from its own side, aimed at you
+    if (!target) return;
+    b.side = -(b.side || -1); // (flips every time: 7, 6, 7, 6...)
+    const sx = b.x + b.side * b.r * 0.85, a = Math.atan2(target.y - b.y, target.x - sx), n = enraged ? 5 : 3;
+    for (let i = 0; i < n; i++) bossShot({ ...b, x: sx }, a + (i - (n - 1) / 2) * 0.18, 270, 5);
+    fxText(b.side > 0 ? '7' : '6', sx, b.y - b.r - 14, b.color, 26, 0.6);
+    b.atkT = 0.8 * rate; beep(b.side > 0 ? 520 : 390, 0.1, 'square', 0.04);
+  },
   spiral(b, enraged, rate) {
     b.aim += 0.32;
     bossShot(b, b.aim, 200, 5); bossShot(b, b.aim + Math.PI, 200, 5);
@@ -5757,6 +5770,15 @@ const RAGE_MOVES = {
     } },
   rush: { name: 'TRIPLE CHARGE!', len: 0, cd: 7, // three charges in a row; only the last one rams the wall (see updateBoss)
     start(b, s, tgt) { b.charge = { phase: 'aim', t: 0.6, tx: tgt.x, ty: tgt.y, combo: 2 }; beep(220, 0.6, 'sawtooth', 0.06, 400); } },
+  sixseven: { name: '6-7!', len: 3.4, cd: 7, // rings of bullets, one after another, each one turning the other way
+    update(b, s, dt) {
+      for (let k = 0; k < 4; k++) if (at(s, dt, 0.4 + k * 0.7)) {
+        const n = 14, off = k * 0.3 * (k % 2 ? 1 : -1), col = k % 2 ? '#ffe93d' : '#ffffff';
+        for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2; eBullets.push({ x: b.x, y: b.y, vx: Math.cos(a) * 180 * BOSS_BULLET_SPEED, vy: Math.sin(a) * 180 * BOSS_BULLET_SPEED, r: 6, color: col, src: b }); }
+        beep(k % 2 ? 520 : 390, 0.12, 'square', 0.05);
+      }
+      return 'quiet';
+    } },
   tempest: { name: 'TEMPEST!', len: 4, cd: 7, // a wall of lightning marches across the screen, with one lane left open
     start(b, s) {
       const rows = []; for (let y = H * 0.3; y < H; y += TEMPEST_ROW) rows.push(Math.round(y));
@@ -8393,6 +8415,13 @@ const BOSS_SHAPES = {
     for (let i = 0; i < 6; i++) for (const d of [-0.13, 0.13]) { const a = i / 6 * TAU + d; ctx.lineTo(Math.cos(a) * r * 0.97, Math.sin(a) * r * 0.97); }
     ctx.closePath();
   }, detail(r) { ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, TAU); ctx.stroke(); ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, TAU); ctx.stroke(); ctx.setLineDash([]); } },
+  sixseven: { mode: 'up', eye: [0, -0.7, 0.4], path(r) { // a rounded yellow block, like a sticker
+    ctx.beginPath(); ctx.roundRect(-0.95 * r, -0.95 * r, 1.9 * r, 1.9 * r, 0.3 * r);
+  }, detail(r, b) { // a big 6 on the left and a 7 on the right, bobbing in turns
+    const u = Math.sin((b.t || 0) * 4), v = -u;
+    ctx.fillStyle = '#1a1200'; ctx.font = `bold ${Math.round(r * 0.8)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('6', -0.42 * r, u * 0.12 * r + 0.15 * r); ctx.fillText('7', 0.42 * r, v * 0.12 * r + 0.15 * r);
+  } },
   seraph: { mode: 'up', eye: [0, 0, 0.9], path(r) { // a four-pointed star of light
     const pts = [[0, -1.35], [0.82, 0], [0, 1.2], [-0.82, 0]];
     ctx.beginPath(); ctx.moveTo(0, -1.35 * r);
@@ -13760,7 +13789,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.13';
+const BUILD = '2026.10.08.14';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
