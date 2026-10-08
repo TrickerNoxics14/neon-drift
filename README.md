@@ -203,7 +203,7 @@ THE ABYSS and ZERO also have their story on their pages, unlocked a piece at a t
 
 ### Pets
 
-A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone, Starling and Banana can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
+A little companion that follows your ship around (Hangar → Skins & Cosmetics → Pets). It grabs pickups that come near it and brings them to you, sometimes fetches a bonus coin from kills close to it, pops a heart when you're revived, and jumps for joy when a boss goes down. Spark, Buddy Drone, Starling, Banana and 6-7 can be bought with shards. Mini Doki, Mini Sonnet, Null Bit, P0 and Little Eye unlock by beating the secret bosses and THE ABYSS. Online, your friends see your pet too.
 
 ### MOH
 

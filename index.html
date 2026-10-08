@@ -1003,6 +1003,7 @@ const COSMETICS = [
   { id: 'pet_manga',  cat: 'pet', name: 'Mini Manga',   cost: 300, req: 'dawnny',  reqText: 'Beat DAWNNY' },
   { id: 'pet_shadow', cat: 'pet', name: 'Mini Shadow',  cost: 300, req: 'shadow',  reqText: 'Beat SHADOW' },
   { id: 'pet_banana', cat: 'pet', name: 'Banana',       cost: 250 },
+  { id: 'pet_67',     cat: 'pet', name: '6-7',          cost: 300 },
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
 const cosOwned = c => !!meta.cos.owned[c.id] || (c.cost === 0 && !cosLocked(c)); // (free ones are yours once unlocked)
@@ -7144,6 +7145,16 @@ const PETS = {
     ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-6, -4.5); ctx.quadraticCurveTo(-2, -1, 3, -2); ctx.stroke(); // the shine
     ctx.strokeStyle = '#5b4a1e'; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(-11, -10); ctx.lineTo(-14, -13); ctx.stroke(); // the stem
     ctx.fillStyle = '#3d2e0e'; ctx.beginPath(); ctx.arc(11, -8, 1.4, 0, TAU); ctx.fill(); // the tip
+  },
+  pet_67(t, c) { // the 6-7 meme as a pet: a "6" and a "7" that bob up and down in turns, with little hands going the other way
+    const u = Math.sin(t * 9), v = Math.sin(t * 9 + Math.PI); // (opposite phases: they take turns)
+    ctx.fillStyle = '#0a0a18'; ctx.strokeStyle = c; ctx.lineWidth = 1.5; glow(c, 10);
+    ctx.beginPath(); ctx.roundRect(-11, -8, 22, 16, 6); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ffe93d'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-13, 2); ctx.lineTo(-13, 2 - u * 5); ctx.moveTo(13, 2); ctx.lineTo(13, 2 - v * 5); ctx.stroke(); // the hands
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 13px system-ui'; ctx.fillStyle = '#ffe93d';
+    ctx.fillText('6', -5.5, u * 2.5); ctx.fillText('7', 5.5, v * 2.5);
   },
   pet_eye(t) { // a little eye from THE ABYSS that blinks and looks around
     const blink = (t % 4) > 3.85 ? 0.15 : 1;
@@ -13749,7 +13760,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.12';
+const BUILD = '2026.10.08.13';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
