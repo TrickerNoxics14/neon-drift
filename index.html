@@ -1663,8 +1663,18 @@ function readPad(i) {
 // ---------- run state ----------
 // run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators;
 // 'rush' (Boss Rush) is every boss back to back with upgrades and the shop in between
-// 'pvp' (PvP arena): no bosses and no revives; your shots hurt your friends, and the last ship flying wins
+// 'pvp' is a DUEL (two ships, like MAIDEN & SPELL's Versus): no enemies, no bosses, no sectors or upgrade picks. You shoot
+// spells at your rival (auto-aimed at them) and dodge theirs. Only a shot that reaches a ship's 3-pixel core hits it.
+// With 3 or 4 players it's a free-for-all: the last ship flying wins
 const RUN_TYPES = ['standard', 'endless', 'rush', 'moh', 'pvp'];
+const PVP_HITBOX = 3; // (the core of a duel ship: the only part a rival's spell can hit)
+// the duel's aim: the nearest rival (the spell still has a spread around it)
+function duelAim(p) {
+  const rivals = living().filter(q => q !== p);
+  if (!rivals.length) return -Math.PI / 2;
+  const r = rivals.reduce((a, b) => Math.hypot(b.x - p.x, b.y - p.y) < Math.hypot(a.x - p.x, a.y - p.y) ? b : a);
+  return Math.atan2(r.y - (p.y - 16), r.x - p.x); // (from the muzzle, just above the ship)
+}
 let runType = 'standard';
 try { const t = localStorage.getItem('neonDriftRunType'); if (RUN_TYPES.includes(t)) runType = t; } catch (e) {}
 function toggleRunType() {
@@ -2378,6 +2388,7 @@ let shipPick = null;
 const baseIndex = id => Math.max(0, SHIPS.findIndex(s => s.id === shipById(id).id || s.id === shipById(id).base));
 // online: the same screen, opened from the lobby, picks just your own ship and returns there
 function openShipSelect(m, online = false, k = 0) { // (k: online, which of the players on this computer is picking)
+  if (runType === 'pvp' && m < 2 && !online) { showToast('A DUEL needs two ships: pick 2-PLAYER CO-OP, or play online'); return; }
   shipPick = { mode: m, player: 0, picks: [], online, mk2: {}, k };
   const cur = online ? (net.slots[net.mine[k]]?.ship || lastShips[k] || lastShips[0]) : lastShips[0];
   rememberVariant(cur);
@@ -2448,6 +2459,7 @@ function start(m, ships, cosList) {
   popups = []; hurtFlash = 0;
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
   if (run.moh) hint = { text: 'MOH: 2 lives, tougher everything, and HANDS from the dark. When a red ring appears under you, MOVE!', life: 9 };
+  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: shoot your rival, dodge theirs. Only the white dot can be hit. Q / right-click: ability' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 8 };
   go('play');
   for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
   if (metaLv('deflect')) for (const p of players) p.shield = 1;
@@ -6179,7 +6191,7 @@ function hurt(p) {
     if (run.s.angel) for (let i = 0; i < 18; i++) fire(p.x, p.y, i / 18 * Math.PI * 2, '#7df9ff', undefined, p); // Guardian Angel evolution
     return true;
   }
-  p.lives--; p.inv = (run.moh ? 1.5 : 2) + run.s.invBonus; p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
+  p.lives--; p.inv = (run.moh ? 1.5 : run.pvp ? 0.8 : 2) + run.s.invBonus; // (a duel's invincibility is short: a rival can't just hide behind it) p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
   if (run.s.bloodpact) run.pactN = (run.pactN || 0) + 1; // (Blood Pact)
@@ -6268,7 +6280,7 @@ function update(dt) {
   }
   // sector clock — stops while a boss is incoming or alive (and during a warp to a new zone)
   const bossActive = bosses.length > 0 || bossWarn > 0 || !!run.warp;
-  if (!bossActive) {
+  if (!bossActive && !run.pvp) { // (a duel has no sectors, so no upgrade picks in the middle of it)
     levelT += dt;
     if (levelT >= SECTOR_TIME) {
       levelT = 0; level++;
@@ -6340,7 +6352,8 @@ function update(dt) {
       if (s.echovolley && p.volleys % 4 === 0) p.shotT = Math.min(p.shotT, 0.04); // (Echo Volley: the next one comes right away)
       if (s.pulse && p.volleys % 10 === 0) fire(p.x, p.y - 16, -Math.PI / 2, p.color, 'rail', p); // (Pulse Cannon)
       const n = Math.max(1, s.shots + (m.shots || 0) + (powered ? 3 : 0)), step = (powered ? 0.12 : 0.06) * (m.spread || 1);
-      for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, -Math.PI / 2 + (i - (n - 1) / 2) * step, p.color, m.bombs ? 'bomb' : undefined, p);
+      const aim = run.pvp ? duelAim(p) : -Math.PI / 2; // (a duel: every volley is aimed at the rival)
+      for (let i = 0; i < n; i++) fire(p.x + (i - (n - 1) / 2) * 4, p.y - 16, aim + (i - (n - 1) / 2) * step, p.color, m.bombs ? 'bomb' : undefined, p);
       if (s.hail) for (const b of bullets.slice(-n)) if (b.owner === p.id) { const a = Math.atan2(b.vy, b.vx) + (Math.random() - 0.5) * 0.7, sp = Math.hypot(b.vx, b.vy); b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; } // (Hailstorm)
       if (s.mirror) fire(W - p.x, p.y - 16, -Math.PI / 2, p.color, undefined, p); // (Mirror Image)
       for (let i = 0; i < s.broadside; i++) for (const a of [Math.PI, 0]) fire(p.x, p.y - 4 - i * 8, a, p.color, undefined, p); // (Broadside)
@@ -6432,7 +6445,7 @@ function update(dt) {
   updateMohHands(dt); updateMohEyes(dt); updateMohDark(dt); updateSentries(dt); // (MOH: the hands, eyes and dark; a SUMMONER's sentries)
   spawnT -= dt;
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
-  if (spawnT <= 0 && !bossActive && !(run.calmT > 0)) {
+  if (spawnT <= 0 && !bossActive && !(run.calmT > 0) && !run.pvp) {
     const seq0 = enemyIdSeq; spawnEnemy();
     if (run.moh) for (let k = 0, extra = Math.random() < Math.min(0.75, 0.35 + level * 0.03) ? 1 + (Math.random() < 0.4 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in packs)
     if (glitchWorld()) for (const e of enemies) if (e.id > seq0) glitchEnemyInit(e); // (GLITCH variants of every enemy)
@@ -6501,7 +6514,7 @@ function update(dt) {
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
     }
     if (run.pvp && !b.dead) for (const q of players) { // PvP: your shots hurt your friends too (not yourself)
-      if (q.id === b.owner || !q.alive || q.gone || q.inv > 0 || distToSeg(q.x, q.y, b.px, b.py, b.x, b.y) >= q.r * 0.7 + b.size) continue;
+      if (q.id === b.owner || !q.alive || q.gone || q.inv > 0 || distToSeg(q.x, q.y, b.px, b.py, b.x, b.y) >= (run.pvp ? PVP_HITBOX : q.r * 0.7) + b.size) continue;
       b.dead = true; burst(b.x, b.y, q.color, 12, 160);
       if (hurt(q) && b.owner >= 0) { const sh = players.find(o => o.id === b.owner); if (sh) fxText(`P${sh.id + 1} HIT P${q.id + 1}`, q.x, q.y - 30, sh.color, 16, 0.9); }
       break;
@@ -10221,6 +10234,7 @@ function drawWorld() {
   drawLinks();
   for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
+  if (run.pvp) for (const p of living()) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x, p.y, PVP_HITBOX, 0, TAU); ctx.fill(); } // (a duel: the core that can be hit)
   for (const p of players) drawPet(p);
   drawTeamUi();
   drawBossFx('over');
@@ -10347,7 +10361,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${run.pvp ? 'PvP ARENA   ' : mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
+  ctx.fillText(`${run.pvp ? (mode === 2 ? 'DUEL   ' : 'PvP ARENA   ') : mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -10845,7 +10859,7 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else if (runType === 'pvp') fitText(`⚔ PvP: your shots hurt your friends. No bosses, no revives. The last ship flying wins${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
+  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1 with spells. Shoot your rival, dodge theirs. No enemies, no upgrades${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
   else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
   else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
@@ -11509,14 +11523,14 @@ function drawOver() {
     const lv = run.medal || rushMedal(), md = RUSH_MEDALS[lv], next = RUSH_MEDALS[lv + 1];
     fitText(`${md.icon} ${md.name} MEDAL  ·  ${fmtTime(run.clock || 0)}${next ? `  ·  ${next.name.toLowerCase()} needs under ${fmtTime(rushLimit(lv + 1))}` : ''}`, cy + 36, 16, md.color, 'bold');
   }
-  else if (run.pvp) title('PvP OVER', cy, '#ffd23d', 64);
+  else if (run.pvp) title(mode === 2 ? 'DUEL OVER' : 'PvP OVER', cy, '#ffd23d', 64);
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   if (run.abyssLoss) { ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); fitText('it\'s still waiting.', cy + 34, 13, '#ff1f3d', 'italic'); ctx.restore(); }
   const lines = [
     [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, runKind()).toLocaleString()}${run.endless ? ' (Endless)' : run.rush ? ' (Boss Rush)' : ''}`, '#cde', 18],
     [run.victory ? `${run.rush ? `All ${run.bossKills} bosses defeated` : 'THE ABYSS destroyed'}  ·  +◆ ${VICTORY_BONUS} victory bonus`
       : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
-      : run.pvp ? (run.pvpWinner >= 0 ? `P${run.pvpWinner + 1} is the last ship flying` : 'Everyone went down together')
+      : run.pvp ? (run.pvpWinner >= 0 ? (mode === 2 ? `P${run.pvpWinner + 1} wins the duel` : `P${run.pvpWinner + 1} is the last ship flying`) : 'Both went down together')
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
     [`+◆ ${run.earned} shards${curseBonus() ? `  (🌀 +${Math.round(curseBonus() * 100)}% from TURBULENCE)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
@@ -13480,7 +13494,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.4';
+const BUILD = '2026.10.08.5';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
