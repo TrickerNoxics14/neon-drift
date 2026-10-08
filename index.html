@@ -4006,6 +4006,11 @@ function updateEncounter(dt) {
     const [a, b] = bosses;
     const linked = bosses.length === 2 && a.entered && b.entered && bossAlive(a) && bossAlive(b);
     encounter.tether = linked ? Math.min(1.5, encounter.tether + dt) : 0; // 1.5s warm-up before it burns
+    if (!linked) encounter.tetherLive = false;
+    if (linked && encounter.tether >= 1.5 && !encounter.tetherLive) { // the tether ignites: say so, so the beam isn't a surprise
+      encounter.tetherLive = true; const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      fxText('TETHER LIVE!', mx, my - 30, '#ffffff', 26, 1.4); burst(mx, my, '#ffb13d', 30, 260); beep(260, 0.5, 'sawtooth', 0.06, -100); shake = Math.max(shake, 6);
+    }
     if (linked && encounter.tether >= 1.5)
       for (const p of living()) if (distToSeg(p.x, p.y, a.x, a.y, b.x, b.y) < 8 + p.r * 0.5 && hurt(p)) encounter.tetherHit = true;
   }
@@ -6344,6 +6349,7 @@ function hitBoss(b, dmg, fx, fy, by) { // (by: the player who hit it, for the re
     fxText(`${b.name} DOWN!`, b.x, b.y - b.r - 30, b.color, 28, 1.6);
     showToast(`Destroy ${partner.name} before ${b.name} revives!`);
     netRec(['o', `Destroy ${partner.name} before ${b.name} revives!`]);
+    for (const o of bosses) if (o !== b && bossAlive(o)) o.forceRage = true; // the survivor gets angry: finish it before the revive
     bossRoar(b, false); shake = Math.max(shake, 12);
     return true;
   }
@@ -6354,6 +6360,8 @@ function hitBoss(b, dmg, fx, fy, by) { // (by: the player who hit it, for the re
     fxRing(partner.x, partner.y, partner.r * 1.4, partner.r * 4, 0.5, '#5dff7a', 5); burst(partner.x, partner.y, '#5dff7a', 60, 400);
     fxText('SHIELD DOWN!', partner.x, partner.y - partner.r - 30, '#5dff7a', 28, 1.6);
   }
+  const left = bosses.filter(o => o !== b && bossAlive(o)).length; // the callout: who's down, and how many are left
+  if (encounter.kind !== 'single') fxText(left ? `${b.name} DOWN · ${left} LEFT` : `${b.name} DOWN!`, b.x, b.y - b.r - 30, b.color, 22, 1.5);
   // losing a partner enrages the rest
   if (['binary', 'triad', 'quartet'].includes(encounter.kind)) for (const o of bosses) if (o !== b && bossAlive(o)) o.forceRage = true;
   return true;
@@ -7972,6 +7980,12 @@ function drawEncounterFx() {
       ctx.fillText(`P${b.bond + 1}`, b.x, b.y + b.r + 14);
       ctx.setLineDash([3, 9]);
     }
+  }
+  if (encounter.kind === 'twins') { // the soul link: a dashed line, red while one of them is down and reviving
+    const [a, c] = bosses, cut = a.downed || c.downed;
+    ctx.strokeStyle = cut ? '#ff5a70' : '#ffffff'; ctx.lineWidth = cut ? 2.5 : 1.5; ctx.globalAlpha = (cut ? 0.5 : 0.3) + Math.sin(t * 6) * 0.12;
+    ctx.setLineDash([6, 10]); ctx.lineDashOffset = -t * 40;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
   }
   if (encounter.kind === 'triad') { // faint resonance lines between surviving members
     const alive = bosses.filter(bossAlive);
@@ -13915,7 +13929,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.24';
+const BUILD = '2026.10.08.25';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
