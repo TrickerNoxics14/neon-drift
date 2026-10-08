@@ -10628,7 +10628,7 @@ function drawDokiMeter(b) {
 
 // ---------- draw: HUD & screens ----------
 function drawHUD() {
-  if (net.role === 'guest' && net.rtt) { ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = 'bold 11px system-ui'; ctx.fillStyle = net.rtt < 120 ? '#5dff7a' : net.rtt < 250 ? '#ffe93d' : '#ff5a70'; ctx.fillText('PING ' + Math.round(net.rtt) + ' ms', 16, H - 8); }
+  if (net.role === 'guest' && net.rtt) { ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.font = 'bold 11px system-ui'; ctx.fillStyle = pingColor(net.rtt); ctx.fillText('PING ' + Math.round(net.rtt) + ' ms', 16, H - 8); }
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
@@ -13840,7 +13840,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.20';
+const BUILD = '2026.10.08.21';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13908,14 +13908,14 @@ const CODE_LEN = 4;
 const randomCode = () => String(Math.floor(Math.random() * 10 ** CODE_LEN)).padStart(CODE_LEN, '0');
 const unlockedShips = () => SHIPS.filter(shipUnlocked);
 
-function leaveOnline(msg) {
+function leaveOnline(msg, to = 'menu') {
   net.gen = (net.gen || 0) + 1; // (anything still loading for the old room gives up)
   pubStop(); // (my room comes off the public list)
   try { net.peer?.destroy(); } catch (e) {}
   for (const c of net.waiting || []) try { c.close(); } catch (e) {}
   Object.assign(net, { role: null, peer: null, conns: [], host: null, code: '', status: '', playing: false, myId: 0, mine: [0], slots: [], hostW: 0, hostH: 0,
-    locked: false, waiting: new Set() });
-  resize(); go('menu');
+    locked: false, waiting: new Set(), drops: new Map() });
+  resize(); go(to);
   if (msg) showToast(msg);
 }
 
@@ -13958,8 +13958,7 @@ function hostAccept(conn) {
   setTimeout(drop, WAIT_MAX_T * 1000);
   conn.on('open', () => {
     if (net.locked) refuse(conn, 'locked');
-    else if (net.playing && !net.public) refuse(conn);
-    else { const r = myRoom(); if (r) conn.send({ room: r }); }
+    else { const r = myRoom(); if (r) conn.send({ room: r }); } // (a running private game lets in only players who were in it: see onHello)
   });
   conn.on('data', d => { if (!overBudget(conn)) safely(() => onHostData(conn, d)); });
   conn.on('close', () => { waiting.delete(conn); onGuestLeft(conn); });
@@ -13988,6 +13987,7 @@ const cleanScr = s => Array.isArray(s) && s.length === 2 && s.every(v => Number.
 function onHello(conn, h) {
   if (conn.slots || !h || typeof h !== 'object') return;
   conn.scr = cleanScr(h.scr);
+  conn.tok = typeof h.tok === 'string' && h.tok.length <= 64 ? h.tok : null; // (who they are, for REJOIN)
   if (typeof h.ver !== 'string' || newerBuild(BUILD, h.ver)) { refuse(conn, 'old'); return; } // (an older game can't keep up with a newer host)
   if (net.locked) { refuse(conn, 'locked'); return; }
   const n = Math.max(1, Math.min(4, h.n | 0)), ships = Array.isArray(h.ships) ? h.ships : [];
@@ -14002,11 +14002,19 @@ function onHello(conn, h) {
     broadcastLobby();
     return;
   }
-  // a game is running: anyone with the code can drop in (taking over slots of players who left first), unless the room is locked
+  // a game is running: a public game takes anyone (into the places of players who left first). A private one takes back
+  // only the players who were in it (REJOIN), into their own places if those are still free
+  const back = dropFor(conn.tok);
+  if (!net.public && !back) { refuse(conn); return; }
   const free = players.map((p, i) => p.gone ? i : -1).filter(i => i >= 0), ids = [];
   let next = players.length;
-  for (let k = 0; k < n; k++) ids.push(free.length ? free.shift() : next++);
+  for (let k = 0; k < n; k++) {
+    const want = back?.slots?.[k];
+    if (want !== undefined && free.includes(want)) { free.splice(free.indexOf(want), 1); ids.push(want); }
+    else ids.push(free.length ? free.shift() : next++);
+  }
   if (next > MAX_ONLINE) { refuse(conn); return; }
+  if (back) net.drops.delete(conn.tok);
   net.waiting?.delete(conn);
   conn.slots = ids; net.conns.push(conn);
   lateJoin(conn, ids.map((id, k) => slot(k)));
@@ -14018,6 +14026,7 @@ function broadcastLobby() {
 function onHostData(conn, d) {
   if (!d || typeof d !== 'object') return;
   if (typeof d.ping === 'number') { conn.send({ pong: d.ping }); return; } // (a guest measuring its ping)
+  if (typeof d.hpong === 'number') { const r = performance.now() - d.hpong; if (r >= 0 && r < 5000) conn.rtt = conn.rtt ? conn.rtt * 0.7 + r * 0.3 : r; return; } // (the host measuring its trip to this guest)
   if (d.hello) { if (!conn._pub) onHello(conn, d.hello); return; } // (the public address is only for looking)
   if (!conn.slots) return;
   if (d.cheat !== undefined || d.cheatAuth !== undefined) { guestCheat(conn, d); return; } // (cheats: only with the owner's code)
@@ -14070,10 +14079,19 @@ function lateJoin(conn, slots) {
   conn.send({ start: { n: players.length, ships: players.map(q => q.ship.id), cos: players.map(q => q.cos), runType, w: W, h: H, you: conn.slots, paid: runShards() }, seq: net.ctlSeq });
   [523, 784].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'triangle', 0.06), i * 100));
 }
+// a player who drops out of a running game can come back to their places for ten minutes (REJOIN); a kicked one can't
+const DROP_WINDOW = 10 * 60 * 1000;
+function rememberDrop(conn) {
+  const drops = net.drops ||= new Map(), now = performance.now();
+  for (const [t, d] of drops) if (now - d.at > DROP_WINDOW) drops.delete(t);
+  if (conn.tok) drops.set(conn.tok, { slots: [...(conn.slots || [])], at: now });
+}
+const dropFor = tok => { const d = tok ? net.drops?.get(tok) : null; return d && performance.now() - d.at <= DROP_WINDOW ? d : null; };
 function onGuestLeft(conn, kicked) {
   const i = net.conns.indexOf(conn);
   if (i < 0) return;
   net.conns.splice(i, 1);
+  if (net.playing && run && !kicked) rememberDrop(conn);
   if (net.playing && run) { // their ships go down for good
     for (const id of conn.slots || []) {
       const p = players[id]; if (!p) continue;
@@ -14093,7 +14111,7 @@ function startOnline() {
   net.playing = true; resize(); // (first, so the ships are placed in the world's new shape)
   start(ships.length, ships, cos);
   players.forEach((p, i) => p.remote = !isMine(i));
-  net.playing = true; net.sendT = 0; net.events = [];
+  net.playing = true; net.sendT = 0; net.events = []; net.drops = new Map();
   for (const p of players) if (p.remote) p.r *= REMOTE_HITBOX; // (latency forgiveness)
   net.ctlSeq = (net.ctlSeq || 0) + 1;
   for (const c of net.conns) c.send({ start: { n: ships.length, ships, cos, runType, w: W, h: H, you: c.slots }, seq: net.ctlSeq }); // (you: slots may have been renumbered)
@@ -14187,6 +14205,20 @@ function hostTick(dt) {
   for (let i = 0; i < parts; i++) { const msg = { sc: [net.snapN, i, parts, json.slice(i * SNAP_PIECE, (i + 1) * SNAP_PIECE)] }; for (const c of net.conns) if (c.open) c.send(msg); }
 }
 
+// pings, once a second, in the lobby and in games: a guest measures its trip to the host; the host measures its trip to
+// each guest and tells every guest the pings (so the lobby can show them, colour-coded)
+function netPingTick(dt) {
+  if (net.role === 'guest') { if ((net.pingT = (net.pingT ?? 0) - dt) <= 0 && net.host?.open) { net.pingT = 1; net.host.send({ ping: Math.round(performance.now()) }); } }
+  else if (net.role === 'host' && (net.hPingT = (net.hPingT ?? 0) - dt) <= 0) {
+    net.hPingT = 1;
+    const all = [];
+    for (const c of net.conns) if (c.open) { c.send({ hping: Math.round(performance.now()) }); if (c.rtt && c.slots) for (const id of c.slots) all.push([id, Math.round(c.rtt)]); }
+    for (const c of net.conns) if (c.open && c.slots) c.send({ pings: all });
+  }
+}
+// ping colours, in the lobby and in games: smooth, noticeable, laggy
+const pingColor = ms => ms < 120 ? '#5dff7a' : ms < 250 ? '#ffe93d' : '#ff5a70';
+
 // ----- guest -----
 // PeerJS peers lose their link to the free matchmaking server now and then (Wi-Fi blips, sleeping laptops, strict
 // networks). Until they're back, nobody can find them by their code, so keep reconnecting (onLost: tell the player)
@@ -14203,8 +14235,27 @@ function keepAlive(peer, onLost) {
 // joining: if the two computers can't reach each other, don't spin forever. Try a few times, then say what's wrong
 const JOIN_WAIT = 12, JOIN_TRIES = 3; // seconds per try, and how many tries
 const JOIN_BLOCKED = 'Couldn\'t connect to that game. A VPN or a strict network (like school Wi-Fi, or a phone on mobile data) can block online play: once the game has loaded, try turning the VPN off on both devices, or switch the phone to Wi-Fi.';
+// this browser's own name in online games (kept on this computer only): it lets a player who drops out come back (REJOIN)
+function viewerToken() {
+  try {
+    let t = localStorage.getItem('pndToken');
+    if (!t) { t = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('pndToken', t); }
+    return t;
+  } catch (e) { return null; }
+}
+// REJOIN: the room you last got into is remembered on this computer for an hour (a room code can be reused by a
+// newer room, so an old one isn't trusted for long). A running private game only takes back the players who were in it
+const REJOIN_MAX_AGE = 60 * 60 * 1000;
+function savedRoom() {
+  try {
+    const r = JSON.parse(localStorage.getItem('pndRoom') || 'null');
+    return r && new RegExp(`^\\d{${CODE_LEN}}$`).test(r.code) && Date.now() - r.at < REJOIN_MAX_AGE ? r : null;
+  } catch (e) { return null; }
+}
+function rememberRoom(code) { try { localStorage.setItem('pndRoom', JSON.stringify({ code, at: Date.now() })); } catch (e) {} }
+function forgetRoom() { try { localStorage.removeItem('pndRoom'); } catch (e) {} }
 async function joinGame(code, attempt = 1) {
-  Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0, cheatOk: false, cheatNo: false, cheatTyped: '', cheatPw: '' });
+  Object.assign(net, { ctlSeq: 0, lastSn: 0, asm: {}, rtt: 0, pings: new Map(), cheatOk: false, cheatNo: false, cheatTyped: '', cheatPw: '' });
   Object.assign(net, { role: 'guest', status: attempt > 1 ? `Still connecting… (try ${attempt} of ${JOIN_TRIES})` : 'Connecting…', slots: [], myId: 0, mine: [], joinFail: null, lastCode: code });
   go('lobby');
   const failed = msg => { net.status = msg; net.joinFail = code; net.peer = null; };
@@ -14228,15 +14279,15 @@ async function joinGame(code, attempt = 1) {
     conn.on('open', () => { // say hello: how many of us share this computer, and our ships
       opened = true; clearTimeout(timer);
       net.status = 'Connected! Pick your ship — the host starts the game.';
-      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq, scr: [window.innerWidth, window.innerHeight], ver: BUILD } });
+      conn.send({ hello: { n: net.localN, ships: lastShips.slice(0, net.localN), cos: meta.cos.eq, scr: [window.innerWidth, window.innerHeight], ver: BUILD, tok: viewerToken() } });
     });
     conn.on('data', d => safely(() => onGuestData(d)));
-    conn.on('close', () => { if (!opened) giveUp(); else if (net.role === 'guest' && net.host === conn) leaveOnline('The host left the game'); });
+    conn.on('close', () => { if (!opened) giveUp(); else if (net.role === 'guest' && net.host === conn) leaveOnline(savedRoom() ? 'The host left the game: REJOIN gets you back in' : 'The host left the game', 'online'); });
     conn.on('error', () => { if (!opened) giveUp(); });
   });
   peer.on('error', err => {
     if (err.type === 'peer-unavailable' && verNew) { giveUp('Your copy of the game is out of date: updating…'); setTimeout(() => location.reload(), 900); }
-    else if (err.type === 'peer-unavailable') giveUp(`No game found with code ${code}. Check the code, and make sure you both have the newest version (Ctrl+F5 on a computer; on a phone, pull down to reload).`);
+    else if (err.type === 'peer-unavailable') { if (savedRoom()?.code === code) forgetRoom(); giveUp(`No game found with code ${code}. Check the code, and make sure you both have the newest version (Ctrl+F5 on a computer; on a phone, pull down to reload).`); }
     else if (!opened) giveUp();
   });
 }
@@ -14248,6 +14299,11 @@ function onGuestData(d) {
   if (d.cheatOk) { net.cheatOk = true; net.cheatNo = false; try { localStorage.setItem('pndCheatPw', net.cheatPw || ''); } catch (e) {} return; } // (the host accepted my cheat code)
   if (d.cheatNo) { net.cheatNo = true; net.cheatOk = false; net.cheatTyped = ''; net.cheatPw = ''; try { localStorage.removeItem('pndCheatPw'); } catch (e) {} return; }
   if (typeof d.pong === 'number') { const r = performance.now() - d.pong; if (r >= 0 && r < 5000) net.rtt = net.rtt ? net.rtt * 0.7 + r * 0.3 : r; return; }
+  if (typeof d.hping === 'number') { net.host?.send({ hpong: d.hping }); return; } // (the host measuring its trip to me: echo it back)
+  if (Array.isArray(d.pings)) { // everyone's ping, as the host measures it (for the lobby)
+    net.pings = new Map(d.pings.filter(a => Array.isArray(a) && okIdx(a[0], MAX_ONLINE)).slice(0, MAX_ONLINE).map(a => [a[0], num(a[1], 0, 9999, 0)]));
+    return;
+  }
   if (Array.isArray(d.sc)) { // a piece of a snapshot: put them back together, newest wins (older ones that arrive late are dropped)
     const [sn, i, parts, piece] = d.sc;
     if (!Number.isInteger(sn) || !Number.isInteger(parts) || parts < 1 || parts > 64 || !okIdx(i, parts) || typeof piece !== 'string' || sn <= (net.lastSn || 0)) return;
@@ -14260,6 +14316,7 @@ function onGuestData(d) {
     return;
   }
   if ((d.lobby || d.start) && typeof d.seq === 'number') { if (d.seq < (net.ctlSeq || 0)) return; net.ctlSeq = d.seq; }
+  if (d.lobby || d.start) rememberRoom(net.lastCode); // (the host let me in: this room is one to rejoin)
   if (d.kicked) { leaveOnline('The host removed you from the game'); return; }
   if (d.full && d.why === 'old') { leaveOnline('That game is on a newer version than yours: updating…'); setTimeout(() => location.reload(), 1200); return; } // (a newer host: update, then try again)
   if (d.full) { leaveOnline(d.why === 'locked' ? 'That room is locked: the host isn\'t letting anyone new in' : 'That game is full or already running'); return; }
@@ -14600,7 +14657,6 @@ function guestFrame(dt) {
     if (pad.ab && i < net.mine.length) localAbility(i);
     if (pad.refl && run?.pvp && i < net.mine.length) localReflect(i);
   });
-  if ((net.pingT = (net.pingT ?? 0) - dt) <= 0 && net.host?.open) { net.pingT = 1; net.host.send({ ping: Math.round(performance.now()) }); }
   updateBackground(dt); updateAchBanner(dt); updateMusicFilter();
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
@@ -14711,6 +14767,7 @@ function onlineKey(e) {
   if (state === 'online') {
     if (e.code === 'Escape') { go('menu'); return true; }
     if (e.code === 'KeyB') { go('browse'); return true; }
+    if (e.code === 'KeyR' && savedRoom()) { joinGame(savedRoom().code); return true; }
     if (e.code === 'KeyL') { cycleLocalPlayers(); return true; }
     return false; // arrows/Enter work the buttons as usual
   }
@@ -14756,7 +14813,9 @@ function drawOnline() {
   // friends sharing this computer can come along (they split the keyboard like local co-op)
   button(`PLAYERS ON THIS PC:  ${net.localN}  [L]`, bx, cy, bw, 38, net.localN > 1 ? '#c08dff' : '#9ab', cycleLocalPlayers);
   if (net.localN > 1) fitText(CONTROLS[net.localN].map((c, k) => `P${k + 1}: ${c.map(n => CONTROL_NAMES[n]).join('/')}`).join('  ·  '), cy + 50, 12, '#c08dff');
-  const oy = cy + (net.localN > 1 ? 66 : 50);
+  let oy = cy + (net.localN > 1 ? 66 : 50);
+  const room = savedRoom(); // (the room you were last in: REJOIN gets you back in, even mid-game)
+  if (room) { button(`REJOIN ROOM ${room.code}  [R]`, bx, oy, bw, 44, '#ff7ad9', () => joinGame(room.code)); oy += 52; }
   button('HOST A PRIVATE GAME  (code only)', bx, oy, bw, 44, '#9dff5d', () => { net.wantPublic = false; hostGame(); });
   button('JOIN WITH A CODE', bx, oy + 52, bw, 44, '#7df9ff', () => { net.typed = ''; go('joinCode'); });
   button('BROWSE PUBLIC GAMES  [B]', bx, oy + 104, bw, 44, '#ffe93d', () => go('browse'));
@@ -14869,6 +14928,8 @@ function togglePublic() {
   else if (net.locked) showToast('Unlock the room [K] to list it');
   beep(net.public ? 660 : 440, 0.12, 'triangle', 0.05);
 }
+// a player's ping for the lobby: your own computer's is your trip to the host; the others' come from the host (0 = none yet)
+const slotPing = i => !net.slots[i] ? 0 : net.role === 'guest' ? (isMine(i) ? net.rtt : net.pings?.get(i)) : (isMine(i) ? 0 : connOfSlot(i)?.rtt);
 function drawLobby() {
   const host = net.role === 'host', me = net.mine[0] ?? 0;
   const mobile = W < 600;
@@ -14890,9 +14951,10 @@ function drawLobby() {
     const s = net.slots[i], c = P_COLORS[i];
     const rx = x0 + (mobile ? i % cols : Math.floor(i / per)) * (cw + gap), y = top + (mobile ? Math.floor(i / cols) : i % per) * (rh + 6);
     const kick = host && s && !isMine(i) && !!connOfSlot(i); // (the host can remove a guest's computer)
+    const ms = slotPing(i); // (their ping, colour-coded)
     panel(rx, y, cw, rh, s ? c : '#334', isMine(i));
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    const iconW = mobile ? 24 : 50 * sc, textX = rx + iconW + (mobile ? 3 : 4), textW = cw - iconW - (mobile ? 8 : 12) - (kick ? 44 : 0);
+    const iconW = mobile ? 24 : 50 * sc, textX = rx + iconW + (mobile ? 3 : 4), textW = cw - iconW - (mobile ? 8 : 12) - (kick ? 44 : 0) - (ms && !mobile ? 62 : 0);
     const playerLabel = mobile ? `P${i + 1}${isMine(i) ? ' · YOU' : ''}`
       : `P${i + 1}${i === 0 ? ' (host)' : ''}${isMine(i) ? (net.mine.length > 1 ? ` — you · ${ctrlOf(i)}` : ' — you') : ''}`;
     ctx.fillStyle = s ? c : '#556'; ctx.font = `bold ${Math.round((mobile ? 11 : 14) * Math.max(0.8, sc))}px system-ui`;
@@ -14900,6 +14962,8 @@ function drawLobby() {
     ctx.fillStyle = s ? '#dfe8ff' : '#556'; ctx.font = `${Math.round((mobile ? 9 : 12) * Math.max(0.8, sc))}px system-ui`;
     ctx.fillText(s ? shipById(s.ship).name + (isMine(i) && !mobile ? '  · click to change' : '') : (mobile ? 'open' : 'open slot…'), textX, y + rh * 0.7, textW);
     if (s) { ctx.save(); ctx.translate(rx + iconW / 2, y + rh / 2); ctx.scale((mobile ? 0.44 : 0.65) * sc, (mobile ? 0.44 : 0.65) * sc); drawHull(shipById(s.ship).shape, c, 0, hullTier(shipById(s.ship)), s.cos?.skin); ctx.restore(); }
+    if (ms && mobile) { ctx.fillStyle = pingColor(ms); ctx.beginPath(); ctx.arc(rx + cw - 6, y + 6, 3, 0, Math.PI * 2); ctx.fill(); } // (phones: just the colour, the number doesn't fit)
+    else if (ms) { ctx.textAlign = 'right'; ctx.fillStyle = pingColor(ms); ctx.font = `bold ${Math.round(12 * Math.max(0.8, sc))}px system-ui`; ctx.fillText(`${Math.round(ms)} ms`, rx + cw - (kick ? 52 : 10), y + rh * 0.5); }
     if (isMine(i) && s) buttons.push({ x: rx, y, w: cw, h: rh, action: () => openShipSelect(1, true, net.mine.indexOf(i)) }); // click your own slot to pick a ship
     if (kick) button(kickArmed(i) ? 'KICK?' : '✕', rx + cw - 46, y + (rh - Math.min(26, rh - 6)) / 2, 40, Math.min(26, rh - 6), '#ff5a70', () => armKick(i));
   }
@@ -14953,6 +15017,7 @@ function loop(now) {
     if (raw < 1) autoPerf(raw); // (ignore the huge gap after switching tabs)
     heartbeat(dt);
     pubTick(dt); lookTick(); // the public game list (announcing my room, or looking at everyone's)
+    netPingTick(dt);
     if (net.role === 'guest' && net.playing) guestFrame(dt);
     else {
       if (net.role === 'host' && net.playing && run) smoothRemotePlayers();
