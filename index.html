@@ -1663,21 +1663,22 @@ function readPad(i) {
 // ---------- run state ----------
 // run type: 'standard' ends in victory after THE ABYSS; 'endless' keeps cycling with stacking mutators;
 // 'rush' (Boss Rush) is every boss back to back with upgrades and the shop in between
-const RUN_TYPES = ['standard', 'endless', 'rush', 'moh'];
+// 'pvp' (PvP arena): no bosses and no revives; your shots hurt your friends, and the last ship flying wins
+const RUN_TYPES = ['standard', 'endless', 'rush', 'moh', 'pvp'];
 let runType = 'standard';
 try { const t = localStorage.getItem('neonDriftRunType'); if (RUN_TYPES.includes(t)) runType = t; } catch (e) {}
 function toggleRunType() {
   runType = RUN_TYPES[(RUN_TYPES.indexOf(runType) + 1) % RUN_TYPES.length];
   try { localStorage.setItem('neonDriftRunType', runType); } catch (e) {}
-  beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : runType === 'moh' ? 140 : 520, 0.15, 'triangle', 0.06, 200);
+  beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : runType === 'moh' ? 140 : runType === 'pvp' ? 660 : 520, 0.15, 'triangle', 0.06, 200);
 }
-const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠', moh: 'MOH ✋' };
-const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70', moh: '#ff2a3a' };
-const runKind = () => run.moh ? 'moh' : run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
+const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠', moh: 'MOH ✋', pvp: 'PvP ⚔' };
+const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70', moh: '#ff2a3a', pvp: '#ffd23d' };
+const runKind = () => run.pvp ? 'pvp' : run.moh ? 'moh' : run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
 
 // best scores are kept per player count and per run type
 const bestKey = (m, kind) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m)
-  + ({ endless: 'Endless', rush: 'Rush', moh: 'Moh' }[kind] || '');
+  + ({ endless: 'Endless', rush: 'Rush', moh: 'Moh', pvp: 'Pvp' }[kind] || '');
 const best = {};
 function bestOf(m, kind) {
   const k = bestKey(m, kind);
@@ -2431,7 +2432,7 @@ function start(m, ships, cosList) {
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', moh: runType === 'moh', hands: [], sentries: [], eyes: [], darkK: 0, cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
+    endless: runType === 'endless', rush: runType === 'rush', moh: runType === 'moh', pvp: runType === 'pvp', hands: [], sentries: [], eyes: [], darkK: 0, cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
     musicSeed: Math.floor(Math.random() * 1000),
     // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
@@ -2489,6 +2490,7 @@ function endRun(victory = false) {
     if (lv >= 3) unlockAch('rushgold');
   }
   run.victory = victory;
+  if (run.pvp) run.pvpWinner = living()[0]?.id ?? -1; // (PvP: the last ship flying)
   if (!victory && bosses.some(b => b.final)) markAbyss(); // (THE ABYSS got you: it leaves its mark on the menu)
   // (a won Standard run that went on into Endless was already paid for its first part)
   const earned = Math.max(0, runShards() - (run.paid || 0));
@@ -6188,10 +6190,10 @@ function hurt(p) {
   if (p.lives <= 0) {
     p.alive = false;
     if (encounter) encounter.anyDowned = true;
-    // leave a wreck a teammate can fly to and revive
-    p.wreck = { x: p.x, y: Math.min(p.y, H - 60) }; p.reviveProg = 0;
+    // leave a wreck a teammate can fly to and revive (PvP: a downed ship is out for good)
+    p.wreck = run.pvp ? null : { x: p.x, y: Math.min(p.y, H - 60) }; p.reviveProg = 0;
     burst(p.x, p.y, p.color, 80, 500);
-    if (!living().length) endRun();
+    if (run.pvp ? living().length <= 1 : !living().length) endRun();
   }
   return true;
 }
@@ -6259,7 +6261,7 @@ function update(dt) {
 
   updateWarp(dt);
   // three pink coins: a pink door opens (once a run, between boss fights) and DOKI DOLL comes out to play
-  if ((run.pinkCoins || 0) >= PINK_NEED && !run.dokiMet && !bosses.length && bossWarn <= 0 && !run.warp && !run.victoryT) {
+  if ((run.pinkCoins || 0) >= PINK_NEED && !run.dokiMet && !run.pvp && !bosses.length && bossWarn <= 0 && !run.warp && !run.victoryT) {
     run.dokiMet = true; run.dokiNext = true; bossWarn = 3.4;
     fxText('A PINK DOOR OPENS…', W / 2, H * 0.4, '#ff9ccf', 30, 3);
     [1047, 1319, 1568, 2093].forEach((f, i) => setTimeout(() => beep(f, 0.15, 'sine', 0.05), 300 + i * 120));
@@ -6273,8 +6275,8 @@ function update(dt) {
       if (level >= 5) unlockAch('sector5');
       if (level >= 10) unlockAch('sector10');
       const alive = living();
-      for (const p of players) if (!p.alive && !p.gone) revive(p, alive[0]); // downed teammates rejoin
-      pendingBoss = level % BOSS_EVERY === 0;
+      if (!run.pvp) for (const p of players) if (!p.alive && !p.gone) revive(p, alive[0]); // downed teammates rejoin (not in PvP)
+      pendingBoss = !run.pvp && level % BOSS_EVERY === 0; // (PvP: no bosses)
       openUpgrade(`SECTOR ${level - 1} CLEARED`, false);
       return;
     }
@@ -6497,6 +6499,12 @@ function update(dt) {
       if ((b.missile || s.explosive) && bossFx.rings.length < 40) fxRing(b.x, b.y, 4, 30, 0.2, '#ffb13d', 2);
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
+    }
+    if (run.pvp && !b.dead) for (const q of players) { // PvP: your shots hurt your friends too (not yourself)
+      if (q.id === b.owner || !q.alive || q.gone || q.inv > 0 || distToSeg(q.x, q.y, b.px, b.py, b.x, b.y) >= q.r * 0.7 + b.size) continue;
+      b.dead = true; burst(b.x, b.y, q.color, 12, 160);
+      if (hurt(q) && b.owner >= 0) { const sh = players.find(o => o.id === b.owner); if (sh) fxText(`P${sh.id + 1} HIT P${q.id + 1}`, q.x, q.y - 30, sh.color, 16, 0.9); }
+      break;
     }
   }
   updateBlades();
@@ -10339,7 +10347,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
+  ctx.fillText(`${run.pvp ? 'PvP ARENA   ' : mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -10837,7 +10845,8 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
+  } else if (runType === 'pvp') fitText(`⚔ PvP: your shots hurt your friends. No bosses, no revives. The last ship flying wins${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
+  else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
   else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
@@ -11500,12 +11509,14 @@ function drawOver() {
     const lv = run.medal || rushMedal(), md = RUSH_MEDALS[lv], next = RUSH_MEDALS[lv + 1];
     fitText(`${md.icon} ${md.name} MEDAL  ·  ${fmtTime(run.clock || 0)}${next ? `  ·  ${next.name.toLowerCase()} needs under ${fmtTime(rushLimit(lv + 1))}` : ''}`, cy + 36, 16, md.color, 'bold');
   }
+  else if (run.pvp) title('PvP OVER', cy, '#ffd23d', 64);
   else title(run.endless ? 'ENDLESS RUN OVER' : 'RUN OVER', cy, run.endless ? '#ff9a3d' : '#ff3df2', 64);
   if (run.abyssLoss) { ctx.save(); ctx.translate((Math.random() - 0.5) * 2, 0); fitText('it\'s still waiting.', cy + 34, 13, '#ff1f3d', 'italic'); ctx.restore(); }
   const lines = [
     [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, runKind()).toLocaleString()}${run.endless ? ' (Endless)' : run.rush ? ' (Boss Rush)' : ''}`, '#cde', 18],
     [run.victory ? `${run.rush ? `All ${run.bossKills} bosses defeated` : 'THE ABYSS destroyed'}  ·  +◆ ${VICTORY_BONUS} victory bonus`
       : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
+      : run.pvp ? (run.pvpWinner >= 0 ? `P${run.pvpWinner + 1} is the last ship flying` : 'Everyone went down together')
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
     [`+◆ ${run.earned} shards${curseBonus() ? `  (🌀 +${Math.round(curseBonus() * 100)}% from TURBULENCE)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
@@ -13469,7 +13480,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.3';
+const BUILD = '2026.10.08.4';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';

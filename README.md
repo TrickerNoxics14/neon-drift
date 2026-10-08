@@ -211,6 +211,10 @@ MOH is set entirely inside THE ABYSS: the menu turns black and red with eyes tha
 
 A fourth run type (press **E** on the menu, or in the lobby): standard sectors and bosses, but built to be as hard as it can be while staying fair. You start with 2 lives, enemies are tougher, faster and about three times as many (often arriving in packs) from the first sector, and it gets worse every few sectors; there are far more elites, hearts are rarer, and bosses attack faster, have more health, enrage at 70% instead of 50%, and keep getting reinforcements all through the fight. And **hands** reach in from the dark all run long: a red ring shows where, and a hand of shadow closes on it about a second later. They follow you only for a moment, never come at someone who was just hit, and are rarer during boss fights, so a normal reaction is always enough. MOH pays 50% more shards, and destroying THE ABYSS in it earns the **Out of the Hands** trophy.
 
+### PvP
+
+A fifth run type, **PvP** (press **E** until it shows, on the menu or in the lobby; it needs 2 or more players): an arena with no bosses. Enemies still come, the upgrades still come every sector, and your shots **hurt your friends** (a hit costs them a life, like an enemy's). A downed ship is out for good: there are no wrecks to revive. The last ship flying wins, and its best score is kept separately from co-op. Friends can join a PvP lobby the same way as any other online game.
+
 ### Boss Rush medals
 
 Clear Boss Rush fast enough for a medal: 🥇 **gold** under 16:00, 🥈 **silver** under 22:00, and 🥉 **bronze** for any clear (when ZERO joins the end of the rush, you get 1:15 extra). Your best medal and time show on the menu when Boss Rush is picked. Gold unlocks the **Champion** skin.
