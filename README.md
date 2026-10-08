@@ -213,7 +213,9 @@ A fourth run type (press **E** on the menu, or in the lobby): standard sectors a
 
 ### PvP
 
-A fifth run type, **PvP** (press **E** until it shows, on the menu or in the lobby). With two ships it's a **DUEL**, modeled on MAIDEN & SPELL's Versus mode: one on one, no enemies, no sectors and no upgrade picks. Every shot is a spell aimed at your rival, and you dodge theirs. Only a shot that reaches the ship's 3-pixel white core hits it, and a hit costs one life; after a hit you're invincible for under a second. Abilities work as usual (Q / right-click). The duel ends when a ship loses its last life. With three or four players it's a free-for-all, and the last ship flying wins. A downed ship is out for good in PvP: no wrecks to revive. Duels need two ships offline (use 2-PLAYER CO-OP or online); the duel's best score is kept separately from co-op. Friends can join a PvP lobby the same way as any other online game.
+A fifth run type, **PvP** (press **E** until it shows, on the menu or in the lobby). With two ships it's a **DUEL**, modeled on MAIDEN & SPELL's Versus mode: one on one, no enemies, no sectors and no upgrade picks. Every shot is a spell aimed at your rival, and you dodge theirs. Only a shot that reaches the ship's 3-pixel white core hits it, and a hit costs one life; after a hit you're invincible for under a second. The duel ends when a ship loses its last life. If both spells land in the same frame it's a **draw**.
+
+To keep it fair, every duelist flies the same plain ship: 3 lives, the same speed and guns, no ship abilities (no invincibility, shields or homing bursts), no hangar upgrades, and no mid-match upgrade picks. A mouse is no quicker than the keys. The ship you pick is only its look. With three or four players it's a free-for-all, and the last ship flying wins. A downed ship is out for good in PvP: no wrecks to revive. Duels need two ships offline (use 2-PLAYER CO-OP or online); the duel's best score is kept separately from co-op. Friends can join a PvP lobby the same way as any other online game.
 
 ### Boss Rush medals
 

@@ -1279,9 +1279,10 @@ const UPGRADES = [
 const SIPHON_KILLS = [0, 40, 28, 18];
 
 function newStats() {
-  return { fireDelay: 0.14 * Math.pow(0.92, metaLv('guns')), dmg: 1 + 0.06 * metaLv('ammo'), shots: 2, pierce: 0, speed: 420 * (1 + 0.05 * metaLv('engine')),
-    maxLives: 3 + metaLv('hull'), magnet: metaLv('tractor'), luck: 1 + 0.2 * metaLv('luck'), crit: 0, homing: 0, drones: 0,
-    aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * metaLv('combo')), rear: 0, nova: 0, bulletSpeed: 800,
+  const ml = k => runType === 'pvp' ? 0 : metaLv(k); // (a duel is fair: nobody brings their hangar upgrades into it)
+  return { fireDelay: 0.14 * Math.pow(0.92, ml('guns')), dmg: 1 + 0.06 * ml('ammo'), shots: 2, pierce: 0, speed: 420 * (1 + 0.05 * ml('engine')),
+    maxLives: 3 + ml('hull'), magnet: ml('tractor'), luck: 1 + 0.2 * ml('luck'), crit: 0, homing: 0, drones: 0,
+    aegis: 0, comboMax: 8, comboTime: 2 * (1 + 0.25 * ml('combo')), rear: 0, nova: 0, bulletSpeed: 800,
     bulletSize: 0, scoreMult: 1, bossDmg: 1, invBonus: 0, powerDur: 8, sectorSpread: 0, ricochet: 0,
     explosive: 0, cryo: 0, siphon: 0, chrono: 1, missiles: 0, chain: 0, blades: 0, railgun: 0, phoenix: 0, abCd: 1, linkPower: 1,
     gamble: 0, laststand: 0, frenzy: 0, anchor: 0, pulse: 0, shrapnel: 0, pickpocket: 0, soul: 0, spite: 0, overdrive: 0, goldgun: 0,
@@ -2093,7 +2094,10 @@ let lastShips = ['striker', 'striker', 'striker', 'striker'];
 try { const l = JSON.parse(localStorage.getItem('neonDriftShips')); if (Array.isArray(l)) lastShips = l.concat(lastShips).slice(0, 4); } catch (e) {}
 
 function makePlayer(id, x, shipId, cos) {
-  const ship = shipById(shipId), m = ship.mod;
+  let ship = shipById(shipId);
+  // a duel is fair: every ship flies with the same plain stats (no ship perks, MK bonuses or extra lives). Its look stays
+  if (runType === 'pvp') ship = { ...ship, mod: {}, mk: 0, mk2: false };
+  const m = ship.mod;
   const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1), inv: 2, power: 0, shield: m.aegis ? 1 : 0, alive: true,
     shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT };
   p.lives = maxLivesOf(p);
@@ -2158,7 +2162,7 @@ function localAbility(k) {
   const { dx, dy } = abilityDir(p);
   if (net.role === 'guest') guestAbility(p, k, dx, dy); else useAbility(p, dx, dy);
 }
-const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless');
+const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless') && !run?.pvp; // (a duel has no ship abilities: see makePlayer)
 // where a dash ends (kept inside the arena)
 function dashEnd(p, dx, dy) {
   const l = Math.hypot(dx, dy) || 1, D = abTier(p) ? 250 : 210;
@@ -2337,6 +2341,7 @@ const evoTier = () => EVO_AT.filter(n => upgradeCount() >= n).length;
 // ---------- LINK BEAM: two teammates who fly close together charge a link, then fire one huge beam together ----------
 const LINK_R = 160, LINK_TIME = 2.6, LINK_FIRE = 1.9, LINK_CD = 14, LINK_W = 52;
 function updateLinks(dt) {
+  if (run.pvp) return; // (a duel has no link beams: they only hit enemies and bosses)
   const L = run.links ||= {}, ps = living().filter(p => !p.gone);
   for (const k in L) { const [a, b] = k.split('-').map(Number); if (!players[a]?.alive || !players[b]?.alive) { L[k].c = 0; L[k].fire = 0; } }
   if (ps.length < 2) return;
@@ -2459,10 +2464,12 @@ function start(m, ships, cosList) {
   popups = []; hurtFlash = 0;
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
   if (run.moh) hint = { text: 'MOH: 2 lives, tougher everything, and HANDS from the dark. When a red ring appears under you, MOVE!', life: 9 };
-  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: shoot your rival, dodge theirs. Only the white dot can be hit. Q / right-click: ability' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 8 };
+  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: same ship for both of you, no abilities. Shoot your rival, dodge theirs. Only the white dot can be hit' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 8 };
   go('play');
-  for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
-  if (metaLv('deflect')) for (const p of players) p.shield = 1;
+  if (!run.pvp) { // (a duel starts plain: no hangar head start, see newStats and makePlayer)
+    for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
+    if (metaLv('deflect')) for (const p of players) p.shield = 1;
+  }
   enterZone(ZONE_FIRST, true); // every run starts in DEEP SPACE (with its title card)
   if (run.rush) { // Boss Rush: no sectors — pick a starting upgrade, then the first boss arrives
     pendingBoss = true; hint = { text: 'BOSS RUSH: every boss, back to back. Two upgrade picks and a shop after each fight!', life: 6 };
@@ -6205,7 +6212,7 @@ function hurt(p) {
     // leave a wreck a teammate can fly to and revive (PvP: a downed ship is out for good)
     p.wreck = run.pvp ? null : { x: p.x, y: Math.min(p.y, H - 60) }; p.reviveProg = 0;
     burst(p.x, p.y, p.color, 80, 500);
-    if (run.pvp ? living().length <= 1 : !living().length) endRun();
+    if (!run.pvp && !living().length) endRun(); // (a duel is decided once the frame's shots have all landed: see update)
   }
   return true;
 }
@@ -6311,10 +6318,15 @@ function update(dt) {
       const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt;
     } else if (usePointer && pointer) {
       // the ship sits right under a mouse cursor, but a little above a finger so you can see it
-      const ty = pointer.y - (pointer.touch ? 50 : 0);
-      const k = 1 - Math.exp(-dt * 22); // frame-rate independent, snappy follow
-      p.x += ((glitchFlip() ? W - pointer.x : pointer.x) - p.x) * k; // (flipped by an INPUT ERROR in the GLITCH SECTOR)
-      p.y += (ty - p.y) * k;
+      const ty = pointer.y - (pointer.touch ? 50 : 0), tx = glitchFlip() ? W - pointer.x : pointer.x; // (flipped by an INPUT ERROR in the GLITCH SECTOR)
+      if (run.pvp) { // a duel: the pointer is no quicker than the keys, so a mouse can't dodge faster than WASD
+        const ddx = tx - p.x, ddy = ty - p.y, dd = Math.hypot(ddx, ddy) || 1, st = Math.min(dd, speed * dt);
+        p.x += ddx / dd * st; p.y += ddy / dd * st;
+      } else {
+        const k = 1 - Math.exp(-dt * 22); // frame-rate independent, snappy follow
+        p.x += (tx - p.x) * k;
+        p.y += (ty - p.y) * k;
+      }
     }
     p.x = Math.max(p.r, Math.min(W - p.r, p.x));
     p.y = Math.max(p.r, Math.min(H - p.r, p.y));
@@ -6520,6 +6532,8 @@ function update(dt) {
       break;
     }
   }
+  // a duel ends once every shot of this frame has landed, so two ships going down in the same frame is a draw, not a win for whoever's shot came first
+  if (run.pvp && players.length > 1 && living().length <= 1) { endRun(); return; }
   updateBlades();
   for (const bo of bosses) {
     if (!bossAlive(bo)) continue;
@@ -10380,7 +10394,7 @@ function drawHUD() {
     ctx.font = 'bold 12px system-ui';
     if (p.alive && p.power > 0) { ctx.fillStyle = '#ffe93d'; ctx.fillText(`SPREAD ${p.power.toFixed(1)}s`, W - 16, y + 26); }
     else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText(p.gone ? 'left the game' : 'fly to the wreck to revive', W - 16, y + 26); }
-    else if (curse('powerless')) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
+    else if (curse('powerless') || run.pvp) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); } // (a duel has no abilities)
     else { // the ship's ability, and when it's ready
       const ab = abilityOf(p), ready = p.abCd <= 0;
       if (W >= 480) ctx.fillStyle = hexA(p.color, 0.55), ctx.fillText(p.ship.name + '  ·  ', W - 16 - ctx.measureText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`).width, y + 26);
@@ -10402,7 +10416,7 @@ function drawHUD() {
     ctx.fillStyle = '#dfe8ff'; for (let i = 0; i < ZOOMS.length; i++) { ctx.globalAlpha = i <= zoomLv ? 0.95 : 0.3; ctx.fillRect(x - 9 + i * 5, y + r + 5, 3, 3); }
     ctx.restore();
   }
-  if (touchMode && state === 'play' && !paused && !menuOpen && !curse('powerless')) {
+  if (touchMode && state === 'play' && !paused && !menuOpen && !curse('powerless') && !run.pvp) {
     const mk = mouseOwner(), p = players[net.role ? net.mine[mk] : mk];
     if (p?.alive) {
       const { x, y, r } = touchAb(), ready = p.abCd <= 0;
@@ -10859,7 +10873,7 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1 with spells. Shoot your rival, dodge theirs. No enemies, no upgrades${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
+  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1, same plain ship for everyone. Shoot your rival, dodge theirs. No enemies, no abilities${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
   else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
   else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
@@ -13494,7 +13508,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.5';
+const BUILD = '2026.10.08.6';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -14293,8 +14307,14 @@ function guestMove(dt) { // (the gamepads were read at the start of guestFrame)
     const { dx, dy, usePointer } = controlsFor(p);
     if (dx || dy) { const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt; }
     else if (usePointer && pointer) {
-      const k = 1 - Math.exp(-dt * 22), ty = pointer.y - (pointer.touch ? 50 : 0);
-      p.x += ((glitchFlip() ? W - pointer.x : pointer.x) - p.x) * k; p.y += (ty - p.y) * k;
+      const ty = pointer.y - (pointer.touch ? 50 : 0), tx = glitchFlip() ? W - pointer.x : pointer.x;
+      if (run.pvp) { // (a duel: no quicker than the keys, see update)
+        const ddx = tx - p.x, ddy = ty - p.y, dd = Math.hypot(ddx, ddy) || 1, st = Math.min(dd, speed * dt);
+        p.x += ddx / dd * st; p.y += ddy / dd * st;
+      } else {
+        const k = 1 - Math.exp(-dt * 22);
+        p.x += (tx - p.x) * k; p.y += (ty - p.y) * k;
+      }
     }
     if (run.tide > 0 && zoneElite()) { const c = tideAt(), d = Math.hypot(c.x - p.x, c.y - p.y) || 1; p.x += (c.x - p.x) / d * TIDE_PULL * dt; p.y += (c.y - p.y) / d * TIDE_PULL * dt; } // (the gravity tide)
     p.x = Math.max(p.r, Math.min(W - p.r, p.x)); p.y = Math.max(p.r, Math.min(H - p.r, p.y));
