@@ -1002,6 +1002,7 @@ const COSMETICS = [
   { id: 'pet_eye',    cat: 'pet', name: 'Little Eye',   cost: 500, req: 'omega',   reqText: 'Beat THE ABYSS' },
   { id: 'pet_manga',  cat: 'pet', name: 'Mini Manga',   cost: 300, req: 'dawnny',  reqText: 'Beat DAWNNY' },
   { id: 'pet_shadow', cat: 'pet', name: 'Mini Shadow',  cost: 300, req: 'shadow',  reqText: 'Beat SHADOW' },
+  { id: 'pet_banban', cat: 'pet', name: 'Banban',       cost: 250 },
 ];
 const cosById = id => COSMETICS.find(c => c.id === id);
 const cosOwned = c => !!meta.cos.owned[c.id] || (c.cost === 0 && !cosLocked(c)); // (free ones are yours once unlocked)
@@ -7130,6 +7131,15 @@ const PETS = {
     ctx.fillStyle = '#ff8fc8'; glow('#ff4fa3', 12); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
     for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(s * 9, 5 - 4 * f); ctx.lineTo(s * 9, -7 - 2 * f); ctx.lineTo(0, -5); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.shadowBlur = 0; ctx.fillStyle = '#ff2a5a'; ctx.beginPath(); heartPath(0, -9, 2.5); ctx.fill();
+  },
+  pet_banban(t, c) { // an original creepy-cute pet: a grinning yellow blob with too many teeth, and eyes that blink and wander toward you
+    const blink = (t % 3.7) > 3.45 ? 0.12 : 1, look = Math.sin(t * 0.9) * 1.6;
+    ctx.fillStyle = '#ffd84a'; glow(c, 10); ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#6e0012'; ctx.beginPath(); ctx.arc(0, 1.5, 6.5, 0.15, Math.PI - 0.15); ctx.fill(); // the grin
+    ctx.fillStyle = '#ffffff'; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 2 - 1, 2.6); ctx.lineTo(i * 2 + 1, 2.6); ctx.lineTo(i * 2, 5); ctx.fill(); } // teeth
+    ctx.beginPath(); ctx.ellipse(-3.5, -2.5, 2.6, 2.6 * blink, 0, 0, TAU); ctx.ellipse(3.5, -2.5, 2.6, 2.6 * blink, 0, 0, TAU); ctx.fill(); // eyes
+    ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.ellipse(-3.5 + look, -2.5, 1.1, 1.1 * blink, 0, 0, TAU); ctx.ellipse(3.5 + look, -2.5, 1.1, 1.1 * blink, 0, 0, TAU); ctx.fill();
   },
   pet_eye(t) { // a little eye from THE ABYSS that blinks and looks around
     const blink = (t % 4) > 3.85 ? 0.15 : 1;
@@ -13735,7 +13745,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.10';
+const BUILD = '2026.10.08.11';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
