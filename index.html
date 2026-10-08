@@ -1487,7 +1487,8 @@ addEventListener('keydown', e => {
       if (dokiAsking()) answerDoki(k); else sendEmote(k);
       return;
     }
-    if (!inMenu) { const k = abilityKeyOwner(e.code); if (k >= 0) localAbility(k); return; } // ship abilities
+    if (!inMenu && run?.pvp && reflectKeyOwner(e.code) >= 0) { localReflect(reflectKeyOwner(e.code)); return; } // (a duel's REFLECT)
+    if (!inMenu) { const k = abilityKeyOwner(e.code); if (k >= 0) localAbility(k); return; } // ship abilities (a duel's DASH)
     // fall through: arrows/WASD/Enter drive the menu
   }
   if (['ArrowLeft', 'ArrowUp', 'KeyA', 'KeyW'].includes(e.code)) moveSel(-1);
@@ -1597,6 +1598,7 @@ cv.addEventListener('pointerdown', e => {
     if (chip && dokiAsking()) { answerDoki(chip.k); return; } // (answering DOKI DOLL by clicking)
     const mk = mouseOwner();
     if (e.pointerType !== 'mouse' && mk >= 0 && inHud(() => touchAbHit(w.x, w.y))) { abTouchId = e.pointerId; localAbility(mk); return; }
+    if (e.pointerType !== 'mouse' && mk >= 0 && run?.pvp && inHud(() => touchReflHit(w.x, w.y))) { localReflect(mk); return; } // (a duel's REFLECT button)
     if (e.button === 2 && mk >= 0) { localAbility(mk); return; } // right-click: the mouse player's ability
   }
   pointer = net.camZ ? dragPointer(e, true) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
@@ -1635,7 +1637,7 @@ cv.addEventListener('pointerup', e => {
 // gamepads: pad 0 -> player 1, pad 1 -> player 2
 const padFacePrev = [], PAD_FACE_NAMES = ['Y', 'B', 'X', 'A'];
 let padSeen = false; // (a controller has been used: its hints and buttons show)
-const padPrev = [false, false, false, false], padNavPrev = [0, 0, 0, 0], padStartPrev = [false, false, false, false], padAbPrev = [false, false, false, false];
+const padPrev = [false, false, false, false], padNavPrev = [0, 0, 0, 0], padStartPrev = [false, false, false, false], padAbPrev = [false, false, false, false], padReflPrev = [false, false, false, false];
 function readPad(i) {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const p = Array.from(pads || []).filter(Boolean)[i];
@@ -1654,11 +1656,12 @@ function readPad(i) {
   padNavPrev[i] = dir;
   const abBtn = [0, 2, 5, 7].some(b => p.buttons[b]?.pressed), ab = abBtn && !padAbPrev[i]; // ability: A, X, right bumper or trigger
   padAbPrev[i] = abBtn;
+  const reflBtn = !!p.buttons[4]?.pressed, refl = reflBtn && !padReflPrev[i]; padReflPrev[i] = reflBtn; // REFLECT (a duel's): left bumper
   // B goes back (like Esc), and Y / B / X / A answer DOKI DOLL's questions (her four answers, in that order)
   const faces = [3, 1, 2, 0].map(b => !!p.buttons[b]?.pressed), prevF = padFacePrev[i] || [];
   const face = faces.findIndex((on, k) => on && !prevF[k]), back = faces[1] && !prevF[1];
   padFacePrev[i] = faces; if (x || y || btn || startBtn || abBtn || faces.some(Boolean)) padSeen = true; // (only once it's actually used: some PCs report a phantom controller)
-  return { x, y, pressed, start, nav, ab, back, face };
+  return { x, y, pressed, start, nav, ab, refl, back, face };
 }
 
 // ---------- run state ----------
@@ -2123,9 +2126,19 @@ const ABILITIES = {
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
   volt:        { name: 'ION STORM',   cd: [14, 10], desc: 'Chains lightning through nearby enemies and strikes every boss.' },
 };
+// the duel's two moves, the same for both players: DASH slips you about 170px ahead, and for a moment spells pass straight through
+// you. REFLECT is a bubble around you that turns spells around, so they fly back at whoever fired them (up to 3 times each)
+const DUEL = { dashD: 170, dashIF: 0.25, dashCd: 3.5, reflR: 30, reflDur: 0.7, reflCd: 7 };
+const DUEL_DASH = { name: 'DASH', cd: [DUEL.dashCd, DUEL.dashCd] };
+const duelCdTxt = c => (c || 0) > 0 ? Math.ceil(c) + 's' : 'READY';
+const touchRefl = () => ({ x: W - 150, y: H - 96, r: 34 }); // (the duel's REFLECT button, beside DASH's)
+const touchReflHit = (x, y) => { const b = touchRefl(); return Math.hypot(x - b.x, y - b.y) < b.r + 12; };
+// the REFLECT key of each control scheme (DASH uses the ability keys, AB_KEYS)
+const DUEL_REFLECT_KEYS = { wasd: 'KeyE', arrows: 'Enter', ijkl: 'KeyO', mouse: 'KeyV' };
+const reflectKeyOwner = code => localSchemes().findIndex(sc => sc.some(c => DUEL_REFLECT_KEYS[c] === code)); // (-1: nobody's)
 const AB_START = 0.35; // (a run starts with abilities 65% charged)
 const shipBase = p => p.ship.base || p.ship.id;
-const abilityOf = p => ABILITIES[shipBase(p)] || ABILITIES.striker;
+const abilityOf = p => run?.pvp ? DUEL_DASH : ABILITIES[shipBase(p)] || ABILITIES.striker; // (a duel's ability key is DASH)
 const abTier = p => p.ship.mk2 === true ? 1 : 0;
 const abCdOf = p => abilityOf(p).cd[abTier(p)] * (p.ship.mk ? MK_UP[p.ship.mk].cd : 1) * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
 const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
@@ -2162,16 +2175,43 @@ function localAbility(k) {
   const { dx, dy } = abilityDir(p);
   if (net.role === 'guest') guestAbility(p, k, dx, dy); else useAbility(p, dx, dy);
 }
-const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless') && !run?.pvp; // (a duel has no ship abilities: see makePlayer)
+// REFLECT (a duel's second move): a bubble that turns spells around, on its own cooldown
+const reflectReady = p => !!p?.alive && (p.reflectCd || 0) <= 0 && state === 'play' && !paused && !!run?.pvp;
+function localReflect(k) {
+  const p = players[net.role ? net.mine[k] : k];
+  if (!p || !reflectReady(p)) return;
+  if (net.role === 'guest') { p.reflectCd = DUEL.reflCd; p.reflectT = DUEL.reflDur; net.host?.send({ ab: 2, k }); } // (until the host's next update says so too)
+  else useReflect(p);
+}
+function useReflect(p) {
+  if (!reflectReady(p)) return false;
+  p.reflectT = DUEL.reflDur; p.reflectCd = DUEL.reflCd;
+  popups.push({ x: p.x, y: p.y - 38, text: 'REFLECT!', life: 1.1, color: p.color });
+  fxRing(p.x, p.y, DUEL.reflR - 4, DUEL.reflR + 26, 0.4, p.color, 3);
+  beep(1000, 0.12, 'triangle', 0.05, 500);
+  return true;
+}
+// DASH in a duel: a quick slip ahead (an online guest has already moved its own ship, see guestAbility)
+function duelDash(p, dx, dy) {
+  const x0 = p.x, y0 = p.y, [x1, y1] = dashEnd(p, dx, dy);
+  if (!p.remote) { p.x = x1; p.y = y1; }
+  p.abCd = abCdOf(p); p.dashT = DUEL.dashIF;
+  popups.push({ x: p.x, y: p.y - 38, text: 'DASH!', life: 0.8, color: p.color });
+  fxRing(x0, y0, 8, 40, 0.25, p.color, 2);
+  if (!p.remote) addAbFx(['dash', Math.round(x0), Math.round(y0), Math.round(p.x), Math.round(p.y), p.color]);
+  beep(1400, 0.12, 'sine', 0.05, -900);
+  return true;
+}
+const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless'); // (a duel's DASH is in useAbility)
 // where a dash ends (kept inside the arena)
 function dashEnd(p, dx, dy) {
-  const l = Math.hypot(dx, dy) || 1, D = abTier(p) ? 250 : 210;
+  const l = Math.hypot(dx, dy) || 1, D = run?.pvp ? DUEL.dashD : abTier(p) ? 250 : 210;
   return [Math.max(p.r, Math.min(W - p.r, p.x + dx / l * D)), Math.max(p.r, Math.min(H - p.r, p.y + dy / l * D))];
 }
 // online guests: dash straight away on this computer (it moves its own ship), and ask the host to do the rest
 function guestAbility(p, k, dx, dy) {
   if (!abReady(p)) return;
-  if (shipBase(p) === 'interceptor') [p.x, p.y] = dashEnd(p, dx, dy);
+  if (shipBase(p) === 'interceptor' || run.pvp) [p.x, p.y] = dashEnd(p, dx, dy); // (a duel's DASH moves the guest's own ship at once)
   p.abCd = abCdOf(p); // (until the host's next update says so too)
   const l = Math.hypot(dx, dy) || 1;
   net.host?.send({ ab: 1, k, dx: r2(dx / l), dy: r2(dy / l) });
@@ -2184,6 +2224,7 @@ const AB_FX_LIFE = { beam: 0.45, beamx: 1.1, dash: 0.35, burn: 2.2 };
 const abm = id => !!run?.s?.['abm_' + id]; // (does the team hold this ship's ability card?)
 function useAbility(p, dx = 0, dy = 0) {
   if (!abReady(p)) return false;
+  if (run.pvp) return duelDash(p, dx, dy);
   const ab = abilityOf(p), tier = abTier(p), id = shipBase(p), s = run.s;
   p.abCd = abCdOf(p); p.abOn = ab.dur ? ab.dur[tier] : 0;
   popups.push({ x: p.x, y: p.y - 38, text: ab.name + '!', life: 1.1, color: p.color });
@@ -2279,6 +2320,7 @@ function useAbility(p, dx = 0, dy = 0) {
 }
 // the per-frame part of abilities (host and solo)
 function updateAbility(p, dt) {
+  if (p.dashT > 0) p.dashT -= dt; if (p.reflectT > 0) p.reflectT -= dt; if (p.reflectCd > 0) p.reflectCd -= dt; // (a duel's DASH and REFLECT)
   const wasOn = p.abOn;
   p.abCd = Math.max(0, p.abCd - dt); p.abOn = Math.max(0, p.abOn - dt);
   if (wasOn > 0 && p.abOn <= 0 && shipBase(p) === 'juggernaut' && abm('juggernaut')) { // Shockwave Fortress: it ends with a bang
@@ -2464,7 +2506,7 @@ function start(m, ships, cosList) {
   popups = []; hurtFlash = 0;
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
   if (run.moh) hint = { text: 'MOH: ONE life. Everything is worse, and HANDS come from the dark. When a red ring appears under you, MOVE!', life: 9 };
-  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: same ship for both of you, no abilities. Shoot your rival, dodge theirs. Only the white dot can be hit' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 8 };
+  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: DASH (ability key, right-click or touch) slips past spells. REFLECT (E / Enter / O / V, or LB) turns them back at the shooter. Only the white dot can be hit' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 9 };
   go('play');
   if (!run.pvp) { // (a duel starts plain: no hangar head start, see newStats and makePlayer)
     for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
@@ -6255,6 +6297,7 @@ function update(dt) {
     if (state === 'play' && pad.start) { if (!net.playing) { paused = !paused; sel = 0; } else if (paused) forcePause(false); else toggleMenu(); return; }
     if (state === 'play' && !paused && !menuOpen && pad.face >= 0 && dokiAsking()) { answerDoki(pad.face); return; } // (Y / B / X / A answer DOKI DOLL)
     if (state === 'play' && !paused && !menuOpen && pad.ab) localAbility(i); // (gamepad N is player N on this computer)
+    if (state === 'play' && !paused && !menuOpen && pad.refl && run?.pvp) localReflect(i);
     if (state !== 'play' || paused || menuOpen) { if (pad.back) { pressKey('Escape'); return; } if (pad.nav) moveSel(pad.nav); if (pad.pressed || pad.start) activate(); }
   });
   if (state === 'menu') updateMenuMarks(dt);
@@ -6525,8 +6568,17 @@ function update(dt) {
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
     }
-    if (run.pvp && !b.dead) for (const q of players) { // PvP: your shots hurt your friends too (not yourself)
-      if (q.id === b.owner || !q.alive || q.gone || q.inv > 0 || distToSeg(q.x, q.y, b.px, b.py, b.x, b.y) >= (run.pvp ? PVP_HITBOX : q.r * 0.7) + b.size) continue;
+    if (run.pvp && !b.dead) for (const q of players) { // a duel: your spells hurt your rival (never you), unless a DASH slips past or a REFLECT turns them around
+      if (q.id === b.owner || !q.alive || q.gone || q.dashT > 0) continue;
+      const dd = distToSeg(q.x, q.y, b.px, b.py, b.x, b.y);
+      if (q.reflectT > 0 && dd < DUEL.reflR + b.size && (b.reflects || 0) < 3) { // REFLECT: the spell turns around and flies back at whoever fired it
+        // it flies back at whoever fired it (wherever they are now), at the same speed
+        const sp = Math.hypot(b.vx, b.vy) || 1, shooter = players.find(o => o.id === b.owner), ang = shooter?.alive ? Math.atan2(shooter.y - b.y, shooter.x - b.x) : Math.atan2(-b.vy, -b.vx);
+        b.reflects = (b.reflects || 0) + 1; b.vx = Math.cos(ang) * sp; b.vy = Math.sin(ang) * sp; b.owner = q.id; b.px = b.x; b.py = b.y;
+        burst(b.x, b.y, q.color, 6, 120); beep(1300, 0.05, 'sine', 0.03, -400);
+        break;
+      }
+      if (q.inv > 0 || dd >= PVP_HITBOX + b.size) continue;
       b.dead = true; burst(b.x, b.y, q.color, 12, 160);
       if (hurt(q) && b.owner >= 0) { const sh = players.find(o => o.id === b.owner); if (sh) fxText(`P${sh.id + 1} HIT P${q.id + 1}`, q.x, q.y - 30, sh.color, 16, 0.9); }
       break;
@@ -10248,7 +10300,11 @@ function drawWorld() {
   drawLinks();
   for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
-  if (run.pvp) for (const p of living()) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x, p.y, PVP_HITBOX, 0, TAU); ctx.fill(); } // (a duel: the core that can be hit)
+  if (run.pvp) for (const p of living()) { // a duel: the core that can be hit, the REFLECT bubble, and a ring while you're dashing
+    if (p.reflectT > 0) { ctx.save(); ctx.globalAlpha = 0.4 + 0.25 * Math.sin(time * 40); ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, DUEL.reflR, 0, TAU); ctx.stroke(); ctx.restore(); }
+    if (p.dashT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, p.dashT / DUEL.dashIF) * 0.6; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, TAU); ctx.stroke(); ctx.restore(); }
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x, p.y, PVP_HITBOX, 0, TAU); ctx.fill();
+  }
   for (const p of players) drawPet(p);
   drawTeamUi();
   drawBossFx('over');
@@ -10394,7 +10450,11 @@ function drawHUD() {
     ctx.font = 'bold 12px system-ui';
     if (p.alive && p.power > 0) { ctx.fillStyle = '#ffe93d'; ctx.fillText(`SPREAD ${p.power.toFixed(1)}s`, W - 16, y + 26); }
     else if (!p.alive) { ctx.fillStyle = '#889'; ctx.fillText(p.gone ? 'left the game' : 'fly to the wreck to revive', W - 16, y + 26); }
-    else if (curse('powerless') || run.pvp) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); } // (a duel has no abilities)
+    else if (run.pvp) { // a duel's two moves: DASH, and REFLECT (lit while it's up)
+      ctx.fillStyle = p.reflectT > 0 ? '#ffffff' : hexA(p.color, 0.75);
+      ctx.fillText(`DASH ${duelCdTxt(p.abCd)}  ·  REFLECT ${p.reflectT > 0 ? 'UP' : duelCdTxt(p.reflectCd)}`, W - 16, y + 26);
+    }
+    else if (curse('powerless')) { ctx.fillStyle = hexA(p.color, 0.55); ctx.fillText(p.ship.name, W - 16, y + 26); }
     else { // the ship's ability, and when it's ready
       const ab = abilityOf(p), ready = p.abCd <= 0;
       if (W >= 480) ctx.fillStyle = hexA(p.color, 0.55), ctx.fillText(p.ship.name + '  ·  ', W - 16 - ctx.measureText(`${ab.name} ${ready ? 'READY' : Math.ceil(p.abCd) + 's'}`).width, y + 26);
@@ -10416,7 +10476,17 @@ function drawHUD() {
     ctx.fillStyle = '#dfe8ff'; for (let i = 0; i < ZOOMS.length; i++) { ctx.globalAlpha = i <= zoomLv ? 0.95 : 0.3; ctx.fillRect(x - 9 + i * 5, y + r + 5, 3, 3); }
     ctx.restore();
   }
-  if (touchMode && state === 'play' && !paused && !menuOpen && !curse('powerless') && !run.pvp) {
+  if (touchMode && state === 'play' && !paused && !menuOpen && run.pvp) { // (a duel: a REFLECT button beside DASH)
+    const mk = mouseOwner(), p = players[net.role ? net.mine[mk] : mk];
+    if (p?.alive) {
+      const { x, y, r } = touchRefl(), ready = (p.reflectCd || 0) <= 0;
+      ctx.save(); ctx.globalAlpha = ready ? 0.85 : 0.4; ctx.fillStyle = 'rgba(10,12,28,0.7)'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(ready ? 'REFLECT' : Math.ceil(p.reflectCd) + 's', x, y); ctx.restore();
+    }
+  }
+  if (touchMode && state === 'play' && !paused && !menuOpen && !curse('powerless')) {
     const mk = mouseOwner(), p = players[net.role ? net.mine[mk] : mk];
     if (p?.alive) {
       const { x, y, r } = touchAb(), ready = p.abCd <= 0;
@@ -10873,7 +10943,7 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1, same plain ship for everyone. Shoot your rival, dodge theirs. No enemies, no abilities${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
+  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1, same ship for everyone. Dash and reflect your way past their spells. No enemies${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
   else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
   else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
@@ -13508,7 +13578,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.7';
+const BUILD = '2026.10.08.8';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13707,6 +13777,7 @@ function onHostData(conn, d) {
   if (d.reroll === 1 && state === 'upgrade' && offer) reroll();
   if (state === 'shop' && shop && okIdx(d.buy, shop.items.length)) buyShop(d.buy);
   if (d.ab === 1 && p) useAbility(p, num(d.dx, -1, 1, 0), num(d.dy, -1, 1, 0)); // (the cooldown keeps it honest)
+  if (d.ab === 2 && p) useReflect(p); // (a duel's REFLECT)
   if (p && okIdx(d.dokiAns, 4)) dokiAnswer(d.dokiAns, id); // (answering DOKI DOLL)
   if (p && okIdx(d.emote, EMOTES.length) && !((p.emoteCd || 0) > performance.now())) { // (no spamming)
     p.emoteCd = performance.now() + 500; // (a little under the sender's own 700ms, for network jitter)
@@ -13787,7 +13858,7 @@ function packSnap() {
     rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd, linkPower: s.linkPower },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
-      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0]),
+      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0, r2(p.reflectT || 0), r2(p.dashT || 0), r1(p.reflectCd || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
       e.aiming ? 1 : 0, e.dest ? [Math.round(e.dest.x), Math.round(e.dest.y)] : 0, r2(e.guardedT || 0), e.r, e.id, e.elite || 0, e.gt || 0, r2(e.gv || 0), r1(e.tag || 0)]),
@@ -14139,6 +14210,7 @@ function applySnap(s) {
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
     p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11]; p.gone = !!a[12];
     p.abCd = num(a[13], 0, 99, 0); p.abOn = num(a[14], 0, 30, 0);
+    p.reflectT = num(a[16], 0, 9, 0); p.dashT = num(a[17], 0, 9, 0); p.reflectCd = num(a[18], 0, 99, 0); // (a duel's REFLECT and DASH)
     if (Array.isArray(a[15])) { // (a SUMMONER's minions: they glide toward where the host has them: see guestFrame)
       const ms = p.mins ||= [], n = Math.min(MINION_CAP, Math.floor(a[15].length / 3));
       for (let j = 0; j < n; j++) { const x = a[15][j * 3], y = a[15][j * 3 + 1]; if (!Number.isFinite(x) || !Number.isFinite(y)) continue; const q = ms[j] ||= { x, y }; q.tx = x; q.ty = y; q.k = a[15][j * 3 + 2] === 1 ? 1 : 0; q.st = 0; }
@@ -14255,6 +14327,7 @@ function guestFrame(dt) {
     if (state !== 'play' || paused || menuOpen) { if (pad.back) { pressKey('Escape'); return; } if (pad.nav) moveSel(pad.nav); if (pad.pressed) activate(); return; }
     if (pad.face >= 0 && dokiAsking()) { answerDoki(pad.face); return; }
     if (pad.ab && i < net.mine.length) localAbility(i);
+    if (pad.refl && run?.pvp && i < net.mine.length) localReflect(i);
   });
   if ((net.pingT = (net.pingT ?? 0) - dt) <= 0 && net.host?.open) { net.pingT = 1; net.host.send({ ping: Math.round(performance.now()) }); }
   updateBackground(dt); updateAchBanner(dt); updateMusicFilter();
