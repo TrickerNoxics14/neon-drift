@@ -43,7 +43,7 @@ const guestView = () => (net.role === 'guest' && net.playing && net.hostW > 0) |
 
 function resize() {
   let low = false; try { low = settings.lowfx; } catch (e) {} // (the very first resize runs before settings are loaded)
-  DPR = Math.min(window.devicePixelRatio || 1, low ? 1 : 2); // PERFORMANCE MODE: no extra pixels on sharp screens
+  DPR = Math.min(window.devicePixelRatio || 1, low ? 1 : 1.5); // PERFORMANCE MODE: no extra pixels on sharp screens (a retina screen's full 2x is four times the pixels to fill)
   const rw = window.innerWidth, rh = window.innerHeight;
   cv.width = rw * DPR; cv.height = rh * DPR;
   if (guestView()) {
@@ -53,10 +53,49 @@ function resize() {
     net.vs = Math.min(rw / W, rh / H); net.vx = (rw - W * net.vs) / 2; net.vy = (rh - H * net.vs) / 2;
   } else { W = rw; H = rh; net.vs = 1; net.vx = net.vy = 0; }
   ctx.setTransform(DPR * net.vs, 0, 0, DPR * net.vs, DPR * net.vx, DPR * net.vy);
+  syncSkyBox();
   if (net.role === 'guest' && !net.playing && net.host?.open) net.host.send({ scr: [rw, rh] }); // (in the lobby: the host picks the world's shape from everyone's screens)
 }
 // screen (client) coordinates -> world coordinates
 const toWorld = (cx, cy) => ({ x: (cx - net.vx) / net.vs, y: (cy - net.vy) / net.vs });
+// THE SKY is painted by the browser, not the canvas: the base gradient, the two drifting clouds and the red edge glow are CSS
+// layers behind the canvas (the canvas is see-through where they show). The browser paints them once and only moves the
+// clouds, so they cost almost nothing per frame. A full-screen canvas gradient repainted every frame was most of the cost
+let skyOn = true; // (off in a portrait-camera view: that one is zoomed in, so the canvas paints its own sky)
+const sky = { el: null, clouds: [], vig: [], key: '', shown: true, filter: '', fx: {} };
+let skyFrame = 0; // (counts the frames: a zone's glow that isn't drawn in a frame is hidden, see hideUnusedSky)
+function skyLayers() {
+  if (sky.el) return sky;
+  sky.el = document.createElement('div');
+  sky.el.style.cssText = 'position:fixed;left:0;top:0;z-index:-1;pointer-events:none;overflow:hidden;';
+  for (let i = 0; i < 2; i++) { const d = document.createElement('div'); d.style.cssText = 'position:absolute;left:0;top:0;will-change:transform;'; sky.el.appendChild(d); sky.clouds.push(d); }
+  for (let i = 0; i < 2; i++) { const d = document.createElement('div'); d.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;'; sky.el.appendChild(d); sky.vig.push(d); }
+  document.body.insertBefore(sky.el, cv);
+  return sky;
+}
+// the sky covers the world's rectangle on screen (the whole window, unless a guest's world is scaled to fit it)
+function syncSkyBox() {
+  if (!sky.el) return;
+  Object.assign(sky.el.style, { left: net.vx + 'px', top: net.vy + 'px', width: W * net.vs + 'px', height: H * net.vs + 'px' });
+  sky.key = '';
+}
+// a zone's big soft glow (a sun, a black hole, nebula clouds) as its own CSS layer: placed, sized and faded each frame, but never
+// repainted. Its gradient is only set when `key` changes. (x, y, r are in screen pixels, relative to the sky box)
+function placeSkyFx(name, x, y, r, key, bg, opacity = 1) {
+  const S = skyLayers();
+  let d = S.fx[name];
+  if (!d) { d = S.fx[name] = document.createElement('div'); d.style.cssText = 'position:absolute;left:0;top:0;display:none;will-change:transform;'; S.el.insertBefore(d, S.vig[0]); }
+  if (d.dataset.key !== key) { d.dataset.key = key; d.style.width = d.style.height = `${(2 * r).toFixed(1)}px`; d.style.background = bg; }
+  d.style.transform = `translate(${(x - r).toFixed(1)}px, ${(y - r).toFixed(1)}px)`;
+  d.style.opacity = opacity.toFixed(3);
+  d.style.display = 'block';
+  d.dataset.seen = String(skyFrame);
+}
+// hides the glows that weren't placed this frame (the zone changed, or the mode did)
+function hideUnusedSky() {
+  for (const d of Object.values(sky.fx)) if (d.dataset.seen !== String(skyFrame)) d.style.display = 'none';
+}
+skyLayers();
 window.addEventListener('resize', resize); resize();
 
 // ---------- settings (persist between sessions) ----------
@@ -13249,11 +13288,16 @@ function drawNebulaClouds(t) {
   const S = Math.max(W, H), n = settings.lowfx ? 2 : scenery.clouds.length;
   for (let i = 0; i < n; i++) {
     const c = scenery.clouds[i], cx = c.x * W, cy = c.y * H, R = c.R * S, [r, g, b] = hexRgb(c.color);
-    const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-    gr.addColorStop(0, `rgba(${r},${g},${b},${0.3 + c.flash * 0.25})`); gr.addColorStop(0.5, `rgba(${r},${g},${b},0.12)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = gr;
-    const x0 = Math.max(0, cx - R), y0 = Math.max(0, cy - R);
-    ctx.fillRect(x0, y0, Math.min(W, cx + R) - x0, Math.min(H, cy + R) - y0);
+    if (skyOn) { // (a CSS layer now: it's only moved and faded, see placeSkyFx; its flash is its opacity)
+      const vs = net.vs || 1;
+      placeSkyFx('neb' + i, cx * vs, cy * vs, R * vs, `${c.color}|${Math.round(R)}`, `radial-gradient(circle closest-side, rgba(${r},${g},${b},0.55), rgba(${r},${g},${b},0.22) 50%, rgba(${r},${g},${b},0))`, Math.min(1, (0.3 + c.flash * 0.25) / 0.55));
+    } else {
+      const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+      gr.addColorStop(0, `rgba(${r},${g},${b},${0.3 + c.flash * 0.25})`); gr.addColorStop(0.5, `rgba(${r},${g},${b},0.12)`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = gr;
+      const x0 = Math.max(0, cx - R), y0 = Math.max(0, cy - R);
+      ctx.fillRect(x0, y0, Math.min(W, cx + R) - x0, Math.min(H, cy + R) - y0);
+    }
     if (c.flash > 0.3) { ctx.fillStyle = `rgba(255,220,240,${(c.flash - 0.3) * 0.15})`; ctx.beginPath(); ctx.arc(cx, cy, R * 0.35, 0, Math.PI * 2); ctx.fill(); }
   }
   // young stars glowing inside the gas
@@ -13293,9 +13337,12 @@ function drawGasGiant(t) {
 // EVENT HORIZON: a black hole, its glowing disk wrapped up and over it by its own gravity
 function drawBlackHole(t) {
   const x = W / 2, y = H * 0.2, R = holeR();
-  const glowG = ctx.createRadialGradient(x, y, R, x, y, R * 5);
-  glowG.addColorStop(0, 'rgba(255,90,50,0.22)'); glowG.addColorStop(1, 'rgba(255,40,40,0)');
-  ctx.fillStyle = glowG; ctx.fillRect(x - R * 5, Math.max(0, y - R * 5), R * 10, R * 10);
+  if (skyOn) { const vs = net.vs || 1; placeSkyFx('holeGlow', x * vs, y * vs, R * 5 * vs, 'glow' + Math.round(R), 'radial-gradient(circle closest-side, rgba(255,90,50,0.22) 20%, rgba(255,40,40,0) 100%)'); } // (its glow: a CSS layer, see placeSkyFx)
+  else {
+    const glowG = ctx.createRadialGradient(x, y, R, x, y, R * 5);
+    glowG.addColorStop(0, 'rgba(255,90,50,0.22)'); glowG.addColorStop(1, 'rgba(255,40,40,0)');
+    ctx.fillStyle = glowG; ctx.fillRect(x - R * 5, Math.max(0, y - R * 5), R * 10, R * 10);
+  }
   const disk = front => {
     for (let i = 0; i < 6; i++) {
       const rx = R * (1.5 + i * 0.34);
@@ -13327,12 +13374,18 @@ function drawBlackHole(t) {
 function drawSun(t) {
   const S = Math.max(W, H), R = S * 0.8, x = W * 0.5, y = H * 0.15 - R;
   ctx.save(); ctx.globalAlpha = 0.55;
-  const halo = ctx.createRadialGradient(x, y, R * 0.95, x, y, R * 1.3);
-  halo.addColorStop(0, 'rgba(255,170,60,0.6)'); halo.addColorStop(1, 'rgba(255,90,20,0)');
-  ctx.fillStyle = halo; ctx.fillRect(0, 0, W, Math.min(H, y + R * 1.3));
-  const body = ctx.createRadialGradient(x, y, R * 0.6, x, y, R);
-  body.addColorStop(0, '#ffd27a'); body.addColorStop(0.85, '#ff8d2d'); body.addColorStop(1, '#c0400a');
-  ctx.fillStyle = body; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+  if (skyOn) { // (the halo and the body are CSS layers now, see placeSkyFx; the sunspots and prominences stay on the canvas)
+    const vs = net.vs || 1;
+    placeSkyFx('sunHalo', x * vs, y * vs, R * 1.3 * vs, 'halo' + Math.round(R), 'radial-gradient(circle closest-side, rgba(255,170,60,0.6) 73%, rgba(255,90,20,0) 100%)', 0.55);
+    placeSkyFx('sun', x * vs, y * vs, R * vs, 'body' + Math.round(R), 'radial-gradient(circle closest-side, #ffd27a 60%, #ff8d2d 94%, #c0400a 100%)', 0.55);
+  } else {
+    const halo = ctx.createRadialGradient(x, y, R * 0.95, x, y, R * 1.3);
+    halo.addColorStop(0, 'rgba(255,170,60,0.6)'); halo.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = halo; ctx.fillRect(0, 0, W, Math.min(H, y + R * 1.3));
+    const body = ctx.createRadialGradient(x, y, R * 0.6, x, y, R);
+    body.addColorStop(0, '#ffd27a'); body.addColorStop(0.85, '#ff8d2d'); body.addColorStop(1, '#c0400a');
+    ctx.fillStyle = body; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.fillStyle = 'rgba(120,30,0,0.35)'; // sunspots
   for (let i = 0; i < 5; i++) {
     const a = Math.PI / 2 + (i - 2) * 0.13 + Math.sin(t * 0.03 + i) * 0.02, d = R * (0.94 - (i % 2) * 0.03), s = R * 0.012 * (1 + i % 3);
@@ -13435,8 +13488,33 @@ function drawScenery(zone) {
   }
   ctx.restore();
 }
+// the sky as CSS: the base gradient, the clouds (only their place changes each frame) and the red edge glows (their opacity
+// changes, see drawVignette). The colors and sizes are only set when they change
+function paintSkyCss(r, g, b, z, t) {
+  const S = skyLayers(), vs = net.vs || 1;
+  const key = `${z === 'horizon'}|${r},${g},${b}|${W}x${H}|${vs}|${!!settings.lowfx}`;
+  if (S.key !== key) {
+    S.key = key;
+    S.el.style.background = `linear-gradient(${z === 'horizon' ? '#030104' : '#05050f'}, rgb(${r * 0.3 | 0},${g * 0.3 | 0},${b * 0.3 | 0}))`;
+    const R = Math.max(W, H) * 0.55 * vs;
+    S.clouds.forEach(c => {
+      c.style.width = c.style.height = `${(2 * R).toFixed(1)}px`;
+      c.style.background = `radial-gradient(circle closest-side, rgba(${r},${g},${b},0.22), rgba(${r},${g},${b},0))`;
+      c.style.display = settings.lowfx ? 'none' : 'block'; // (PERFORMANCE MODE: no clouds)
+    });
+    S.vig[0].style.background = `radial-gradient(circle at 50% 50%, rgba(255,30,60,0) ${(Math.min(W, H) * 0.35 * vs).toFixed(1)}px, rgba(255,30,60,1) ${(Math.max(W, H) * 0.75 * vs).toFixed(1)}px)`;
+    S.vig[1].style.background = `radial-gradient(circle at 50% 50%, rgba(40,0,8,0) ${(Math.min(W, H) * 0.3 * vs).toFixed(1)}px, rgba(40,0,8,1) ${(Math.max(W, H) * 0.78 * vs).toFixed(1)}px)`;
+  }
+  const tt = t * 0.05, R = Math.max(W, H) * 0.55 * vs;
+  for (let i = 0; i < 2; i++) {
+    const x = W * (0.5 + Math.sin(tt * (i ? 0.7 : 1) + i * 2) * 0.45) * vs, y = H * (0.25 + i * 0.45 + Math.cos(tt + i) * 0.1) * vs;
+    S.clouds[i].style.transform = `translate(${(x - R).toFixed(1)}px, ${(y - R).toFixed(1)}px)`;
+  }
+}
 function drawBackground() {
   const [r, g, b] = bgTint.map(v => v | 0), z = curZone().id, t = performance.now() / 1000;
+  if (skyOn) { ctx.clearRect(0, 0, W, H); paintSkyCss(r, g, b, z, t); } // (the sky is behind the canvas: see paintSkyCss)
+  else {
   const lin = ctx.createLinearGradient(0, 0, 0, H);
   lin.addColorStop(0, z === 'horizon' ? '#030104' : '#05050f'); lin.addColorStop(1, `rgb(${r * 0.3 | 0},${g * 0.3 | 0},${b * 0.3 | 0})`);
   ctx.fillStyle = lin; ctx.fillRect(0, 0, W, H);
@@ -13447,6 +13525,7 @@ function drawBackground() {
     const R = Math.max(W, H) * 0.55, rg = ctx.createRadialGradient(x, y, 0, x, y, R);
     rg.addColorStop(0, `rgba(${r},${g},${b},0.22)`); rg.addColorStop(1, `rgba(${r},${g},${b},0)`);
     ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  }
   }
   if (scenery.zone !== z) initScenery(z);
   if (mohSky()) drawAbyssSky(t); // (MOH: the abyss, in every zone)
@@ -13460,6 +13539,7 @@ function drawBackground() {
   else if (z === 'glitch') drawGlitchSky(t);
   drawScenery(z);
   if (z !== 'glitch' && glitchWorld()) drawGlitchCorruption();
+  if (skyOn) hideUnusedSky();
 }
 // GLITCH SECTOR: a faint grid, columns of falling data, and blocks of corrupted color that blink in and out
 function drawGlitchSky(t) {
@@ -13496,6 +13576,16 @@ function drawWarpFx() {
 
 // red edges when hit, and a slow pulse while anyone is on their last life
 function drawVignette() {
+  if (state !== 'play') { if (sky.el) for (const v of sky.vig) v.style.opacity = '0'; return; }
+  if (skyOn) { // (the red edges are CSS layers now: only their opacity changes, see paintSkyCss)
+    const S = skyLayers(), moh = mohSky();
+    let a = hurtFlash * (settings.calm ? 0.25 : 0.55);
+    if (living().some(p => p.lives === 1 && maxLivesOf(p) > 1)) a = Math.max(a, 0.14 + Math.sin(time * 5) * 0.08);
+    const beat = moh ? Math.pow(Math.max(0, Math.sin(time * 1.1)), 18) : 0;
+    S.vig[0].style.opacity = a > 0.01 ? a.toFixed(3) : '0';
+    S.vig[1].style.opacity = moh ? (0.4 + beat * 0.2).toFixed(3) : '0';
+    return;
+  }
   if (mohSky() && state === 'play') { // (MOH: dark red edges, throbbing now and then like a heartbeat)
     const beat = Math.pow(Math.max(0, Math.sin(time * 1.1)), 18), g2 = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.78);
     g2.addColorStop(0, 'rgba(40,0,8,0)'); g2.addColorStop(1, `rgba(40,0,8,${0.4 + beat * 0.2})`); ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H);
@@ -13516,10 +13606,20 @@ function draw() {
     : cine < CINE.cut ? 'saturate(0.35) contrast(1.15)'
     : inRun() && timeFlow() === 0 ? 'saturate(0.2) sepia(0.35)' : ''; // (CHRONOS's time stop: the world fades like an old photo)
   if (cv.style.filter !== inv) cv.style.filter = inv;
+  if (sky.el && sky.filter !== inv) { sky.el.style.filter = inv; sky.filter = inv; } // (the sky gets the same effect as the canvas)
   ctx.shadowBlur = 0;
   const gv = guestView();
+  skyOn = !(gv && portraitCam()); // (a portrait-camera view paints its own sky on the canvas: see drawBackground)
+  skyFrame++;
+  if (sky.el && sky.shown !== skyOn) { sky.el.style.display = skyOn ? '' : 'none'; sky.shown = skyOn; }
   if (gv) { // letterbox bars around the host's (scaled) world
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000';
+    if (skyOn) { // (only the bars: the world itself is see-through, so the sky shows through it)
+      const X0 = net.vx * DPR, Y0 = net.vy * DPR, X1 = (net.vx + W * net.vs) * DPR, Y1 = (net.vy + H * net.vs) * DPR;
+      ctx.fillRect(0, 0, cv.width, Math.max(0, Y0)); ctx.fillRect(0, Math.min(cv.height, Y1), cv.width, Math.max(0, cv.height - Y1));
+      ctx.fillRect(0, 0, Math.max(0, X0), cv.height); ctx.fillRect(Math.min(cv.width, X1), 0, Math.max(0, cv.width - X1), cv.height);
+    } else ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.restore();
     ctx.save(); if (!portraitCam()) { ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip(); }
   }
   // a phone held upright in a wide host's game: zoom in on my ship and follow it, so the world fills the tall screen (the HUD stays whole)
@@ -13554,7 +13654,7 @@ function draw() {
   if (hudWH) { W = window.innerWidth; H = window.innerHeight; ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   ctx.shadowBlur = 0;
   if (screenFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(settings.calm ? 0.15 : 0.85, screenFlash)})`; ctx.fillRect(0, 0, W, H); } // (gentle with REDUCED FLASHING)
-  if (state === 'play') drawVignette();
+  drawVignette();
 
   buttons = [];
   if (state === 'play') drawHUD();
@@ -13635,7 +13735,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.9';
+const BUILD = '2026.10.08.10';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
