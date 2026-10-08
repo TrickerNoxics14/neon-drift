@@ -413,7 +413,7 @@ function scheduleMusic() {
   if (!ac || ac.state !== 'running') { for (const el of Object.values(rec.els)) if (!el.paused) el.pause(); return; } // (recorded songs wait while the tab is away)
   // start loading the secret and final bosses' recorded songs before they're needed: DOKI DOLL's once a run is one pink
   // coin away, and in the last zone THE ABYSS's, and ZERO's too when it could crawl out after it
-  if (runType === 'moh' || run?.moh) prepRecorded(SONGS.abyss); // (MOH: THE ABYSS's song plays on the menu and all run long)
+  if (isMohType() || run?.moh) prepRecorded(SONGS.abyss); // (MOH: THE ABYSS's song plays on the menu and all run long)
   if (run && !run.dokiMet && (run.pinkCoins || 0) >= PINK_NEED - 1) prepRecorded(SONGS.doki);
   if (run?.zone === ZONE_LAST) { prepRecorded(SONGS.abyss); if (meta.ach.omega && (run.endless || run.rush)) prepRecorded(SONGS.zero); }
   if (bosses.some(b => b.gimmick === 'sonnet')) prepRecorded(SONGS.supersonnet); // (ready for the moment he turns golden)
@@ -480,7 +480,7 @@ function stopRecorded() { rec.song = null; fadeOthers(null); } // (fade out, the
 // which song should be playing right now
 function wantedSong() {
   if (state === 'jukebox') return music.pick || 'menu';
-  if (!run || !(inRun() || state === 'over')) return MENU_SCREENS.includes(state) ? 'hangar' : state === 'menu' && runType === 'moh' ? 'abyss' : 'menu';
+  if (!run || !(inRun() || state === 'over')) return MENU_SCREENS.includes(state) ? 'hangar' : state === 'menu' && isMohType() ? 'abyss' : 'menu';
   if (state === 'over') return run.victory ? 'victory' : 'gameover';
   if (state === 'shop') return run.moh ? 'abyss' : 'shop'; // (MOH: THE ABYSS's song keeps playing in the shop)
   if (state === 'route') return run.moh ? 'abyss' : 'starmap'; // (and on the route map)
@@ -1670,7 +1670,9 @@ function readPad(i) {
 // 'pvp' is a DUEL (two ships, like MAIDEN & SPELL's Versus): no enemies, no bosses, no sectors or upgrade picks. You shoot
 // spells at your rival (auto-aimed at them) and dodge theirs. Only a shot that reaches a ship's 3-pixel core hits it.
 // With 3 or 4 players it's a free-for-all: the last ship flying wins
-const RUN_TYPES = ['standard', 'endless', 'rush', 'moh', 'pvp'];
+// 'mohHard' is MOH with the softer tuning (see mohMut and the MOH notes); 'moh' is the brutal one
+const RUN_TYPES = ['standard', 'endless', 'rush', 'moh', 'mohHard', 'pvp'];
+const isMohType = () => runType === 'moh' || runType === 'mohHard';
 const PVP_HITBOX = 3; // (the core of a duel ship: the only part a rival's spell can hit)
 // the duel's aim: the nearest rival (the spell still has a spread around it)
 function duelAim(p) {
@@ -1686,13 +1688,13 @@ function toggleRunType() {
   try { localStorage.setItem('neonDriftRunType', runType); } catch (e) {}
   beep(runType === 'endless' ? 330 : runType === 'rush' ? 440 : runType === 'moh' ? 140 : runType === 'pvp' ? 660 : 520, 0.15, 'triangle', 0.06, 200);
 }
-const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠', moh: 'MOH ✋', pvp: 'PvP ⚔' };
-const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70', moh: '#ff2a3a', pvp: '#ffd23d' };
-const runKind = () => run.pvp ? 'pvp' : run.moh ? 'moh' : run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
+const RUN_LABEL = { standard: 'STANDARD', endless: 'ENDLESS ∞', rush: 'BOSS RUSH ☠', moh: 'MOH ✋', mohHard: 'MOH HARD ✋', pvp: 'PvP ⚔' };
+const RUN_COLOR = { standard: '#9ab', endless: '#ff9a3d', rush: '#ff5a70', moh: '#ff2a3a', mohHard: '#ff7a2a', pvp: '#ffd23d' };
+const runKind = () => run.pvp ? 'pvp' : run.mohHard ? 'mohHard' : run.moh ? 'moh' : run.rush ? 'rush' : run.endless ? 'endless' : 'standard';
 
 // best scores are kept per player count and per run type
 const bestKey = (m, kind) => (m <= 4 ? ['', 'neonDriftBest', 'neonDriftBestCoop', 'neonDriftBestCoop3', 'neonDriftBestCoop4'][m] : 'neonDriftBestOnline' + m)
-  + ({ endless: 'Endless', rush: 'Rush', moh: 'Moh', pvp: 'Pvp' }[kind] || '');
+  + ({ endless: 'Endless', rush: 'Rush', moh: 'Moh', mohHard: 'MohHard', pvp: 'Pvp' }[kind] || '');
 const best = {};
 function bestOf(m, kind) {
   const k = bestKey(m, kind);
@@ -2146,7 +2148,7 @@ const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 &&
   * (run.s.laststand && p.lives === 1 ? 1.2 : 1); // (Last Stand)
 // which keys fire each control scheme's ability
 const AB_KEYS = { wasd: ['KeyQ', 'KeyE', 'ShiftLeft'], arrows: ['ShiftRight', 'Enter', 'Slash', 'Numpad0', 'ControlRight'], ijkl: ['KeyU', 'KeyO'], mouse: ['Space'] };
-const localSchemes = () => CONTROLS[net.role ? net.localN : mode] || CONTROLS[1];
+const localSchemes = () => run?.vsCpu ? [['wasd', 'arrows', 'mouse']] : CONTROLS[net.role ? net.localN : mode] || CONTROLS[1]; // (vs the CPU, you have every control)
 const abilityKeyOwner = code => localSchemes().findIndex(sc => sc.some(c => AB_KEYS[c]?.includes(code))); // (-1: nobody's)
 const mouseOwner = () => localSchemes().findIndex(sc => sc.includes('mouse'));
 // the round button for touch screens (bottom-right corner)
@@ -2203,6 +2205,47 @@ function duelDash(p, dx, dy) {
   return true;
 }
 const abReady = p => p?.alive && p.abCd <= 0 && state === 'play' && !paused && !abyssCine() && !curse('powerless'); // (a duel's DASH is in useAbility)
+const pname = p => p?.cpu ? 'CPU' : 'P' + ((p?.id ?? 0) + 1); // (the names you see in a duel)
+// a duel is best of three: a round ends when one ship is left (both going down together is a draw, and nobody scores). Two
+// round wins take the match. Between rounds the arena resets and a short banner shows the score
+function duelRoundOver() {
+  const alive = living();
+  run.pvpLast = alive.length === 1 ? alive[0].id : -1;
+  if (run.pvpLast >= 0) run.pvpWins[run.pvpLast] = (run.pvpWins[run.pvpLast] || 0) + 1;
+  if (players.some(p => (run.pvpWins[p.id] || 0) >= 2)) { endRun(); return; } // (the match: the last ship flying is the one who won it)
+  run.pvpRound = (run.pvpRound || 1) + 1;
+  run.pvpBreak = 2.4;
+  bullets = []; eBullets = [];
+  players.forEach((p, i) => { // every round starts the same: full lives, a moment of invincibility, and both moves ready
+    p.x = W * (i + 1) / (players.length + 1); p.y = H - 100;
+    p.alive = true; p.lives = maxLivesOf(p); p.inv = 1.5; p.wreck = null; p.reviveProg = 0;
+    p.reflectT = 0; p.reflectCd = 0; p.dashT = 0; p.abCd = 0; p.shotT = 0.3;
+  });
+}
+// the CPU rival (a duel vs the CPU): it keeps a spot to the side of you, steps out of the way of your spells, and now and then
+// DASHes or REFLECTs. It fires and aims like you do
+function cpuThink(p, dt) {
+  const foe = players.find(q => q !== p && q.alive && !q.cpu);
+  p.cpuDx = 0; p.cpuDy = 0;
+  if (!foe || !p.alive) return;
+  p.cpuT = (p.cpuT ?? 0) - dt;
+  if (p.cpuT <= 0) { p.cpuT = 0.7 + Math.random() * 0.8; p.cpuSide = Math.random() < 0.5 ? -1 : 1; p.cpuHigh = H * (0.2 + Math.random() * 0.25); }
+  let th = null, td = Infinity;
+  for (const b of bullets) { // the nearest of your spells that's flying at it
+    if (b.owner !== foe.id || b.dead) continue;
+    const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
+    if (d < 170 && d < td && dx * b.vx + dy * b.vy > 0) { th = b; td = d; }
+  }
+  let tx = foe.x + p.cpuSide * 220, ty = p.cpuHigh;
+  if (th) { // a spell is coming: step sideways, out of its line
+    const sp = Math.hypot(th.vx, th.vy) || 1, nx = -th.vy / sp, ny = th.vx / sp;
+    const side = (p.x - th.x) * nx + (p.y - th.y) * ny >= 0 ? 1 : -1;
+    tx = p.x + nx * side * 120; ty = p.y + ny * side * 120;
+    if (td < 70 && p.abCd <= 0 && Math.random() < 0.7) useAbility(p, nx * side, ny * side); // DASH out of its way
+    else if (td < 110 && Math.random() < 0.3) useReflect(p);
+  }
+  p.cpuDx = tx - p.x; p.cpuDy = ty - p.y;
+}
 // where a dash ends (kept inside the arena)
 function dashEnd(p, dx, dy) {
   const l = Math.hypot(dx, dy) || 1, D = run?.pvp ? DUEL.dashD : abTier(p) ? 250 : 210;
@@ -2435,8 +2478,8 @@ let shipPick = null;
 const baseIndex = id => Math.max(0, SHIPS.findIndex(s => s.id === shipById(id).id || s.id === shipById(id).base));
 // online: the same screen, opened from the lobby, picks just your own ship and returns there
 function openShipSelect(m, online = false, k = 0) { // (k: online, which of the players on this computer is picking)
-  if (runType === 'pvp' && m < 2 && !online) { showToast('A DUEL needs two ships: pick 2-PLAYER CO-OP, or play online'); return; }
-  shipPick = { mode: m, player: 0, picks: [], online, mk2: {}, k };
+  // a solo DUEL is you against the CPU (it flies the same ship as you)
+  shipPick = { mode: m, player: 0, picks: [], online, mk2: {}, k, vsCpu: runType === 'pvp' && m === 1 && !online };
   const cur = online ? (net.slots[net.mine[k]]?.ship || lastShips[k] || lastShips[0]) : lastShips[0];
   rememberVariant(cur);
   go('ships');
@@ -2471,7 +2514,11 @@ function pickShip(i) {
   if (shipPick.online) { setMyOnlineShip(id, shipPick.k); go('lobby'); return; }
   shipPick.picks[shipPick.player] = id;
   shipPick.player++;
-  if (shipPick.player >= shipPick.mode) { start(shipPick.mode, shipPick.picks); return; }
+  if (shipPick.player >= shipPick.mode) {
+    if (shipPick.vsCpu) start(2, [shipPick.picks[0], shipPick.picks[0]], undefined, true); // (the CPU's ship is yours)
+    else start(shipPick.mode, shipPick.picks);
+    return;
+  }
   rememberVariant(lastShips[shipPick.player]);
   sel = baseIndex(lastShips[shipPick.player]);
 }
@@ -2485,28 +2532,29 @@ function shipSelectBack() {
   else go('menu');
 }
 
-function start(m, ships, cosList) {
+function start(m, ships, cosList, vsCpu = false) {
   mode = m;
   ships = ships || lastShips;
   run = { s: newStats(), owned: {}, rerolls: metaLv('reroll'), bossKills: 0, earned: 0,
     bossOrder: runType === 'rush' ? buildRushOrder() : buildBossOrder(), seenEnemies: { drifter: true, mini: true, segment: true }, ships: ships.slice(0, m),
-    endless: runType === 'endless', rush: runType === 'rush', moh: runType === 'moh', pvp: runType === 'pvp', hands: [], sentries: [], eyes: [], darkK: 0, cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
+    endless: runType === 'endless', rush: runType === 'rush', moh: isMohType(), mohHard: runType === 'mohHard', pvp: runType === 'pvp', vsCpu: !!vsCpu, pvpWins: [], pvpRound: 1, pvpBreak: 0, pvpLast: -1, hands: [], sentries: [], eyes: [], darkK: 0, cycle: 1, mut: {}, zone: null, route: [], warp: null, rushZones: shuffle(middleZones().slice()), glitchy: runType === 'endless' && !!meta.ach.omega, // (Endless after beating THE ABYSS: glitch variants everywhere)
     musicSeed: Math.floor(Math.random() * 1000),
     // the curses picked for this run (online guests get the host's), co-op links, and whether NEMESIS will barge in (and after which fight)
     curses: net.role === 'guest' ? {} : Object.fromEntries(cleanCurses(meta.curseSel).map(id => [id, true])), links: {},
     nemesisAt: meta.ach.zero && Math.random() < NEMESIS_CHANCE ? 2 + Math.floor(Math.random() * 4) : 0 };
   if (curse('slim')) run.rerolls = 0;
-  if (run.moh) { run.s.maxLives = 1; run.handT = 6; } // (MOH: ONE life, and the first hand comes a little after you start)
+  if (run.moh) { run.s.maxLives = 1; run.handT = run.mohHard ? 8 : 6; } // (MOH: ONE life, and the first hand comes a little after you start)
   lasers = []; abFx = []; bossFx = { rings: [], ghosts: [], shards: [], texts: [], zaps: [], pix: [] }; screenFlash = 0;
   // cosmetics: online everyone brings their own; locally P1 wears yours
   players = Array.from({ length: m }, (_, i) => makePlayer(i, W * (i + 1) / (m + 1), ships[i], cosList ? cosList[i] : i === 0 ? meta.cos.eq : null));
+  if (run.vsCpu && players.length > 1) players[1].cpu = true; // (a duel vs the CPU: its ship is the second one, flown by the computer)
   bullets = []; enemies = []; particles = []; pickups = []; eBullets = [];
   score = 0; time = 0; levelT = 0; spawnT = 0; shake = 0; combo = 1; comboT = 0; level = 1;
   bosses = []; encounter = null; bossWarn = 0; bossCount = 0; pendingBoss = false; paused = false;
   popups = []; hurtFlash = 0;
   hint = { text: net.role ? 'Move with mouse, WASD or arrows — you fire automatically · SPACE / Q / right-click: ability · 1–4: quick chat' : CONTROL_HINTS[m], life: 6 };
   if (run.moh) hint = { text: 'MOH: ONE life. Everything is worse, and HANDS come from the dark. When a red ring appears under you, MOVE!', life: 9 };
-  if (run.pvp) hint = { text: mode === 2 ? 'DUEL: DASH (ability key, right-click or touch) slips past spells. REFLECT (E / Enter / O / V, or LB) turns them back at the shooter. Only the white dot can be hit' : 'PvP: your shots hurt your friends. Last ship flying wins', life: 9 };
+  if (run.pvp) hint = { text: mode === 2 ? `${run.vsCpu ? 'DUEL vs CPU. ' : 'DUEL: '}Best of three. DASH (ability key, right-click or touch) slips past spells. REFLECT (E / Enter / O / V, or LB) turns them back at the shooter. Only the white dot can be hit` : 'PvP: your shots hurt your friends. Last ship flying wins', life: 9 };
   go('play');
   if (!run.pvp) { // (a duel starts plain: no hangar head start, see newStats and makePlayer)
     for (let i = 0; i < metaLv('start'); i++) { const [u] = rollCards(1, false); if (u) applyUpgrade(u); }
@@ -2601,8 +2649,9 @@ function startNextCycle() {
   return m;
 }
 const mut = id => (run && (run.mut[id] || 0) + (run.moh ? mohMut(id) : 0)) || 0; // how many times a mutator has stacked this run (MOH has them from the start, and they grow with the sectors)
-const mohMut = id => ({ swift: Math.min(5, 2 + Math.floor((level + 1) / 3)), armored: Math.min(6, 2 + Math.floor(level / 2)), frenzy: level >= 4 ? 6 : 4,
-  hellfire: Math.min(8, 3 + Math.floor(level / 3)), titans: Math.min(6, 3 + Math.floor(level / 3)), volatile: level >= 4 ? 3 : 2 }[id] || 0);
+const mohMut = id => (run?.mohHard ? { swift: Math.min(3, 1 + Math.floor((level + 1) / 4)), armored: Math.min(4, 1 + Math.floor(level / 3)), frenzy: level >= 6 ? 4 : 3,
+  hellfire: Math.min(5, 2 + Math.floor(level / 4)), titans: Math.min(4, 2 + Math.floor(level / 4)), volatile: level >= 6 ? 2 : 1 } : { swift: Math.min(5, 2 + Math.floor((level + 1) / 3)), armored: Math.min(6, 2 + Math.floor(level / 2)), frenzy: level >= 4 ? 6 : 4,
+  hellfire: Math.min(8, 3 + Math.floor(level / 3)), titans: Math.min(6, 3 + Math.floor(level / 3)), volatile: level >= 4 ? 3 : 2 })[id] || 0;
 function addMutator() {
   // prefer ones not active yet; once all are in play, they start stacking
   const fresh = MUTATORS.filter(m => !mut(m.id)), pool = fresh.length ? fresh : MUTATORS;
@@ -2769,7 +2818,7 @@ const ELITES = {
   splitting:{ name: 'SPLITTING', color: '#ff5dc8', desc: 'splits in two when destroyed' },
 };
 const ELITE_LIST = Object.keys(ELITES);
-const eliteChance = () => run.moh ? Math.min(0.65, 0.2 + level * 0.035) : Math.min(0.2, 0.025 + (level - 3) * 0.012); // (MOH: lots more elites)
+const eliteChance = () => run.moh ? (run.mohHard ? Math.min(0.45, 0.14 + level * 0.025) : Math.min(0.65, 0.2 + level * 0.035)) : Math.min(0.2, 0.025 + (level - 3) * 0.012); // (MOH: lots more elites)
 function makeElite(e) {
   const pool = ELITE_LIST.filter(k => k !== 'splitting' || e.r < 22); // (no splitting tanks or carriers)
   const k = pool[Math.floor(Math.random() * pool.length)];
@@ -2840,7 +2889,7 @@ function makeEnemy(type, x, y) {
     case 'turret':   e.vy = 30 + Math.random() * 12; e.fire = 1.5; break;
     case 'prism':    e.vy = 34 + Math.random() * 12; e.vx = (Math.random() - 0.5) * 20; break;
   }
-  if (run?.moh && !ABYSS_SKIP.has(type) && !TYPES[type].ghost && !TYPES[type].harmless && Math.random() < Math.min(0.8, 0.3 + level * 0.04)) e.abyss = 1; // (MOH: a tainted one spits ink)
+  if (run?.moh && !ABYSS_SKIP.has(type) && !TYPES[type].ghost && !TYPES[type].harmless && Math.random() < (run.mohHard ? Math.min(0.5, 0.18 + level * 0.03) : Math.min(0.8, 0.3 + level * 0.04))) e.abyss = 1; // (MOH: a tainted one spits ink)
   enemies.push(e);
   return e;
 }
@@ -3475,7 +3524,7 @@ function killEnemy(e, src) {
   if (Math.random() < drop) {
     const someoneDown = players.some(p => !p.alive);
     let kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
-    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.85) kind = 'power'; // (MOH: hearts are rarer)
+    if (run.moh && kind === 'life' && !someoneDown && Math.random() < (run.mohHard ? 0.5 : 0.85)) kind = 'power'; // (MOH: hearts are rarer)
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
   if (s.pickpocket) run.coins += s.pickpocket; // (Pickpocket)
@@ -3874,7 +3923,7 @@ function updateDrain(b, dt) {
 }
 
 const bossAlive = b => b.dying <= 0 && !b.downed && !(b.cine < CINE_LEN); // (THE ABYSS can't be touched during its entrance)
-const isEnraged = b => (b.hp < b.max * (run?.moh ? 0.8 : 0.5) && b.gimmick !== 'sonnet' && b.gimmick !== 'zero') || b.forceRage; // (ZERO's rage is its third form) // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
+const isEnraged = b => (b.hp < b.max * (run?.moh ? (run.mohHard ? 0.7 : 0.8) : 0.5) && b.gimmick !== 'sonnet' && b.gimmick !== 'zero') || b.forceRage; // (ZERO's rage is its third form) // (SONNET's halfway point is his own transformation: see the sonnet gimmick)
 
 // distance from point (px,py) to the segment a-b (for the Sol & Luna tether)
 function distToSeg(px, py, ax, ay, bx, by) {
@@ -5226,12 +5275,12 @@ function updateMohHands(dt) {
   }
   run.hands = run.hands.filter(Hd => Hd[3] < GRASP_END);
   if (state !== 'play' || !ps.length || bossWarn > 0 || run.warp || (run.clock || 0) < 15) return;
-  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= 1 + (level >= 2 ? 1 : 0) + (level >= 5 ? 1 : 0) + (ps.length >= 3 ? 1 : 0)) return;
+  if ((run.handT = (run.handT ?? 12) - dt) > 0 || run.hands.length >= (run.mohHard ? 1 + (level >= 3 ? 1 : 0) + (ps.length >= 3 ? 1 : 0) : 1 + (level >= 2 ? 1 : 0) + (level >= 5 ? 1 : 0) + (ps.length >= 3 ? 1 : 0))) return;
   const cand = ps.filter(q => q.inv <= 0 && !(q.phaseOn > 0));
   if (!cand.length) { run.handT = 0.4; return; }
   const p = randomOf(cand);
   run.hands.push([Math.round(p.x), Math.round(p.y), p.x < W / 2 ? 1 : -1, 0, p.id]);
-  run.handT = Math.max(2.2, 5.5 - level * 0.35) * (bosses.length ? 1.2 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.7 + Math.random() * 0.5);
+  run.handT = (run.mohHard ? Math.max(4, 7.5 - level * 0.4) * (bosses.length ? 1.7 : 1) : Math.max(2.2, 5.5 - level * 0.35) * (bosses.length ? 1.2 : 1)) / Math.min(2, Math.sqrt(ps.length)) * ((run.mohHard ? 0.75 : 0.7) + Math.random() * 0.5);
   beep(48, 1.1, 'sawtooth', 0.08, 25);
 }
 function drawMohHands() {
@@ -5269,7 +5318,7 @@ function abyssTendril(x, y, ang, len, wid, t, seed, alpha = 1, lite = false) {
   }
   ctx.restore();
 }
-const mohSky = () => (state === 'menu' && runType === 'moh') || (!!run?.moh && inRun()); // (the screens that turn into the abyss)
+const mohSky = () => (state === 'menu' && isMohType()) || (!!run?.moh && inRun()); // (the screens that turn into the abyss)
 // the abyss showing through the sky: one vast eye watching from the dark, and tendrils reaching in from the edges (more, the deeper you are)
 function drawAbyssSky(t) {
   if (settings.lowfx) return;
@@ -5898,7 +5947,7 @@ function updateBoss(b, dt) {
   // REGENERATING: leave a boss alone for a few seconds and it starts to heal (never past its next phase mark, so a phase is never undone)
   if (b.entered && b.dying <= 0 && !b.downed && b.doki === undefined && !(b.reboot > 0) && !(b.xf >= 0) && !b.shielded) {
     b.idleT = (b.idleT || 0) + dt;
-    if (b.idleT >= (run?.moh ? 2.2 : 4) && b.hp < b.max) {
+    if (b.idleT >= (run?.moh ? (run.mohHard ? 3 : 2.2) : 4) && b.hp < b.max) {
       if (!b._rgText) b.regenCap = ([0.25, 0.33, 0.5, 0.66, 0.7, 0.75].find(m => m * b.max > b.hp + 1) ?? 1) * b.max; // (worked out once, when it starts)
       const cap = b.regenCap ?? b.max;
       if (b.hp < cap) {
@@ -6269,10 +6318,11 @@ const CONTROLS = {
 
 function controlsFor(p) {
   let dx = 0, dy = 0;
+  if (p.cpu) return { dx: p.cpuDx || 0, dy: p.cpuDy || 0, usePointer: false }; // (the CPU rival flies itself: see cpuThink)
   // online: remote players' ships are moved by their own computers; the local player gets every control
   if ((net.role && p.remote) || menuOpen) return { dx: 0, dy: 0, usePointer: false }; // (and your ship holds still while your menu is open)
   // (online, players sharing this computer split the keyboard like local co-op)
-  const k = net.role ? net.mine.indexOf(p.id) : p.id, scheme = CONTROLS[net.role ? net.localN : mode]?.[k] || ['wasd', 'arrows', 'mouse'];
+  const k = net.role ? net.mine.indexOf(p.id) : p.id, scheme = run?.vsCpu ? ['wasd', 'arrows', 'mouse'] : CONTROLS[net.role ? net.localN : mode]?.[k] || ['wasd', 'arrows', 'mouse'];
   if (scheme.includes('wasd')) { if (keys.KeyA) dx--; if (keys.KeyD) dx++; if (keys.KeyW) dy--; if (keys.KeyS) dy++; }
   if (scheme.includes('arrows')) { if (keys.ArrowLeft) dx--; if (keys.ArrowRight) dx++; if (keys.ArrowUp) dy--; if (keys.ArrowDown) dy++; }
   if (scheme.includes('ijkl')) {
@@ -6308,6 +6358,7 @@ function update(dt) {
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
   if (state !== 'play' || paused) { updateParticles(dt); return; }
+  if (run.pvp && run.pvpBreak > 0) { run.pvpBreak -= dt; updateParticles(dt); return; } // (a duel between rounds: the banner, and nobody moves or shoots yet)
   // two clocks: the game clock, which has always run at double speed (everything that moves or blinks by it is tuned to
   // that), and real time, for the times you see: the run timer, fastest boss kills and Boss Rush medals
   time += dt * 2;
@@ -6356,6 +6407,7 @@ function update(dt) {
     const m = p.ship.mod, speed = shipSpeed(p);
     const ox = p.x, oy = p.y;
     updateAbility(p, dt);
+    if (p.cpu) cpuThink(p, dt); // (the CPU rival in a duel)
     const { dx, dy, usePointer } = controlsFor(p);
     if (dx || dy) {
       const l = Math.max(1, Math.hypot(dx, dy)); p.x += dx / l * speed * dt; p.y += dy / l * speed * dt;
@@ -6502,14 +6554,14 @@ function update(dt) {
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0) && !run.pvp) {
     const seq0 = enemyIdSeq; spawnEnemy();
-    if (run.moh) for (let k = 0, extra = Math.random() < Math.min(0.95, 0.55 + level * 0.04) ? 1 + (Math.random() < 0.6 ? 1 : 0) + (Math.random() < 0.25 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in big packs)
+    if (run.moh) for (let k = 0, extra = Math.random() < (run.mohHard ? Math.min(0.75, 0.35 + level * 0.03) : Math.min(0.95, 0.55 + level * 0.04)) ? 1 + (Math.random() < (run.mohHard ? 0.4 : 0.6) ? 1 : 0) + (!run.mohHard && Math.random() < 0.25 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in packs)
     if (glitchWorld()) for (const e of enemies) if (e.id > seq0) glitchEnemyInit(e); // (GLITCH variants of every enemy)
-    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (run.moh ? 0.7 : 1) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
+    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (run.moh && !run.mohHard ? 0.7 : 1) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
   }
   else if (run.moh && bosses.length && bossWarn <= 0 && !run.warp && bosses.every(b => b.entered && b.dying <= 0) && (run.addT = (run.addT ?? 5) - dt) <= 0) { // (MOH: the boss's friends keep arriving all through the fight)
-    spawnEnemy(); run.addT = Math.max(2, 4.5 - level * 0.25) / Math.min(2, Math.sqrt(players.length));
+    spawnEnemy(); run.addT = Math.max(run.mohHard ? 3.2 : 2, (run.mohHard ? 6 : 4.5) - level * 0.25) / Math.min(2, Math.sqrt(players.length));
   }
 
   // things that bend your shots: Vortex enemies, and THE SINGULARITY (from much further away)
@@ -6580,12 +6632,12 @@ function update(dt) {
       }
       if (q.inv > 0 || dd >= PVP_HITBOX + b.size) continue;
       b.dead = true; burst(b.x, b.y, q.color, 12, 160);
-      if (hurt(q) && b.owner >= 0) { const sh = players.find(o => o.id === b.owner); if (sh) fxText(`P${sh.id + 1} HIT P${q.id + 1}`, q.x, q.y - 30, sh.color, 16, 0.9); }
+      if (hurt(q) && b.owner >= 0) { const sh = players.find(o => o.id === b.owner); if (sh) fxText(`${pname(sh)} HIT ${pname(q)}`, q.x, q.y - 30, sh.color, 16, 0.9); }
       break;
     }
   }
   // a duel ends once every shot of this frame has landed, so two ships going down in the same frame is a draw, not a win for whoever's shot came first
-  if (run.pvp && players.length > 1 && living().length <= 1) { endRun(); return; }
+  if (run.pvp && players.length > 1 && living().length <= 1) { if (players.length === 2) duelRoundOver(); else endRun(); return; }
   updateBlades();
   for (const bo of bosses) {
     if (!bossAlive(bo)) continue;
@@ -6667,7 +6719,7 @@ function update(dt) {
     if (e.elite === 'regen' && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.1 * dt);
     e.t += edt; e.spin += edt * 2; e.flash = Math.max(0, e.flash - dt);
     if (e.abyss && e.y > 24 && e.y < H - 60 && (e.abT = (e.abT ?? 1.5 + Math.random() * 2.5) - edt) <= 0) { // (MOH: a tainted enemy spits aimed ink now and then)
-      e.abT = 2.2 + Math.random() * 2; const tp = nearestPlayer(e.x, e.y);
+      e.abT = run.mohHard ? 4 + Math.random() * 2.5 : 2.2 + Math.random() * 2; const tp = nearestPlayer(e.x, e.y);
       if (tp) { const a = Math.atan2(tp.y - e.y, tp.x - e.x), sp = 205 + Math.min(60, level * 6); eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 5, color: ABYSS_INK }); }
     }
     e.healFx = Math.max(0, (e.healFx || 0) - dt); e.guardedT = Math.max(0, (e.guardedT || 0) - dt);
@@ -10305,6 +10357,11 @@ function drawWorld() {
     if (p.dashT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, p.dashT / DUEL.dashIF) * 0.6; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, TAU); ctx.stroke(); ctx.restore(); }
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x, p.y, PVP_HITBOX, 0, TAU); ctx.fill();
   }
+  if (run?.pvp && run.pvpBreak > 0 && players.length > 1) { // a duel between rounds: the round, who took the last one, and the score
+    const last = run.pvpLast >= 0 ? `${pname(players.find(p => p.id === run.pvpLast))} took round ${(run.pvpRound || 2) - 1}` : `round ${(run.pvpRound || 2) - 1} was a draw`;
+    title(`ROUND ${run.pvpRound || 1}`, H * 0.4, '#ffd23d', 46);
+    fitText(`${last}  ·  ${players.map(p => run.pvpWins?.[p.id] || 0).join(' – ')}`, H * 0.4 + 42, 16, '#dfe8ff', 'bold');
+  }
   for (const p of players) drawPet(p);
   drawTeamUi();
   drawBossFx('over');
@@ -10431,7 +10488,7 @@ function drawHUD() {
   ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui';
   ctx.fillText(score.toLocaleString(), 16, 14);
   ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
-  ctx.fillText(`${run.pvp ? (mode === 2 ? 'DUEL   ' : 'PvP ARENA   ') : mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
+  ctx.fillText(`${run.pvp ? (mode === 2 ? `DUEL · ROUND ${run.pvpRound || 1}   ` : 'PvP ARENA   ') : mode > 1 ? `${mode}P CO-OP   ` : ''}${run.endless ? `ENDLESS C${run.cycle}   ` : ''}${run.rush ? `BOSS RUSH ${bossCount}/${run.bossOrder.length}` : `${run.moh ? 'DEPTH' : 'SECTOR'} ${level}`} · ${curZone().name}   BEST ${bestOf(mode, runKind()).toLocaleString()}   ● ${run.coins || 0}${run.pinkCoins && !run.dokiMet ? `   ♥ ${run.pinkCoins}/${PINK_NEED}` : ''}`, 16, 42, Math.max(100, W - 156)); // (squeezed on narrow screens, clear of the hearts)
   if (combo > 1) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 16px system-ui'; ctx.fillText(`x${combo} COMBO`, 16, 62); }
   // active endless mutators
   const muts = MUTATORS.filter(m => mut(m.id)).map(m => m.name + (mut(m.id) > 1 ? ` ×${mut(m.id)}` : ''));
@@ -10860,7 +10917,7 @@ function title(text, y, color = '#ff3df2', size = 72) {
 // ---------- THE ABYSS leaves its mark: lose to it, and the main menu stays haunted until you finally beat it ----------
 // Eyes open in the dark around the menu and follow your mouse, ink drips down from the top, a heartbeat thumps, the title
 // glitches (sometimes into something else), and the subtitle whispers. It gets worse the more times you lose to it.
-const markLv = () => (state === 'menu' && runType === 'moh') ? 1 : meta.abyssMark ? Math.min(1, 0.45 + 0.15 * Math.max(0, (meta.abyssLosses | 0) - 1)) : 0;
+const markLv = () => (state === 'menu' && isMohType()) ? 1 : meta.abyssMark ? Math.min(1, 0.45 + 0.15 * Math.max(0, (meta.abyssLosses | 0) - 1)) : 0;
 const MENU_WHISPERS = ['it\'s still waiting', 'come back', 'you left me in the dark', 'we remember you', 'it sees you', 'why did you run'];
 const marks = { eyes: [], eyeT: 2.5, word: null, wordT: 5, glitch: 0, glitchT: 3, glitchWord: false, beat: 0, beatT: 4, drips: [] };
 function markAbyss() {
@@ -10935,7 +10992,7 @@ function drawGlitchTitle(y) {
 function drawMenu() {
   const top = Math.max(160, H / 2 - 170), haunted = markLv() > 0;
   drawMenuMarks();
-  if (runType === 'moh') drawMohTitle(top - 90); else if (haunted && marks.glitch > 0) drawGlitchTitle(top - 90); else title('PROJECT-ND', top - 90);
+  if (isMohType()) drawMohTitle(top - 90); else if (haunted && marks.glitch > 0) drawGlitchTitle(top - 90); else title('PROJECT-ND', top - 90);
   if (haunted && marks.word) { // the subtitle whispers instead
     ctx.save(); ctx.translate((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2); ctx.globalAlpha = Math.min(1, marks.word.t * 2, (2.4 - marks.word.t) * 2);
     fitText(marks.word.text, top - 40, 16, '#ff1f3d', 'italic'); ctx.restore();
@@ -10943,8 +11000,8 @@ function drawMenu() {
     const lv = meta.rush.medal | 0, md = RUSH_MEDALS[lv], g = fmtTime(RUSH_MEDALS[3].under), s = fmtTime(RUSH_MEDALS[2].under);
     fitText(lv ? `${md.icon} Your best Boss Rush: ${fmtTime(meta.rush.best || 0)}${lv < 3 ? `  ·  🥇 gold needs under ${g}` : '  ·  gold medal won!'}`
       : `Boss Rush medals:  🥇 under ${g}  ·  🥈 under ${s}  ·  🥉 any clear`, top - 40, 14, lv ? md.color : '#c9b46a', 'bold');
-  } else if (runType === 'pvp') fitText(`⚔ DUEL: 1 v 1, same ship for everyone. Dash and reflect your way past their spells. No enemies${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
-  else if (runType === 'moh') fitText(`✋ MOH: 2 lives, brutal enemies and bosses, and hands from the dark${bestOf(1, 'moh') ? `  ·  best ${bestOf(1, 'moh').toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold');
+  } else if (runType === 'pvp') fitText(`⚔ DUEL, best of three: SOLO is you vs the CPU. Dash and reflect past their spells${bestOf(mode || 2, 'pvp') ? `  ·  best ${bestOf(mode || 2, 'pvp').toLocaleString()}` : ''}`, top - 40, 14, '#ffd23d', 'bold');
+  else if (isMohType()) { const mk = runType === 'mohHard' ? 'mohHard' : 'moh', mb = bestOf(1, mk); fitText(`✋ ${runType === 'mohHard' ? 'MOH HARD' : 'MOH BRUTAL'}: ONE life, enemies and bosses, and hands from the dark${mb ? `  ·  best ${mb.toLocaleString()}` : ''}`, top - 40, 14, '#ff4a5a', 'bold'); }
   else fitText('A roguelite neon shooter', top - 40, 16, '#9ab');
   const bw = Math.min(280, W - 32), bx = (W - bw) / 2, bh = 42, gap = 50;
   // run type toggle: Standard (win by destroying THE ABYSS) or Endless (cycles + stacking mutators), and the curses for the run
@@ -11614,7 +11671,7 @@ function drawOver() {
     [`Score ${score.toLocaleString()}  ·  Best ${bestOf(mode, runKind()).toLocaleString()}${run.endless ? ' (Endless)' : run.rush ? ' (Boss Rush)' : ''}`, '#cde', 18],
     [run.victory ? `${run.rush ? `All ${run.bossKills} bosses defeated` : 'THE ABYSS destroyed'}  ·  +◆ ${VICTORY_BONUS} victory bonus`
       : run.rush ? `Boss Rush: defeated ${run.bossKills} of ${run.bossOrder.length} bosses`
-      : run.pvp ? (run.pvpWinner >= 0 ? (mode === 2 ? `P${run.pvpWinner + 1} wins the duel` : `P${run.pvpWinner + 1} is the last ship flying`) : 'Both went down together')
+      : run.pvp ? (run.pvpWinner >= 0 ? (mode === 2 ? `${pname(players.find(p => p.id === run.pvpWinner))} wins the match  ·  ${players.map(p => run.pvpWins?.[p.id] || 0).join(' – ')}` : `P${run.pvpWinner + 1} is the last ship flying`) : 'Both went down together')
       : run.endless ? `Reached cycle ${run.cycle}, sector ${level}  ·  Bosses defeated ${run.bossKills}`
       : `Reached sector ${level}  ·  Bosses defeated ${run.bossKills}`, run.victory ? '#ffe93d' : '#9ab', 14],
     [`+◆ ${run.earned} shards${curseBonus() ? `  (🌀 +${Math.round(curseBonus() * 100)}% from TURBULENCE)` : ''}   (total ◆ ${meta.shards})`, '#ffe93d', 18],
@@ -13042,7 +13099,7 @@ function updateBackground(dt) {
   const z = curZone(), wk = warpK();
   let target = z.tints[0];
   if (inRun()) target = wk > 0.3 && run.warp ? zoneDef(run.warp.to).color : bosses.length ? bosses[0].color : z.tints[(level - 1) % z.tints.length];
-  if (state === 'menu' && runType === 'moh') target = '#3a0612'; // (MOH picked: the menu turns into the abyss)
+  if (state === 'menu' && isMohType()) target = '#3a0612'; // (MOH picked: the menu turns into the abyss)
   const t = hexRgb(target), dim = bosses.length ? 0.5 : wk > 0.3 ? 0.6 : 1, k = Math.min(1, dt * (wk > 0 ? 3 : 1.2));
   for (let i = 0; i < 3; i++) bgTint[i] += (t[i] * dim - bgTint[i]) * k;
 
@@ -13578,7 +13635,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.8';
+const BUILD = '2026.10.08.9';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -13857,6 +13914,7 @@ function packSnap() {
     sf: r2(screenFlash), sh: Math.round(shake), w: W, h: H,
     rs: { maxLives: s.maxLives, drones: s.drones, shots: s.shots, blades: s.blades, bulletSize: s.bulletSize, speed: s.speed, abCd: s.abCd, linkPower: s.linkPower },
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
+    pw: run.pvpWins || [], pr: run.pvpRound || 1, pb: r2(run.pvpBreak || 0), pn: run.pvpLast ?? -1, // (a duel's rounds)
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
       r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0, r2(p.reflectT || 0), r2(p.dashT || 0), r1(p.reflectCd || 0)]),
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
@@ -14201,6 +14259,7 @@ function applySnap(s) {
   run.eyes = Array.isArray(s.ey) ? s.ey.slice(0, 6).filter(h => Array.isArray(h) && h.length >= 5 && h.slice(0, 5).every(Number.isFinite)).map(h => h.slice(0, 5)) : []; run.darkK = num(s.dk, 0, 1, 0); // (MOH's eyes and dark)
   run.sentries = Array.isArray(s.sn) ? s.sn.slice(0, 8).filter(a => Array.isArray(a) && a.length >= 6 && a.slice(0, 5).every(Number.isFinite)).map(a => ({ x: a[0], y: a[1], age: a[2], life: Math.max(1, a[3]), owner: a[4], tier: a[5] ? 1 : 0 })) : []; // (a SUMMONER's sentries)
   Object.assign(run, { owned: s.ow, cycle: s.cy, mut: s.mu, bossKills: s.bk, victory: !!s.vi, endless: !!s.ed, rerolls: s.rr, wonStandard: !!s.ws });
+  if (run.pvp) Object.assign(run, { pvpWins: Array.isArray(s.pw) ? s.pw.slice(0, 16).map(n => num(n, 0, 99, 0)) : [], pvpRound: num(s.pr, 1, 99, 1), pvpBreak: num(s.pb, 0, 9, 0), pvpLast: num(s.pn, -1, 99, -1) }); // (a duel's rounds)
   s.pl.forEach((a, i) => {
     const p = players[i]; if (!p) return;
     const mine = isMine(i), wasAlive = p.alive;
