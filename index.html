@@ -13840,7 +13840,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.19';
+const BUILD = '2026.10.08.20';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -14031,7 +14031,7 @@ function onHostData(conn, d) {
   if (Array.isArray(d.in) && p && p.alive && state === 'play') { // queue it on this ship's timeline (see smoothRemotePlayers)
     const [x, y, tilt, thrust, ts] = d.in;
     if (typeof ts !== 'number' || !Number.isFinite(ts)) return;
-    p.toff = clockOffset(p.toff, ts); (p.track ||= newTrack());
+    p.toff = clockOffset(p.clk ||= {}, ts); (p.track ||= newTrack());
     trackPush(p.track, ts, [num(x, p.r, W - p.r, p.x), num(y, p.r, H - p.r, p.y), num(tilt, -1, 1, 0), num(thrust, 0, 1, 0)]); // (inside the arena)
   }
   if (state === 'upgrade' && offer && okIdx(d.pick, offer.cards.length)) pickUpgrade(d.pick);
@@ -14278,7 +14278,7 @@ function onGuestData(d) {
     if (RUN_TYPES.includes(st.runType)) runType = st.runType;
     net.hostW = st.w; net.hostH = st.h;
     net.playing = true; net.rewarded = false; resize();
-    Object.assign(net, { soff: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map(), lastSn: 0, asm: {}, lastArr: 0, gapAvg: undefined, gapDev: 0 });
+    Object.assign(net, { soff: undefined, clk: undefined, ptr: [], etr: new Map(), btr: new Map(), bossStatic: new Map(), lastSn: 0, asm: {}, lastArr: 0, gapAvg: undefined, gapDev: 0 });
     const cos = Array.isArray(st.cos) ? st.cos : [];
     start(n, Array.from({ length: n }, (_, i) => cleanShip(st.ships[i])), Array.from({ length: n }, (_, i) => cleanCos(cos[i])));
     players.forEach((p, i) => p.remote = !isMine(i));
@@ -14443,16 +14443,23 @@ function trackAt(tr, rt) {
   }
   return pts[0].slice(1);
 }
-// estimate (other clock) -> (my clock): the smallest (arrival - send time) seen, relaxing slowly
-function clockOffset(prev, ts) {
-  const o = performance.now() - ts;
-  return prev === undefined || o < prev ? o : prev + 0.25;
+// estimate (other clock) -> (my clock): the smallest (arrival - send time) seen in the last few seconds. (A window, not
+// an all-time minimum: when the connection slows down, the estimate catches up within a few seconds, instead of the view
+// running ahead of its data for a long time. hold: keeps the recent samples)
+const CLOCK_WINDOW = 4000;
+function clockOffset(hold, ts) {
+  const now = performance.now(), q = hold.q ||= [];
+  q.push([now, now - ts]);
+  while (q.length > 1 && now - q[0][0] > CLOCK_WINDOW) q.shift();
+  let best = q[0][1];
+  for (const s of q) if (s[1] < best) best = s[1];
+  return best;
 }
 
 function applySnap(s) {
   if (!okSize(s.w, s.h)) return;
   if (s.w !== net.hostW || s.h !== net.hostH) { net.hostW = s.w; net.hostH = s.h; resize(); }
-  net.soff = clockOffset(net.soff, s.ts); net.lastTs = s.ts;
+  net.soff = clockOffset(net.clk ||= {}, s.ts); net.lastTs = s.ts;
   const arr = performance.now();
   if (net.lastArr) { const gp = arr - net.lastArr; net.gapAvg = (net.gapAvg ?? gp) * 0.9 + gp * 0.1; net.gapDev = (net.gapDev || 0) * 0.9 + Math.abs(gp - net.gapAvg) * 0.1; }
   net.lastArr = arr; net.interp = Math.max(90, Math.min(300, (net.gapAvg || 50) * 1.6 + (net.gapDev || 0) * 3 + 30)); // (bumpier connection: draw a little further back)
