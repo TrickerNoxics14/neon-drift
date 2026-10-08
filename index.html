@@ -482,8 +482,8 @@ function wantedSong() {
   if (state === 'jukebox') return music.pick || 'menu';
   if (!run || !(inRun() || state === 'over')) return MENU_SCREENS.includes(state) ? 'hangar' : state === 'menu' && runType === 'moh' ? 'abyss' : 'menu';
   if (state === 'over') return run.victory ? 'victory' : 'gameover';
-  if (state === 'shop') return 'shop';
-  if (state === 'route') return 'starmap';
+  if (state === 'shop') return run.moh ? 'abyss' : 'shop'; // (MOH: THE ABYSS's song keeps playing in the shop)
+  if (state === 'route') return run.moh ? 'abyss' : 'starmap'; // (and on the route map)
   // bosses (and their warnings) bring their own songs: the secret boss, THE ABYSS, and team fights
   const warn = bossWarn > 0 ? (net.role === 'guest' ? net.warnInfo || {} : encounterInfo(bossCount)) : null;
   if (bosses.some(b => b.gimmick === 'doki') || warn?.doki) return 'doki';
@@ -13469,7 +13469,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.2';
+const BUILD = '2026.10.08.3';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
