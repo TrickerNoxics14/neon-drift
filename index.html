@@ -1499,7 +1499,6 @@ addEventListener('keydown', e => {
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   ensureAudio();
-  if (state === 'code') { handleCodeKey(e); return; } // (typing a code: every key is a letter, not a hotkey)
   if (net.role === 'guest' && state === 'play' && menuOpen && pauseView === 'cheats' && !net.cheatOk && (/^[a-zA-Z0-9]$/.test(e.key) || e.key === 'Backspace')) { // (typing the cheat code)
     let t = net.cheatTyped || '';
     t = e.key === 'Backspace' ? t.slice(0, -1) : (t + e.key.toLowerCase()).slice(0, CHEAT_LEN);
@@ -10984,54 +10983,17 @@ function drawBuildPanel(x, y, w) {
   }
 }
 
-// ENTER A CODE: type a code (no hotkeys while you do), Enter to confirm, Esc to go back. "i am the man" unlocks everything
-let codeTyped = '';
-const CODE_WORDS = 'i am the man';
-function handleCodeKey(e) {
-  if (e.code === 'Escape') { go('settings'); return; }
-  if (e.code === 'Backspace') { codeTyped = codeTyped.slice(0, -1); return; }
-  if (e.code === 'Enter') { checkCode(); return; }
-  if (e.key && e.key.length === 1 && /[a-z0-9 ]/i.test(e.key)) codeTyped = (codeTyped + e.key.toLowerCase()).slice(0, 24);
-}
-function checkCode() {
-  if (codeTyped.trim().replace(/\s+/g, ' ') === CODE_WORDS) { unlockEverything(); codeTyped = ''; go('settings'); return; }
-  codeTyped = ''; beep(110, 0.15, 'square', 0.05); showToast('NOT A CODE');
-}
-// everything in the game: every hangar upgrade at its top level, every ship at MK V with full mastery, every skin, trail, bullet
-// color, kill effect and pet, every trophy, the whole boss gallery to practice, and gold in Boss Rush. Shards too
-function unlockEverything() {
-  meta.shards = Math.max(meta.shards, 99999);
-  for (const it of META_ITEMS) meta.lv[it.id] = it.costs.length;
-  for (const s of SHIPS) { meta.ships[s.id] = true; meta.ships3[s.id] = 5; meta.mastery[s.id] = MASTERY_XP[MASTERY_MAX - 1]; }
-  for (const c of COSMETICS) meta.cos.owned[c.id] = true;
-  for (const a of ACHIEVEMENTS) meta.ach[a.id] ||= Date.now();
-  meta.galleryCheat = true;
-  meta.rush.medal = 3; meta.rush.best = RUSH_MEDALS[3]?.under || meta.rush.best || 0;
-  saveMeta(); beep(660, 0.3, 'triangle', 0.08, 660); showToast('ALL UNLOCKED!', 3);
-}
-function drawCode() {
-  const top = Math.max(120, H / 2 - 200), bw = Math.min(360, W - 32), bx = (W - bw) / 2;
-  title('ENTER A CODE', top, '#ffe93d', 44);
-  fitText('Type it, then press Enter. Esc goes back', top + 40, 14, '#9ab');
-  panel(bx, top + 64, bw, 64, '#ffe93d', true);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.font = 'bold 26px system-ui';
-  const blink = Math.floor(performance.now() / 500) % 2 ? '_' : ' ';
-  ctx.fillText(codeTyped + blink, W / 2, top + 96);
-  button('CONFIRM  [Enter]', bx, top + 150, bw, 44, '#5dff7a', checkCode);
-  button('BACK  [Esc]', bx, top + 206, bw, 40, '#9ab', () => go('settings'));
-}
 function drawSettings() {
   title('SETTINGS', 80, '#7df9ff', 52);
   const contentTop = H < 700 ? 124 : 130, bw = Math.min(280, W - 32);
   const toggleEnd = contentTop + Math.ceil((SETTING_LIST.length + 1) / (W >= 640 ? 2 : 1)) * ((W >= 640 ? 42 : 38) + 8);
-  const contentBottom = toggleEnd + 162;
+  const contentBottom = toggleEnd + 112;
   menuScrollMax = Math.max(0, contentBottom - (H - 12));
   menuScroll.settings = clampMenuScroll('settings');
   ctx.save(); ctx.beginPath(); ctx.rect(0, 112, W, H - 112); ctx.clip(); ctx.translate(0, -menuScroll.settings);
   const y = settingsButtons(contentTop);
   button('MUSIC ROOM  ♪  [J]', (W - bw) / 2, y + 10, bw, 42, '#c08dff', () => go('jukebox'));
-  button('ENTER A CODE', (W - bw) / 2, y + 60, bw, 42, '#ffe93d', () => { codeTyped = ''; go('code'); });
-  button('BACK  [Esc]', (W - bw) / 2, y + 110, bw, 42, '#9ab', () => go('menu'));
+  button('BACK  [Esc]', (W - bw) / 2, y + 60, bw, 42, '#9ab', () => go('menu'));
   ctx.restore();
   if (menuScrollMax > 0) {
     ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(W - 8, 116, 3, H - 132);
@@ -13802,7 +13764,6 @@ function draw() {
   else if (state === 'online') drawOnline();
   else if (state === 'browse') drawBrowse();
   else if (state === 'joinCode') drawJoin();
-  else if (state === 'code') drawCode();
   else if (state === 'lobby') drawLobby();
   else if (state === 'over') drawOver();
   if (state === 'play') { drawAbyssGlitch(); const cb = abyssCine(); if (cb) drawAbyssIntro(cb); } // (THE ABYSS's entrance covers everything)
@@ -13865,7 +13826,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.08.16';
+const BUILD = '2026.10.08.15';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
