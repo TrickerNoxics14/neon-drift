@@ -3681,7 +3681,7 @@ function bombBlast(b) {
   b.blown = b.dead = true;
   const s = run.s, R = b.blast || 70;
   for (const e of enemies) if (!e.dead && !TYPES[e.type].ghost && Math.hypot(e.x - b.x, e.y - b.y) < R + e.r) { e.lastBy = b.owner; damageEnemy(e, b.dmg, 'splash'); }
-  for (const bo of bosses) if (bossAlive(bo) && Math.hypot(bo.x - b.x, bo.y - b.y) < R + bo.r) hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y, b.owner);
+  for (const bo of bosses) if (bossAlive(bo) && Math.hypot(bo.x - b.x, bo.y - b.y) < R + bo.r) hitBoss(bo, b.dmg * s.bossDmg, b.x, b.y, b.owner);
   if (b.mega) { // MEGATON: it blows away the enemy bullets around it too (every one on the screen, with the Payload card)
     for (const e of eBullets) if (b.wipe || Math.hypot(e.x - b.x, e.y - b.y) < R) e.dead = true;
     screenFlash = Math.max(screenFlash, 0.4);
@@ -3716,7 +3716,7 @@ function updateBlades() {
       if (s.stormHalo && Math.random() < 0.5) chainLightning(x, y, 3, dmg); // Storm Halo evolution
     }
     for (const b of eBullets) if (!b.dead && b.fuse === undefined && Math.hypot(b.x - x, b.y - y) < (b.r || 5) + 9) { b.dead = true; burst(b.x, b.y, b.color || '#ff4d4d', 5, 100); }
-    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg * bondMult(bo, p.id), x, y, p.id); }
+    for (const bo of bosses) if ((bo.bladeCd || 0) < time && Math.hypot(bo.x - x, bo.y - y) < bo.r + 9 && bossAlive(bo)) { bo.bladeCd = time + 0.3; hitBoss(bo, dmg * s.bossDmg, x, y, p.id); }
   }
 }
 
@@ -3729,7 +3729,7 @@ function phoenixBlast(p) {
   for (const b of eBullets) burst(b.x, b.y, b.color || '#ff8080', 2, 80);
   eBullets = []; lasers = [];
   for (const e of enemies) damageEnemy(e, s.dmg * 8, 'splash');
-  for (const bo of [...bosses]) hitBoss(bo, s.dmg * 20 * s.bossDmg);
+  for (const bo of [...bosses]) hitBoss(bo, s.dmg * 20 * s.bossDmg, undefined, undefined, p.id);
   screenFlash = 0.8; shake = 25;
   fxRing(p.x, p.y, 10, Math.max(W, H), 0.8, '#ffb13d', 8);
   burst(p.x, p.y, '#ffb13d', 120, 600); burst(p.x, p.y, '#ffffff', 60, 400);
@@ -6947,6 +6947,7 @@ function hitBoss(b, dmg, fx, fy, by) { // (by: the player who hit it, for the re
     if (b.shieldHit <= 0) beep(1500, 0.04, 'triangle', 0.02);
     b.shieldHit = 0.12; return false;
   }
+  if (by !== undefined) dmg *= bondMult(b, by); // (a quartet boss takes full damage only from its own player, whatever the weapon: the rest barely scratch it)
   const g = GIMMICKS[b.gimmick];
   if (g && b.entered) {
     dmg *= g.dmg?.(b, fx, fy) ?? 1;
@@ -7386,9 +7387,9 @@ function update(dt) {
         continue;
       }
       if (b.bomb) { if (hitsWyrmBody(bo, b) || distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) < bo.r + b.size) bombBlast(b); continue; } // (BOMBER)
-      if (hitsWyrmBody(bo, b)) { b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner) * 0.6, undefined, undefined, b.owner); if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // body: 60%
+      if (hitsWyrmBody(bo, b)) { b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * 0.6, undefined, undefined, b.owner); if (Math.random() < 0.3) burst(b.x, b.y, '#ffd0a0', 3, 120); continue; } // body: 60%
       if (distToSeg(bo.x, bo.y, b.px, b.py, b.x, b.y) >= bo.r + b.size) continue;
-      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg * bondMult(bo, b.owner), b.x, b.y, b.owner);
+      b.dead = true; hitBoss(bo, b.dmg * s.bossDmg, b.x, b.y, b.owner);
       if ((b.missile || s.explosive) && bossFx.rings.length < 40) fxRing(b.x, b.y, 4, 30, 0.2, '#ffb13d', 2);
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
@@ -14775,7 +14776,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.13.2';
+const BUILD = '2026.10.13.3';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
