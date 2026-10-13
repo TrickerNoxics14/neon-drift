@@ -1854,7 +1854,7 @@ const ZERO_REBOOT = 1.6, LAG_T = 0.6, LAG_SKIP = 0.55, ZERO_STOLEN_T = 1.2;
 // what ZERO can steal: every other boss's attacks, and (in FATAL ERROR) their rage moves, each with whose it was. A few are
 // left out because they only work with their owner's own machinery (SONNET's loop and booms, THE ABYSS's tentacles...)
 // (also left out: the plain moves lots of bosses share, like rings and spirals, which wouldn't look stolen at all)
-const ZERO_STEAL_SKIP = new Set(['loop', 'boom', 'steal', 'volley', 'phase', 'flak', 'fortress', 'ring', 'fan', 'spiral', 'mines', 'blink', 'rain', 'wave', 'choir_chant', 'choir_clang', 'choir_drone', 'choir_hum', 'choir_pipes', 'choir_refrain', 'choir_smoke', 'choir_sparks', 'choir_swing', 'choir_tine', 'choir_toll', 'choir_wax', 'octet_agni_ember', 'octet_agni_forge', 'octet_anu_deluge', 'octet_anu_sow', 'octet_hel_eclipse', 'octet_hel_wake', 'octet_janus_oath', 'octet_janus_reflect', 'octet_khonsu_eclipse', 'octet_khonsu_halo', 'octet_raijin_bolt', 'octet_raijin_forge', 'octet_tethys_drop', 'octet_tethys_tide', 'octet_tyr_hammer', 'octet_tyr_oath']), ZERO_RAGE_SKIP = new Set(['wipe']);
+const ZERO_STEAL_SKIP = new Set(['loop', 'boom', 'steal', 'volley', 'phase', 'flak', 'fortress', 'ring', 'fan', 'spiral', 'mines', 'blink', 'rain', 'wave', 'choir_chant', 'choir_clang', 'choir_drone', 'choir_hum', 'choir_pipes', 'choir_refrain', 'choir_smoke', 'choir_sparks', 'choir_swing', 'choir_tine', 'choir_toll', 'choir_wax', 'octet_agni_ember', 'octet_agni_forge', 'octet_anu_deluge', 'octet_anu_sow', 'octet_hel_eclipse', 'octet_hel_wake', 'octet_janus_oath', 'octet_janus_reflect', 'octet_khonsu_eclipse', 'octet_khonsu_halo', 'octet_raijin_bolt', 'octet_raijin_forge', 'octet_tethys_drop', 'octet_tethys_tide', 'octet_tyr_hammer', 'octet_tyr_oath', 'quartet_boreas_gust', 'quartet_boreas_rime', 'quartet_sirocco_dune', 'quartet_sirocco_gust', 'quartet_typhon_eye', 'quartet_typhon_gust', 'quartet_zephyr_crosswind', 'quartet_zephyr_gust']), ZERO_RAGE_SKIP = new Set(['wipe']);
 // ...and their mechanics: every so often ZERO runs another boss's whole mechanic on top of its own for a while
 const ZERO_MECHANICS = [ // [mechanic, whose it is, what it's called]
   ['pylons', 'THE WARDEN', 'PYLONS'], ['overheat', 'HEXCORE', 'OVERHEAT'], ['halo', 'NULL SERAPH', 'MIRROR HALO'],
@@ -1973,14 +1973,15 @@ const TEAMS = [
       { name: 'RUBY',     style: 'warden',  shape: 'ruby', color: '#ff4d6d', sides: 5, r: 40, hpShare: 0.45, patterns: ['fan', 'ring'] },
       { name: 'EMERALD',  style: 'hive',    shape: 'emerald', color: '#5dff9d', sides: 4, r: 40, hpShare: 0.45, patterns: ['spiral', 'mines'] },
       { name: 'SAPPHIRE', style: 'storm',   shape: 'sapphire', color: '#5d9dff', sides: 7, r: 40, hpShare: 0.45, patterns: ['laser', 'ring'] }] },
-  // 4-player only: each boss is bonded to one player (matching colors) and only takes full damage from them
+  // 4-player only: four winds, one per player. Each hunts its own player. They take turns to gust: a gust is a wind that blows toward that player for 3 seconds
+  // while a gust blows, every shot fired by the other winds is pushed along by it, so read the wind before you move
   { name: 'THE QUARTET', kind: 'quartet', quad: true,
-    hint: 'One boss per player! Your own color deals full damage — everyone else barely scratches it.',
+    hint: 'THE QUARTET: four winds, one per player. Your own color deals full damage. The winds take turns to gust, and while one blows, the shots of the other winds are carried toward its player!',
     members: [
-      { name: 'TIDE',  bond: 0, style: 'seraph',  shape: 'shell', color: '#7df9ff', sides: 6, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['wave', 'fan'] },
-      { name: 'GALE',  bond: 1, style: 'hexcore', shape: 'swirl', color: '#9dff5d', sides: 5, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['spiral', 'fan'] },
-      { name: 'EMBER', bond: 2, style: 'storm',   shape: 'flame',  color: '#ff9a3d', sides: 7, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['ring', 'mines'] },
-      { name: 'VOID',  bond: 3, style: 'phantom', shape: 'ring', color: '#c08dff', sides: 8, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['laser', 'fan'] }] },
+      { name: 'BOREAS', bond: 0, style: 'quartet_boreas', shape: 'quartet_boreas', color: '#7df9ff', sides: 6, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['quartet_boreas_gust', 'quartet_boreas_rime'] },
+      { name: 'TYPHON', bond: 1, style: 'quartet_typhon', shape: 'quartet_typhon', color: '#9dff5d', sides: 5, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['quartet_typhon_gust', 'quartet_typhon_eye'] },
+      { name: 'SIROCCO', bond: 2, style: 'quartet_sirocco', shape: 'quartet_sirocco', color: '#ff9a3d', sides: 7, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['quartet_sirocco_gust', 'quartet_sirocco_dune'] },
+      { name: 'ZEPHYR', bond: 3, style: 'quartet_zephyr', shape: 'quartet_zephyr', color: '#c08dff', sides: 8, r: 34, hpShare: 0.4, atkMult: 2.6, patterns: ['quartet_zephyr_gust', 'quartet_zephyr_crosswind'] }] },
   // six voices in a ring, and one spotlight: only the voice in the spotlight can be hurt, and the light moves on every few seconds
   // each voice has a HERD form (unlit: it drives players toward the light) and a SOLO form (lit: it strikes where they end up)
   { name: 'THE CONGREGATION', kind: 'choir',
@@ -5032,6 +5033,148 @@ const BOSS_ATTACKS = {
       bossShot(b, Math.atan2(target.y - b.y, target.x - b.x), 200, 5);
     }
     b.atkT = 0.5 * rate;
+  },
+  // BOREAS, the cold north wind: its gust fans out frost shards that freeze in the air, then sink like snow
+  quartet_boreas_gust(b, enraged, rate, target) {
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, dl = Math.hypot(dx, dy) || 1;
+    const quad = encounter?.kind === 'quartet', order = bosses.filter(o => bossAlive(o) && o.entered);
+    const blows = quad && b.patternT >= 2.4 && time >= (encounter.windUntil || 0) && order.length > 0 && order[(encounter.windTurn || 0) % order.length] === b; // (the winds take turns: only the next one in line gusts, never over a gust, and late in its window so the wind is still blowing when the riders fire)
+    if (blows) {
+      encounter.wind = { x: dx / dl * 90, y: dy / dl * 90, from: b.slot }; encounter.windUntil = time + 3; encounter.windTurn = (encounter.windTurn || 0) + 1;
+      fxRing(b.x, b.y, b.r, b.r * 3.2, 0.6, b.color, 4); beep(120, 0.35, 'sine', 0.06, -60);
+    }
+    const w = quad && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null; // (another wind's gust carries this shot)
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const a = Math.atan2(dy, dx), n = enraged ? 7 : 5;
+    for (let i = 0; i < n; i++) {
+      const s = a + (i - (n - 1) / 2) * 0.16, c = Math.cos(s), sn = Math.sin(s);
+      eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * 250 * BOSS_BULLET_SPEED, vy: sn * 250 * BOSS_BULLET_SPEED, r: 5, color: b.color, src: b, drag: 2, sink: 55 * BOSS_BULLET_SPEED, push: carry() });
+    }
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
+    if (blows) fxText(`GUST ${dir}`, b.x, b.y - b.r - 26, b.color, 22, 1.1); // (a gust that isn't blowing says nothing)
+    b.atkT = 0.8 * rate;
+  },
+  // BOREAS: a halo of rime that freezes where it is, hangs round the boss, then sinks down the arena like snow (the other winds carry it)
+  quartet_boreas_rime(b, enraged, rate, target) {
+    const w = encounter?.kind === 'quartet' && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null;
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const n = enraged ? 12 : 10, off = Math.random() * TAU;
+    for (let i = 0; i < n; i++) {
+      const a = off + i / n * TAU, c = Math.cos(a), sn = Math.sin(a);
+      eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * 200 * BOSS_BULLET_SPEED, vy: sn * 200 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b, drag: 3.2, sink: 60 * BOSS_BULLET_SPEED, push: carry() });
+    }
+    fxText('RIME', b.x, b.y - b.r - 26, b.color, 22, 0.9);
+    b.atkT = 0.7 * rate; beep(1500, 0.12, 'triangle', 0.035, -500);
+  },
+  // TYPHON, the whirling wind: its gust sends two spiral arms of shots, and each arm curls the way it turns
+  quartet_typhon_gust(b, enraged, rate, target) {
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, dl = Math.hypot(dx, dy) || 1;
+    const quad = encounter?.kind === 'quartet', order = bosses.filter(o => bossAlive(o) && o.entered);
+    const blows = quad && b.patternT >= 2.4 && time >= (encounter.windUntil || 0) && order.length > 0 && order[(encounter.windTurn || 0) % order.length] === b; // (the winds take turns: only the next one in line gusts, never over a gust, and late in its window so the wind is still blowing when the riders fire)
+    if (blows) {
+      encounter.wind = { x: dx / dl * 80, y: dy / dl * 80, from: b.slot }; encounter.windUntil = time + 3; encounter.windTurn = (encounter.windTurn || 0) + 1;
+      fxRing(b.x, b.y, b.r, b.r * 3.2, 0.6, b.color, 4); beep(150, 0.3, 'sine', 0.06, -80);
+    }
+    const w = quad && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null; // (another wind's gust carries this shot)
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const a0 = Math.atan2(dy, dx), per = enraged ? 6 : 5;
+    for (let k = 0; k < 2; k++) {
+      const sg = k ? -1 : 1; // (the two arms curl opposite ways)
+      for (let i = 0; i < per; i++) {
+        const a = a0 + k * Math.PI + (i - 2) * 0.16, c = Math.cos(a), sn = Math.sin(a), sp = (170 + i * 14) * BOSS_BULLET_SPEED;
+        eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * sp, vy: sn * sp, r: 5, color: b.color, src: b, push: carry(-sn * 60 * sg, c * 60 * sg) });
+      }
+    }
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
+    if (blows) fxText(`GUST ${dir}`, b.x, b.y - b.r - 26, b.color, 22, 1.1); // (a gust that isn't blowing says nothing)
+    b.atkT = 0.8 * rate;
+  },
+  // TYPHON: a ring of shots flung out, which the eye of the storm drags back in while they curl round it
+  quartet_typhon_eye(b, enraged, rate, target) {
+    const w = encounter?.kind === 'quartet' && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null;
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const n = enraged ? 12 : 10, off = Math.random() * TAU;
+    for (let i = 0; i < n; i++) {
+      const a = off + i / n * TAU, c = Math.cos(a), sn = Math.sin(a);
+      // (the push pulls each shot back toward the eye and curls it sideways, so it spirals back in as the wind allows)
+      eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * 230 * BOSS_BULLET_SPEED, vy: sn * 230 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b, drag: 0.8, push: carry(-c * 110 - sn * 50, -sn * 110 + c * 50) });
+    }
+    fxText('DRAWN IN', b.x, b.y - b.r - 26, b.color, 22, 0.9);
+    b.atkT = 0.7 * rate; beep(420, 0.2, 'triangle', 0.04, -200);
+  },
+  // SIROCCO, the hot wind: its gust fires a fan of shots that start slow and accelerate away
+  quartet_sirocco_gust(b, enraged, rate, target) {
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, dl = Math.hypot(dx, dy) || 1;
+    const quad = encounter?.kind === 'quartet', order = bosses.filter(o => bossAlive(o) && o.entered);
+    const blows = quad && b.patternT >= 2.4 && time >= (encounter.windUntil || 0) && order.length > 0 && order[(encounter.windTurn || 0) % order.length] === b; // (the winds take turns: only the next one in line gusts, never over a gust, and late in its window so the wind is still blowing when the riders fire)
+    if (blows) {
+      encounter.wind = { x: dx / dl * 110, y: dy / dl * 110, from: b.slot }; encounter.windUntil = time + 3; encounter.windTurn = (encounter.windTurn || 0) + 1;
+      fxRing(b.x, b.y, b.r, b.r * 3.2, 0.6, b.color, 4); beep(200, 0.3, 'sawtooth', 0.04, 160);
+    }
+    const w = quad && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null; // (another wind's gust carries this shot)
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const a = Math.atan2(dy, dx), n = enraged ? 7 : 5;
+    for (let i = 0; i < n; i++) {
+      const s = a + (i - (n - 1) / 2) * 0.14, c = Math.cos(s), sn = Math.sin(s);
+      eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * 120 * BOSS_BULLET_SPEED, vy: sn * 120 * BOSS_BULLET_SPEED, r: 5, color: b.color, src: b, push: carry(c * 160, sn * 160) });
+    }
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
+    if (blows) fxText(`GUST ${dir}`, b.x, b.y - b.r - 26, b.color, 22, 1.1); // (a gust that isn't blowing says nothing)
+    b.atkT = 0.8 * rate;
+  },
+  // SIROCCO: a cluster of sand shots that creep out slowly, then swoop at the player, faster and faster
+  quartet_sirocco_dune(b, enraged, rate, target) {
+    const w = encounter?.kind === 'quartet' && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null;
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, a0 = Math.atan2(dy, dx), n = enraged ? 8 : 6;
+    for (let i = 0; i < n; i++) {
+      const s = a0 + (i - (n - 1) / 2) * 0.12, c = Math.cos(s), sn = Math.sin(s);
+      eBullets.push({ x: b.x + c * b.r * 0.6, y: b.y + sn * b.r * 0.6, vx: c * 60 * BOSS_BULLET_SPEED, vy: sn * 60 * BOSS_BULLET_SPEED, r: 6, color: b.color, src: b, push: carry(c * 190, sn * 190) });
+    }
+    fxText('SWOOP', b.x, b.y - b.r - 26, b.color, 22, 0.9);
+    b.atkT = 0.6 * rate; beep(260, 0.25, 'sawtooth', 0.04, 140);
+  },
+  // ZEPHYR, the steady wind: its gust is one long, straight stream of shots, and the wind holds steady behind it
+  quartet_zephyr_gust(b, enraged, rate, target) {
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, dl = Math.hypot(dx, dy) || 1;
+    const quad = encounter?.kind === 'quartet', order = bosses.filter(o => bossAlive(o) && o.entered);
+    const blows = quad && b.patternT >= 2.4 && time >= (encounter.windUntil || 0) && order.length > 0 && order[(encounter.windTurn || 0) % order.length] === b; // (the winds take turns: only the next one in line gusts, never over a gust, and late in its window so the wind is still blowing when the riders fire)
+    if (blows) {
+      encounter.wind = { x: dx / dl * 60, y: dy / dl * 60, from: b.slot }; encounter.windUntil = time + 3; encounter.windTurn = (encounter.windTurn || 0) + 1;
+      fxRing(b.x, b.y, b.r, b.r * 3.2, 0.6, b.color, 4); beep(200, 0.3, 'sine', 0.05, -100);
+    }
+    const w = quad && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null; // (another wind's gust carries this shot)
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const a = Math.atan2(dy, dx), c = Math.cos(a), sn = Math.sin(a), n = enraged ? 12 : 10;
+    for (let k = 0; k < n; k++) {
+      const d = b.r * 0.6 + k * 24; // (evenly spaced, so the shots form one line)
+      eBullets.push({ x: b.x + c * d, y: b.y + sn * d, vx: c * 300 * BOSS_BULLET_SPEED, vy: sn * 300 * BOSS_BULLET_SPEED, r: 5, color: b.color, src: b, push: carry() });
+    }
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP');
+    if (blows) fxText(`GUST ${dir}`, b.x, b.y - b.r - 26, b.color, 22, 1.1); // (a gust that isn't blowing says nothing)
+    b.atkT = 0.9 * rate;
+  },
+  // ZEPHYR: a line of shots launched where the wind will carry it, so the line bends onto its player as it flies (straight aim when no other wind blows)
+  quartet_zephyr_crosswind(b, enraged, rate, target) {
+    const w = encounter?.kind === 'quartet' && time < (encounter.windUntil || 0) && encounter.wind && encounter.wind.from !== b.slot ? encounter.wind : null;
+    const carry = (px = 0, py = 0) => (w ? [px + w.x, py + w.y] : ((px || py) ? [px, py] : undefined));
+    const hunt = players.find(p => p.id === b.bond && p.alive) || target;
+    const dx = hunt ? hunt.x - b.x : 0, dy = hunt ? hunt.y - b.y : 1, dist = Math.hypot(dx, dy) || 1;
+    const T = Math.max(0.6, dist / (240 * BOSS_BULLET_SPEED)); // (how long the shot takes to reach the player)
+    const wx = w ? w.x : 0, wy = w ? w.y : 0;
+    const vx = (dx - 0.5 * wx * T * T) / T, vy = (dy - 0.5 * wy * T * T) / T, sl = Math.hypot(vx, vy) || 1; // (the launch that lands on the player after the wind has pushed it)
+    const n = enraged ? 9 : 7;
+    for (let k = 0; k < n; k++) {
+      const d = b.r * 0.6 + k * 22;
+      eBullets.push({ x: b.x + vx / sl * d, y: b.y + vy / sl * d, vx, vy, r: 5, color: b.color, src: b, push: carry() });
+    }
+    fxText('CROSSWIND', b.x, b.y - b.r - 26, b.color, 20, 1.0);
+    b.atkT = 0.7 * rate; beep(900, 0.12, 'triangle', 0.04, 200);
   },
 };
 function dokiShot(b, x, y, vx, vy, r, color) { eBullets.push({ x, y, vx, vy, r, color, src: b }); }
@@ -9489,6 +9632,46 @@ const BOSS_SHAPES = {
     ctx.beginPath(); ctx.ellipse(0, -0.25 * r, 0.5 * r, 0.66 * r, 0, 0, TAU); ctx.setLineDash([4, 6]); ctx.stroke(); ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(gx - 0.2 * r, -0.7 * r); ctx.lineTo(gx + 0.1 * r, 0.2 * r); ctx.stroke();
     ctx.restore();
+  } },
+  quartet_boreas: { mode: 'spin', eye: [0, 0, 0.7], path(r) { // BOREAS: a six-armed frost crystal, each arm barbed with side branches
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const c = -Math.PI / 2 + i / 6 * TAU; // (the middle of this arm)
+      for (const [da, rr] of [[-0.52, 0.36], [-0.36, 0.7], [-0.17, 0.5], [0, 1.05], [0.17, 0.5], [0.36, 0.7]]) ctx.lineTo(Math.cos(c + da) * rr * r, Math.sin(c + da) * rr * r);
+    }
+    ctx.closePath();
+  } },
+  quartet_typhon: { mode: 'up', eye: [0, -0.45, 0.8], path(r, b) { // TYPHON: a funnel cloud, its ragged sides whirling as it tapers to a point
+    const t = b?.t || 0, N = 10;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) { const u = i / N, y = -0.95 * r + u * 2.1 * r; ctx.lineTo(-(1 - u) * 0.98 * r + Math.sin(t * 6 + i * 1.7) * 0.14 * r * (1 - u * 0.5), y); }
+    for (let i = N; i >= 0; i--) { const u = i / N, y = -0.95 * r + u * 2.1 * r; ctx.lineTo((1 - u) * 0.98 * r + Math.sin(t * 6 + i * 1.3 + 2) * 0.14 * r * (1 - u * 0.5), y); }
+    ctx.closePath();
+  }, detail(r, b) { // three bands whirl up the funnel
+    const t = b?.t || 0;
+    for (let k = 0; k < 3; k++) {
+      const u = (t * 0.45 + k / 3) % 1, y = -0.8 * r + u * 1.9 * r, f = (y + 0.95 * r) / (2.1 * r), hw = (1 - f) * 0.98 * r;
+      ctx.beginPath(); ctx.moveTo(-hw * 0.9, y); ctx.quadraticCurveTo(0, y + 0.12 * r, hw * 0.9, y); ctx.stroke();
+    }
+  } },
+  quartet_sirocco: { mode: 'up', eye: [-0.2, 0, 0.8], path(r, b) { // SIROCCO: a sand dune, its crest rippling in the heat above a steep slip face
+    const t = b?.t || 0, rp = i => Math.sin(t * 3 + i * 2.1) * 0.05 * r;
+    ctx.beginPath(); ctx.moveTo(-1.1 * r, 0.72 * r);
+    ctx.quadraticCurveTo(-0.55 * r, -0.22 * r, -0.12 * r, -0.5 * r + rp(0));
+    ctx.lineTo(0.08 * r, -0.66 * r + rp(1));
+    ctx.lineTo(0.26 * r, -0.44 * r + rp(2));
+    ctx.quadraticCurveTo(0.8 * r, -0.2 * r, 1.1 * r, 0.72 * r);
+    ctx.closePath();
+  } },
+  quartet_zephyr: { mode: 'up', eye: [0, -0.5, 0.75], path(r, b) { // ZEPHYR: a windsock, its open mouth held wide and its tail streaming out in three flutters
+    const t = b?.t || 0, fl = i => Math.sin(t * 2.2 + i * 2.4) * 0.07 * r;
+    ctx.beginPath(); ctx.moveTo(-0.95 * r, -0.85 * r); ctx.lineTo(0.95 * r, -0.85 * r);
+    ctx.lineTo(0.36 * r, 0.5 * r); ctx.lineTo(0.36 * r + fl(0), 1.02 * r);
+    ctx.lineTo(0.12 * r, 0.72 * r); ctx.lineTo(fl(1), 1.0 * r); ctx.lineTo(-0.12 * r, 0.72 * r);
+    ctx.lineTo(-0.36 * r + fl(2), 1.02 * r); ctx.lineTo(-0.36 * r, 0.5 * r);
+    ctx.closePath();
+  }, detail(r) { // two bands round the sock
+    for (const y of [-0.28, 0.2]) { const hw = (0.95 - (y + 0.85) / 1.35 * 0.59) * r; ctx.beginPath(); ctx.moveTo(-hw, y * r); ctx.lineTo(hw, y * r); ctx.stroke(); }
   } },
 };
 // THE ORACLE's eyelids: closed when it blinks, wider when enraged (and flung open as it transforms)
@@ -14592,7 +14775,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.13.1';
+const BUILD = '2026.10.13.2';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
