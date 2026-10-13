@@ -6416,6 +6416,7 @@ function phantomRejoin(b, fakes, found) {
 // it never uses before then: every `cd` seconds once the last one ends. While a move runs the boss goes 'quiet'
 // (no other attacks) or 'hold's still. A move's state lives in b.special, which online guests get and draw.
 const RAGE_TRANSFORM = 1.6, RAGE_CLEAR = 240; // the transformation's length; its shockwave clears bullets this close
+const BEAST_GROWTH = 0.6; // a solo boss's rage transformation grows it into a big beast: 1.6 times its size, body and hitbox
 const CHAIN_WARN = 0.8, CHAIN_SPIN = 1.05, CHAIN_LIFE = 3.3;          // THE WARDEN
 const MAGMA_LAND = 1.2, MAGMA_POOL = 3, MAGMA_R = 46;                  // HEXCORE
 const CROSS_WARN = 1.1, CROSS_FIRE = 0.35, CROSS_W = 30;               // NULL SERAPH
@@ -6732,6 +6733,11 @@ function updateBoss(b, dt) {
   b.kick = Math.max(0, b.kick - dt * 4);
   b.hitKick = Math.max(0, b.hitKick - dt * 8);
   b.rage = Math.max(0, b.rage - dt);
+  if (b.slot === undefined && !b.final && !b.secret && !b.nemesis && !b.doki) { // THE BEAST: the body and hitbox swell with the transformation
+    if (b.baseR === undefined) b.baseR = b.r;
+    const beastT = b.wasEnraged ? (b.rage > 0 ? 1 - b.rage / RAGE_TRANSFORM : 1) : 0;
+    b.r += (b.baseR * (1 + BEAST_GROWTH * beastT) - b.r) * Math.min(1, dt * 3);
+  }
   b.appear = Math.max(0, b.appear - dt * 3);
   b.shieldHit = Math.max(0, b.shieldHit - dt);
   b.healT = Math.max(0, (b.healT || 0) - dt); b.regenT = Math.max(0, (b.regenT || 0) - dt);
@@ -14799,7 +14805,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.13.4';
+const BUILD = '2026.10.13.5';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -15131,7 +15137,7 @@ const roundDeep = v => typeof v === 'number' ? r2(v) : Array.isArray(v) ? v.map(
   : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, roundDeep(x)])) : v;
 // the parts of a boss that change during a fight; everything else (name, color, shape, attack list...)
 // is only sent when a boss first appears and then once a second, and guests remember it
-const BOSS_DYNAMIC = ['name', 'x', 'y', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
+const BOSS_DYNAMIC = ['name', 'x', 'y', 'r', 'hp', 'max', 't', 'spin', 'flash', 'pattern', 'patternT', 'atkT', 'dying', 'entered', 'charge',
   'downed', 'reviveT', 'shielded', 'shieldHit', 'forceRage', 'intro', 'kick', 'hitKick', 'rage', 'wasEnraged', 'appear', 'look',
   'faceA', 'bigAtk', 'cracks', 'healT', 'regen', 'regenT',
   'guard', 'heat', 'vent', 'haloW', 'haloUp', 'stun', 'rifts', 'strikes', 'split',
