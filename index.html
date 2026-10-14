@@ -12275,7 +12275,27 @@ function drawShips() {
   const cols = mobile ? (W >= 440 ? 5 : 4) : 6, gap = mobile ? 6 : 10;
   const iw = Math.min(mobile ? 130 : 100, (W - (mobile ? 24 : 32) - (cols - 1) * gap) / cols), ih = mobile ? Math.max(56, iw * 0.7) : iw * 0.95;
   const gx = (W - (cols * iw + (cols - 1) * gap)) / 2, gy = mobile ? 76 : 110;
-  SHIPS.forEach((s, i) => {
+  const ROW_TINT = ['#3b2f7a', '#1f3f7a', '#6a1f3f', '#6a4a1f', '#1f5a3f', '#4a2f6a', '#1f3a6a', '#6a1f1f', '#5a4a2f', '#2f5a5a'];
+  const rowsMode = !mobile; // (desktop: Rabbit-and-Steel-style colored rows, two columns)
+  const rcols = 2, rgap = 8, rw = Math.min(380, (W - 48 - rgap) / 2), rh = 34, rx0 = (W - (rcols * rw + rgap)) / 2, ry0 = 104;
+  if (rowsMode) SHIPS.forEach((s, i) => {
+    const col = i % rcols, row = Math.floor(i / rcols), x = rx0 + col * (rw + rgap), y = ry0 + row * (rh + 6);
+    const st = tierOwned(s, pickTier(s)) ? pickTier(s) : 0, on = sel === i, tint = ROW_TINT[i % ROW_TINT.length];
+    buttons.push({ x, y, w: rw, h: rh, action: () => pickShip(i) });
+    ctx.save(); ctx.shadowBlur = 0;
+    const g = ctx.createLinearGradient(x, 0, x + rw, 0); g.addColorStop(0, on ? '#e8ecf4' : tint); g.addColorStop(1, on ? '#c8d0e0' : hexA(tint, 0.45));
+    ctx.fillStyle = g; ctx.fillRect(x, y, rw, rh);
+    ctx.strokeStyle = on ? '#ffffff' : hexA('#ffffff', 0.25); ctx.lineWidth = on ? 2 : 1; ctx.strokeRect(x + 0.5, y + 0.5, rw - 1, rh - 1);
+    ctx.translate(x + 22, y + rh / 2); ctx.scale(0.55, 0.55); drawHull(s.shape, on ? '#1a2240' : pc, 0, st >= 2 ? st + 1 : st > 0, mySkin);
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = on ? '#1a2240' : '#f2f4ff';
+    ctx.font = 'small-caps 600 19px Georgia, "Times New Roman", serif'; ctx.fillText(s.name.charAt(0) + s.name.slice(1).toLowerCase(), x + 44, y + rh / 2 + 1);
+    ctx.textAlign = 'right'; ctx.font = '10px system-ui'; ctx.fillStyle = on ? '#3a4466' : '#b8c0d8';
+    const mlv = masteryLv(s.id); ctx.fillText(s.tag + '   ' + '★'.repeat(mlv) + '☆'.repeat(MASTERY_MAX - mlv), x + rw - 10, y + rh / 2);
+    const takers = sp.picks.map((id, j) => shipById(id) && (id === s.id || id === s.id + '2' || id === s.id + '3') ? `P${j + 1}` : null).filter(Boolean);
+    if (takers.length) { ctx.fillStyle = '#ffe93d'; ctx.font = 'bold 10px system-ui'; ctx.fillText(takers.join(' '), x + rw - 10, y + 7); }
+  });
+  else SHIPS.forEach((s, i) => {
     // center a partly-filled last row
     const row = Math.floor(i / cols), inRow = Math.min(cols, SHIPS.length - row * cols), rowX = gx + (cols - inRow) * (iw + gap) / 2;
     const x = rowX + (i % cols) * (iw + gap), y = gy + row * (ih + gap), has2 = mk2Owned(s), top = topTier(s), st = tierOwned(s, pickTier(s)) ? pickTier(s) : 0, showing2 = st > 0;
@@ -12297,7 +12317,7 @@ function drawShips() {
   });
 
   // details for the highlighted ship (in the version currently chosen)
-  const rows = Math.ceil(SHIPS.length / cols), py = gy + rows * (ih + gap) + 6;
+  const rows = Math.ceil(SHIPS.length / cols), py = rowsMode ? ry0 + Math.ceil(SHIPS.length / rcols) * (rh + 6) + 6 : gy + rows * (ih + gap) + 6;
   const pw = Math.min(560, W - (mobile ? 24 : 32)), px = (W - pw) / 2, ph = mobile ? 136 : 196, locked = !owned2, accent = TIER_COLOR[tier];
   if (mobile) {
     panel(px, py, pw, ph, accent, false);
@@ -14824,7 +14844,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.14.1';
+const BUILD = '2026.10.15.1';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
