@@ -2141,6 +2141,12 @@ const SHIPS = [
     mod: { speed: 1.08, rage: 0.3 },
     mk2: { cost: 400, stats: { speed: 4, power: 5, armor: 2 }, trait: '+50% damage for every life it is missing, and moves faster.',
       mod: { speed: 1.15, rage: 0.5 } } },
+  // a homing arsenal: every shot curves onto the nearest enemy, two launch tubes fire homing missiles, and LOCK-ON picks its targets
+  { id: 'tracker', name: 'TRACKER', tag: 'Homing arsenal', shape: 'tracker',
+    stats: { speed: 3, power: 2, armor: 2 }, trait: 'Every shot curves onto the nearest enemy, and two launch tubes fire homing missiles. Weaker guns.',
+    mod: { dmg: 0.62, homing: 3, pods: 1 },
+    mk2: { cost: 350, stats: { speed: 3, power: 3, armor: 2 }, trait: 'Stronger homing, four missiles a volley, and LOCK-ON picks up to 8 targets.',
+      mod: { dmg: 0.7, homing: 4, pods: 2 } } },
   // six heavy rounds fired fast, then a reload where it can't shoot (see the auto fire in update)
   { id: 'gunslinger', name: 'GUNSLINGER', tag: 'Six-shooter', shape: 'revolver',
     stats: { speed: 3, power: 5, armor: 2 }, trait: 'Fires 6 heavy rounds fast, then has to reload for a moment. One barrel.',
@@ -2243,6 +2249,7 @@ const ABILITIES = {
   bomber:      { name: 'MEGATON',     cd: [12, 9],  desc: 'Drops one huge, slow bomb that blasts everything around it and blows away enemy bullets.' },
   gunslinger:  { name: 'FAN THE HAMMER', cd: [8, 6], desc: 'Empties the whole cylinder at the closest enemy at double damage (twice for the MK II), then reloads instantly.' },
   volt:        { name: 'ION STORM',   cd: [14, 10], desc: 'Chains lightning through nearby enemies and strikes every boss.' },
+  tracker:     { name: 'LOCK-ON',     cd: [14, 10], desc: 'Locks onto the 5 nearest enemies (8 for the MK II) and fires a homing missile at each.' },
 };
 // the duel's two moves, the same for both players: DASH slips you about 170px ahead, and for a moment spells pass straight through
 // you. REFLECT is a bubble around you that turns spells around, so they fly back at whoever fired them (up to 3 times each)
@@ -2433,6 +2440,12 @@ function useAbility(p, dx = 0, dy = 0) {
     const n = (tier ? 12 : 8) * (abm('carrier') ? 2 : 1);
     for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2) / (n / 2); fire(p.x + side * 14, p.y, -Math.PI / 2 + side * (0.3 + k * 1.1), '#ff9a3d', 'missile', p); }
     beep(300, 0.3, 'sawtooth', 0.05, 400);
+  } else if (id === 'tracker') { // LOCK-ON: the nearest enemies and bosses each get a homing missile, which keeps to its target while it lives
+    const foes = [...enemies.filter(e => !e.dead && !TYPES[e.type].ghost), ...bosses.filter(bossAlive)]
+      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, tier ? 8 : 5);
+    for (const f of foes) { fire(p.x, p.y - 12, Math.atan2(f.y - p.y, f.x - p.x), '#ff9a3d', 'missile', p); const b = bullets[bullets.length - 1]; if (b) b.lock = f; }
+    if (!foes.length) for (let i = -1; i <= 1; i++) fire(p.x, p.y - 12, -Math.PI / 2 + i * 0.4, '#ff9a3d', 'missile', p); // (nothing to lock: a quick volley straight ahead)
+    fxRing(p.x, p.y, 10, 120, 0.4, p.color, 3); beep(1000, 0.2, 'triangle', 0.05, 600);
   } else if (id === 'summoner') { // SENTRY: a turret where you stand (two at a time: a third replaces your oldest; Overseer: 6s longer)
     const mine = run.sentries.filter(q => q.owner === p.id);
     if (mine.length >= 2) run.sentries.splice(run.sentries.indexOf(mine[0]), 1);
@@ -3526,7 +3539,7 @@ function fire(x, y, a, color, kind, p) {
   bullets.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, dmg: s.dmg * mult, crit, hits: [], color,
     pierce: kind === 'rail' ? 999 : kind === 'missile' || kind === 'bomb' ? 0 : s.pierce + (m.pierce || 0),
     bounces: kind === 'rail' ? 0 : s.ricochet, size: s.bulletSize + (kind === 'rail' ? 8 : kind === 'bomb' ? 5 : 0),
-    missile: kind === 'missile', rail: kind === 'rail', owner: p ? p.id : -1,
+    missile: kind === 'missile', rail: kind === 'rail', seek: kind ? 0 : (m.homing || 0) * 4, owner: p ? p.id : -1,
     ...(kind === 'bomb' ? { bomb: true, fuse: BOMB_FUSE, blast: (m.blast || 70) * (abm('bomber') ? 1.35 : 1) + s.explosive * 12 } : {}) });
 }
 
@@ -5469,7 +5482,7 @@ let dokiChips = [];
 const EGG_HATCH = 5, HALO_REFLECT_SPEED = 250, RIFT_LIFE = 2.4, RIFT_ARM = 0.4;
 const GRID_WARN = 1.2, GRID_FIRE = 0.45, GRID_W = 26; // ZERO's beam grid
 // NEMESIS: which of its attacks copies each ship's ability, how long it takes to copy one, and how long it stays phased out
-const NEMESIS_COPY = { summoner: 'missiles', bomber: 'nova', gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage' };
+const NEMESIS_COPY = { summoner: 'missiles', bomber: 'nova', gunslinger: 'rail', striker: 'nova', interceptor: 'charge', juggernaut: 'fortress', scatter: 'flak', piercer: 'rail', medic: 'lifeline', wraith: 'phase', carrier: 'missiles', berserker: 'rampage', tracker: 'missiles' };
 const NEMESIS_COPY_T = 1.2, NEMESIS_PHASE = 1;
 const ECHO_STEP = 0.1, ECHO_LEN = 31;      // ECHO: record every 0.1s, replay the last 3 seconds
 const JUDGE_WARN = 2.4, JUDGE_R = 75;     // THE ORACLE's judgment: warning time, safe circle radius
@@ -7309,11 +7322,12 @@ function update(dt) {
         }
       }
     }
-    if (s.missiles && !holstered()) { // pairs of homing missiles peel off the wings
+    const pods = s.missiles + (p.ship.mod.pods || 0); // (a ship's own launch tubes add to the upgrade's)
+    if (pods && !holstered()) { // pairs of homing missiles peel off the wings
       p.missileT = (p.missileT ?? 1) - dt;
       if (p.missileT <= 0) {
-        p.missileT = Math.max(p.missileT, -0.05) + (s.missiles >= 2 ? 0.85 : 1.15) * (s.inferno ? 0.5 : 1); // (Inferno Barrage: twice as often)
-        for (let i = 0; i < 2 * s.missiles; i++) {
+        p.missileT = Math.max(p.missileT, -0.05) + (pods >= 2 ? 0.85 : 1.15) * (s.inferno ? 0.5 : 1); // (Inferno Barrage: twice as often)
+        for (let i = 0; i < 2 * pods; i++) {
           const side = i % 2 ? 1 : -1;
           fire(p.x + side * 12, p.y, -Math.PI / 2 + side * (0.6 + (i >> 1) * 0.35), '#ff9a3d', 'missile', p);
         }
@@ -7372,13 +7386,15 @@ function update(dt) {
   const vortexes = [...enemies.filter(e => e.type === 'vortex' && !e.dead).map(e => ({ x: e.x, y: e.y, r: VORTEX_R })),
     ...bosses.filter(o => (o.gimmick === 'gravity' || o.mech?.g === 'gravity') && bossAlive(o)).map(o => ({ x: o.x, y: o.y, r: SINGULARITY_PULL }))];
   for (const b of bullets) {
-    if ((s.homing && !b.rail) || b.missile) {
-      const tgt = nearestTarget(b.x, b.y, b.missile ? 600 : 350);
+    const turn = b.missile ? 5 : b.seek || (s.homing && !b.rail ? s.homing * 4 : 0); // (how fast a shot can turn: a missile, a ship's own homing, or the upgrade's)
+    if (turn) {
+      const locked = b.lock && (b.lock.dying !== undefined ? bossAlive(b.lock) : !b.lock.dead) ? b.lock : null; // (LOCK-ON: a missile keeps to its target while it's still there)
+      const tgt = locked || nearestTarget(b.x, b.y, b.missile ? 600 : 350);
       if (tgt) {
         const sp = Math.hypot(b.vx, b.vy);
         let cur = Math.atan2(b.vy, b.vx);
         const d = ((Math.atan2(tgt.y - b.y, tgt.x - b.x) - cur + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-        cur += Math.sign(d) * Math.min(Math.abs(d), (b.missile ? 5 : s.homing * 4) * dt);
+        cur += Math.sign(d) * Math.min(Math.abs(d), turn * dt);
         b.vx = Math.cos(cur) * sp; b.vy = Math.sin(cur) * sp;
       }
     }
@@ -7747,6 +7763,7 @@ const HULLS = {
   revolver: { pts: [[-2.5, -24], [2.5, -24], [3, -10], [8, -8], [17, 6], [15, 12], [6, 9], [0, 13], [-6, 9], [-15, 12], [-17, 6], [-8, -8], [-3, -10]], flames: [[0, 12, 5]], cockpit: [[0, -4], [4, 4], [-4, 4]], cylinder: true },
   berserker: { pts: [[0, -20], [5, -10], [14, -14], [10, 0], [17, 12], [5, 8], [0, 14], [-5, 8], [-17, 12], [-10, 0], [-14, -14], [-5, -10]], flames: [[0, 12, 5]], cockpit: [[0, -10], [3, 0], [-3, 0]] },
   volt:     { pts: [[0, -23], [5, -9], [17, -4], [9, 2], [16, 12], [5, 9], [0, 17], [-5, 9], [-16, 12], [-9, 2], [-17, -4], [-5, -9]], flames: [[-5, 13, 3], [5, 13, 3]], cockpit: [[0, -13], [3, -3], [0, 1], [-3, -3]] },
+  tracker: { pts: [[0, -21], [4, -11], [14, -4], [16, 4], [8, 2], [9, 12], [0, 8], [-9, 12], [-8, 2], [-16, 4], [-14, -4], [-4, -11]], flames: [[0, 11, 4]], cockpit: [[0, -9], [2.5, -1], [-2.5, -1]], tubes: [[-12, 0], [12, 0]], reticle: true },
 };
 // mk2: the upgraded MK II model — a bit bigger, gold trim, glowing wingtip pods and hotter engines
 // mk2 === 3: the MK III model — bigger still, with prism-violet trim, a second pair of pods and two crystals orbiting it
@@ -7829,6 +7846,8 @@ function drawHull(shape, color, thrust = 0, mk2 = false, skin) {
   ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.globalAlpha *= 0.7;
   if (h.halo) for (let i = 0; i < 3; i++) { const a = i / 3 * Math.PI * 2 + t * 2; ctx.beginPath(); ctx.arc(Math.cos(a) * 7, 2 + Math.sin(a) * 7, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the SUMMONER's three little orbiting sparks)
   if (h.bombBay) for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * 11, 5, 2.4, 0, Math.PI * 2); ctx.fill(); } // (the BOMBER's two bomb bays)
+  if (h.tubes) for (const [x, y] of h.tubes) { ctx.fillStyle = '#ff9a3d'; glow('#ff9a3d', 10); ctx.fillRect(x - 2.5, y - 3, 5, 9); ctx.fillStyle = '#fff'; ctx.fillRect(x - 1, y - 3, 2, 2); } // (the TRACKER's missile launch tubes on its wingtips)
+  if (h.reticle) { ctx.save(); ctx.strokeStyle = hexA(color, 0.5); ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.lineDashOffset = -t * 20; ctx.beginPath(); ctx.arc(0, -4, 11 + Math.sin(t * 6) * 0.8, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } // (the TRACKER's lock reticle, turning)
   if (h.cylinder) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; ctx.beginPath(); ctx.arc(Math.cos(a) * 9, 6 + Math.sin(a) * 3.5, 1.6, 0, Math.PI * 2); ctx.fill(); } // (the revolver's cylinder, across its wings)
   if (h.cross) {
     if (mk2) { ctx.globalAlpha /= 0.7; ctx.fillStyle = '#fff'; ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.stroke(); }
@@ -14805,7 +14824,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.13.5';
+const BUILD = '2026.10.14.1';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
