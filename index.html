@@ -1418,12 +1418,20 @@ function openUpgrade(title, bossReward) {
   if (bossReward && !curse('noshop')) run.shopNext = true; // (CLOSED SHOP curse: the merchant stays away)
   const cards = rollCards((metaLv('choice') ? 4 : 3) - (curse('slim') ? 1 : 0), bossReward);
   if (!cards.length) { resumeAfterUpgrade(); return; }
-  offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1, taken: new Set(), need: living().length }; // (Boss Rush: two picks per boss; online co-op: each player picks)
+  offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1, taken: new Set(), picked: {}, at: performance.now() }; // (Boss Rush: two picks per boss; online co-op: each player picks)
   go('upgrade');
   beep(520, 0.3, 'triangle', 0.07, 300);
 }
 // online co-op: every player takes their own pick, and it changes only their own damage and speed (the rest stays shared)
 const perPlayerPicks = () => !!net.role && !run.pvp && players.length > 1;
+// online co-op: the upgrade screen waits for every living ship to pick (a ship that left doesn't hold it up), and gives
+// up waiting after 45 seconds, so one stuck player can never stop the whole run
+function upgradeWatch() {
+  if (!offer || !offer.taken) return;
+  const pending = living().filter(q => !q.gone && !offer.taken.has(q.id));
+  if (pending.length && performance.now() - offer.at < 45000) return;
+  resumeAfterUpgrade();
+}
 function pickOwn(u, p) {
   const before = { dmg: run.s.dmg, speed: run.s.speed };
   applyUpgrade(u); // (the shared effects, and the run's count of this upgrade)
@@ -1437,11 +1445,11 @@ function pickUpgrade(i, by) {
   const u = offer.cards[i]; if (!u) return;
   if (perPlayerPicks()) {
     const who = by ?? (net.mine?.[0] ?? 0), p = players[who];
-    if (!p || offer.taken.has(who)) return;
-    offer.taken.add(who); pickOwn(u, p);
+    if (!p || !p.alive || p.gone || offer.taken.has(who)) return;
+    offer.taken.add(who); offer.picked[who] = u.name; pickOwn(u, p);
     for (const q of [p]) burst(q.x, q.y, RARITY[u.r].color, 40, 300);
     beep(880, 0.25, 'triangle', 0.08, 660);
-    if (offer.taken.size >= offer.need) resumeAfterUpgrade();
+    upgradeWatch();
     return;
   }
   applyUpgrade(u);
@@ -7206,6 +7214,7 @@ function update(dt) {
   updateMusicFilter();
   if (toast) { toast.life -= dt; if (toast.life <= 0) toast = null; }
   updateStars(dt);
+  if (state === 'upgrade' && offer?.taken && perPlayerPicks() && net.role !== 'guest') upgradeWatch(); // (online co-op: wait for every ship's pick)
   if (state !== 'play' || paused) { updateParticles(dt); return; }
   if (run.pvp && run.pvpBreak > 0) { run.pvpBreak -= dt; updateParticles(dt); return; } // (a duel between rounds: the banner, and nobody moves or shoots yet)
   // two clocks: the game clock, which has always run at double speed (everything that moves or blinks by it is tuned to
@@ -12460,6 +12469,10 @@ function drawUpgrade() {
 
   title(offer.title, y0 - 70, offer.bossReward ? '#ffb13d' : '#3d9dff', 38);
   const evoUp = offer.cards.some(u => u.r === 'evo');
+  if (perPlayerPicks()) { // who has picked what (each pick only changes that ship's damage and speed)
+    const sy = vertical ? y0 + total + 26 : y0 + ch + 44;
+    fitText(players.filter(p => !p.gone).map(p => `${pname(p)}: ${(offer.picked || {})[p.id] || (p.alive ? 'choosing…' : 'out')}`).join('   ·   '), sy, 14, '#dfe8ff');
+  }
   fitText(evoUp ? '★ An EVOLUTION is ready: two of your upgrades can fuse into something stronger! ★'
     : offer.bossReward ? 'Boss rewards are always Rare or better' : 'Choose one — it lasts for the rest of this run', y0 - 32, 14, evoUp ? RARITY.evo.color : '#9ab');
 
@@ -14906,7 +14919,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.19.2';
+const BUILD = '2026.10.19.3';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -15216,7 +15229,7 @@ function packSnap() {
     bo: bosses.map(packBoss),
     ec: encounter ? { kind: encounter.kind, name: encounter.name, angle: encounter.angle, tether: encounter.tether, lit: (encounter.lit || []).map(b => b.name) } : null,
     sp: state === 'shop' && shop ? shop.items.map(it => [it.kind, it.u ? it.u.id : 0, it.price, it.sold ? 1 : 0]) : null, cn: run.coins || 0,
-    of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id) } : null,
+    of: state === 'upgrade' && offer ? { ti: offer.title, br: offer.bossReward ? 1 : 0, c: offer.cards.map(u => u.id), pk: offer.picked || {} } : null,
     zn: run.zone, rh: run.route, ro: state === 'route' ? run.routeOpts : null, ms: run.musicSeed, wp: run.warp ? [r2(run.warp.t), run.warp.to] : 0,
     wi: bossWarn > 0 ? encounterInfo(bossCount) : null,
     hi: hint ? [hint.text, r1(hint.life)] : null,
@@ -15656,7 +15669,7 @@ function applySnap(s) {
   }
   shop = s.sp ? { items: s.sp.map(a => ({ kind: a[0], u: a[1] ? UPGRADES.find(u => u.id === a[1]) : null, price: a[2], sold: !!a[3] })) } : null;
   run.coins = s.cn;
-  offer = s.of && Array.isArray(s.of.c) ? { title: String(s.of.ti).slice(0, 80), bossReward: !!s.of.br, cards: s.of.c.slice(0, 6).map(id => UPGRADES.find(u => u.id === id)).filter(Boolean) } : null;
+  offer = s.of && Array.isArray(s.of.c) ? { title: String(s.of.ti).slice(0, 80), bossReward: !!s.of.br, cards: s.of.c.slice(0, 6).map(id => UPGRADES.find(u => u.id === id)).filter(Boolean), picked: s.of.pk && typeof s.of.pk === 'object' ? s.of.pk : {} } : null;
   if (Array.isArray(s.rh)) run.route = s.rh.filter(okZone).slice(0, 20);
   run.routeOpts = Array.isArray(s.ro) ? s.ro.filter(o => okZone(o?.id)).slice(0, 4).map(o => ({ id: o.id, bosses: Array.isArray(o.bosses) ? o.bosses.slice(0, 8).map(n => String(n).slice(0, 32)) : [] })) : null;
   net.warnInfo = s.wi; run.musicSeed = s.ms ?? run.musicSeed;
