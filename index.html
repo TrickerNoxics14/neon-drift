@@ -1418,13 +1418,32 @@ function openUpgrade(title, bossReward) {
   if (bossReward && !curse('noshop')) run.shopNext = true; // (CLOSED SHOP curse: the merchant stays away)
   const cards = rollCards((metaLv('choice') ? 4 : 3) - (curse('slim') ? 1 : 0), bossReward);
   if (!cards.length) { resumeAfterUpgrade(); return; }
-  offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1 }; // (Boss Rush: two picks per boss)
+  offer = { title, bossReward, cards, picks: run.rush && bossReward ? 2 : 1, taken: new Set(), need: living().length }; // (Boss Rush: two picks per boss; online co-op: each player picks)
   go('upgrade');
   beep(520, 0.3, 'triangle', 0.07, 300);
 }
-function pickUpgrade(i) {
-  if (net.role === 'guest') { net.host?.send({ pick: i }); return; } // the host applies it for everyone
+// online co-op: every player takes their own pick, and it changes only their own damage and speed (the rest stays shared)
+const perPlayerPicks = () => !!net.role && !run.pvp && players.length > 1;
+function pickOwn(u, p) {
+  const before = { dmg: run.s.dmg, speed: run.s.speed };
+  applyUpgrade(u); // (the shared effects, and the run's count of this upgrade)
+  const rd = run.s.dmg / before.dmg, rs = run.s.speed / before.speed;
+  run.s.dmg = before.dmg; run.s.speed = before.speed; // (damage and speed go to this player instead)
+  p.dmgMul = (p.dmgMul || 1) * (Number.isFinite(rd) ? rd : 1);
+  p.spdMul = (p.spdMul || 1) * (Number.isFinite(rs) ? rs : 1);
+}
+function pickUpgrade(i, by) {
+  if (net.role === 'guest') { net.host?.send({ pick: i }); return; } // the host applies it
   const u = offer.cards[i]; if (!u) return;
+  if (perPlayerPicks()) {
+    const who = by ?? (net.mine?.[0] ?? 0), p = players[who];
+    if (!p || offer.taken.has(who)) return;
+    offer.taken.add(who); pickOwn(u, p);
+    for (const q of [p]) burst(q.x, q.y, RARITY[u.r].color, 40, 300);
+    beep(880, 0.25, 'triangle', 0.08, 660);
+    if (offer.taken.size >= offer.need) resumeAfterUpgrade();
+    return;
+  }
   applyUpgrade(u);
   for (const p of living()) burst(p.x, p.y, RARITY[u.r].color, 40, 300);
   beep(880, 0.25, 'triangle', 0.08, 660);
@@ -2278,7 +2297,7 @@ const abilityOf = p => run?.pvp ? DUEL_DASH : ABILITIES[shipBase(p)] || ABILITIE
 const abTier = p => p.ship.mk2 === true ? 1 : 0;
 const abCdOf = p => abilityOf(p).cd[abTier(p)] * (p.ship.mk ? MK_UP[p.ship.mk].cd : 1) * (run?.s?.abCd || 1); // (Quick Charge cards shorten it)
 const abActive = (p, id) => p.abOn > 0 && shipBase(p) === id;
-const shipSpeed = p => run.s.speed * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1) // (Wraiths are faster while phased)
+const shipSpeed = p => run.s.speed * (p.spdMul || 1) * (p.ship.mod.speed || 1) * (p.phaseOn > 0 && p.ship.mod.phase ? 1.6 : 1) // (Wraiths are faster while phased)
   * (run.s.laststand && p.lives === 1 ? 1.2 : 1); // (Last Stand)
 // which keys fire each control scheme's ability
 const AB_KEYS = { wasd: ['KeyQ', 'KeyE', 'ShiftLeft'], arrows: ['ShiftRight', 'Enter', 'Slash', 'Numpad0', 'ControlRight'], ijkl: ['KeyU', 'KeyO'], mouse: ['Space'] };
@@ -3543,7 +3562,7 @@ function fire(x, y, a, color, kind, p) {
     * (1 + 0.25 * (s.bloodpact ? run.pactN || 0 : 0)) // (Blood Pact)
     * (1 + 0.1 * (s.hotstreak && p ? Math.min(5, Math.floor((p.streak || 0) / 10)) * s.hotstreak : 0)) // (Hot Streak)
     * (s.underdog && p && players.length > 1 && living().every(q => q === p || q.lives > p.lives) ? 1.4 : 1) // (Underdog)
-    * (1 + 0.05 * s.momentum * (combo - 1)) * (s.fortified && p?.shield > 0 ? 1.5 : 1) * (s.kinetic && p ? 1 + Math.min(0.6, (p.moveSp || 0) / 700) : 1); // (Momentum; Fortified; Kinetic)
+    * (1 + 0.05 * s.momentum * (combo - 1)) * (s.fortified && p?.shield > 0 ? 1.5 : 1) * (s.kinetic && p ? 1 + Math.min(0.6, (p.moveSp || 0) / 700) : 1) * (p?.dmgMul || 1); // (Momentum; Fortified; Kinetic; this ship's own damage picks)
   if (Math.sin(a) < 0.3) run.fireAcc = (run.fireAcc || 0) + s.dmg * mult * s.bossDmg; // forward shots count toward firepower
   if (crit && s.cascade && !kind) for (let i = 0; i < 2 * s.cascade; i++) { const c = a + (i % 2 ? 1 : -1) * (0.18 + 0.12 * Math.floor(i / 2)); // (Cascade: crits split)
     bullets.push({ x, y, vx: Math.cos(c) * speed, vy: Math.sin(c) * speed, dmg: s.dmg * mult * 0.5, crit: true, hits: [], color, pierce: s.pierce, bounces: 0, size: s.bulletSize, owner: p ? p.id : -1 }); }
@@ -14887,7 +14906,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.19.1';
+const BUILD = '2026.10.19.2';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
@@ -15090,7 +15109,7 @@ function onHostData(conn, d) {
     p.toff = clockOffset(p.clk ||= {}, ts); (p.track ||= newTrack());
     trackPush(p.track, ts, [num(x, p.r, W - p.r, p.x), num(y, p.r, H - p.r, p.y), num(tilt, -1, 1, 0), num(thrust, 0, 1, 0)]); // (inside the arena)
   }
-  if (state === 'upgrade' && offer && okIdx(d.pick, offer.cards.length)) pickUpgrade(d.pick);
+  if (state === 'upgrade' && offer && okIdx(d.pick, offer.cards.length)) pickUpgrade(d.pick, id);
   if (state === 'route' && okIdx(d.route, run.routeOpts?.length || 0)) pickRoute(d.route);
   if (d.reroll === 1 && state === 'upgrade' && offer) reroll();
   if (state === 'shop' && shop && okIdx(d.buy, shop.items.length)) buyShop(d.buy);
@@ -15186,7 +15205,7 @@ function packSnap() {
     ow: run.owned, cy: run.cycle, mu: run.mut, bk: run.bossKills, vi: run.victory ? 1 : 0, ed: run.endless ? 1 : 0, ws: run.wonStandard ? 1 : 0, rr: run.rerolls,
     pw: run.pvpWins || [], pr: run.pvpRound || 1, pb: r2(run.pvpBreak || 0), pn: run.pvpLast ?? -1, // (a duel's rounds)
     pl: players.map(p => [Math.round(p.x), Math.round(p.y), p.lives, p.alive ? 1 : 0, r2(p.inv), p.shield ? 1 : 0, r1(p.power),
-      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0, r2(p.reflectT || 0), r2(p.dashT || 0), r1(p.reflectCd || 0)]),
+      r2(p.tilt || 0), r2(p.thrust || 0), r2(p.phaseOn || 0), p.wreck ? [Math.round(p.wreck.x), Math.round(p.wreck.y)] : 0, r2(p.reviveProg || 0), p.gone ? 1 : 0, r1(p.abCd || 0), r2(p.abOn || 0), p.mins?.length ? p.mins.flatMap(q => [Math.round(q.x), Math.round(q.y), q.k]) : 0, r2(p.reflectT || 0), r2(p.dashT || 0), r1(p.reflectCd || 0), r2(p.spdMul || 1)]),
     ps: players.map(p => [p.kills || 0, Math.round(p.dmg || 0), p.revives || 0]), // (each player's kills, damage and revives: the results screen)
     en: enemies.map(e => [TYPE_LIST.indexOf(e.type), Math.round(e.x), Math.round(e.y), Math.round(e.vx), Math.round(e.vy), r1(e.hp), e.maxHp,
       r2(e.flash), r2(e.healFx || 0), r2(e.slow || 0), r2(e.spin), r2(e.aimA), e.state, r2(e.timer), r2(e.fire), r2(e.t), r2(e.pulse || 0),
@@ -15583,6 +15602,7 @@ function applySnap(s) {
     if (!mine) { (net.ptr[i] ||= newTrack()); trackPush(net.ptr[i], s.ts, [a[0], a[1], a[7], a[8]]); } // others glide (see guestFrame)
     else if (!p.alive || !a[3]) { p.x = a[0]; p.y = a[1]; p.tilt = a[7]; p.thrust = a[8]; } // my own ship stays where I steer it
     if (mine && !wasAlive && a[3]) { p.x = a[0]; p.y = a[1]; } // just revived: take the host's spot
+    if (a[19] !== undefined) p.spdMul = a[19];
     p.lives = a[2]; p.alive = !!a[3]; p.inv = a[4]; p.shield = a[5]; p.power = a[6]; p.phaseOn = a[9];
     p.wreck = a[10] ? { x: a[10][0], y: a[10][1] } : null; p.reviveProg = a[11]; p.gone = !!a[12];
     p.abCd = num(a[13], 0, 99, 0); p.abOn = num(a[14], 0, 30, 0);
