@@ -1524,9 +1524,13 @@ function activate() { buttons[sel]?.action(); }
 // ---------- input ----------
 const keys = {}, keyT = {}; // (keyT: when each key last went down)
 let pointer = null;
+let pointerT = 0, pointerAnchor = null; // (when the mouse last really moved: see controlsFor)
+const schemeKeyT = {}; // (when each keyboard scheme's keys were last pressed: wasd, arrows, ijkl)
+const keySchemeOf = code => /^(KeyW|KeyA|KeyS|KeyD)$/.test(code) ? 'wasd' : /^Arrow(Up|Down|Left|Right)$/.test(code) ? 'arrows' : /^(KeyI|KeyJ|KeyK|KeyL|Numpad[24568])$/.test(code) ? 'ijkl' : null;
 let mode = 1; // 1 = solo, 2 = co-op
 addEventListener('keydown', e => {
-  keys[e.code] = true; const nowK = performance.now(), recent = c => keys[c] || nowK - (keyT[c] || 0) < 450; keyT[e.code] = nowK;
+  keys[e.code] = true; { const ks = keySchemeOf(e.code); if (ks) schemeKeyT[ks] = performance.now(); }
+  const nowK = performance.now(), recent = c => keys[c] || nowK - (keyT[c] || 0) < 450; keyT[e.code] = nowK;
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   ensureAudio();
@@ -1687,7 +1691,11 @@ cv.addEventListener('pointermove', e => {
     touchMenuScroll.lastY = w.y;
     return;
   }
-  if (pointer || e.pointerType === 'mouse') pointer = net.camZ ? dragPointer(e) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
+  if (pointer || e.pointerType === 'mouse') {
+    pointer = net.camZ ? dragPointer(e) : { x: w.x, y: w.y, touch: e.pointerType !== 'mouse' };
+    if (!pointerAnchor) pointerAnchor = { x: pointer.x, y: pointer.y }; // (the first position only starts the count)
+    else if (e.pointerType !== 'mouse' || Math.hypot(pointer.x - pointerAnchor.x, pointer.y - pointerAnchor.y) > 12) { pointerT = performance.now(); pointerAnchor = { x: pointer.x, y: pointer.y }; }
+  }
   if (state !== 'play' || paused || menuOpen) { const i = hitButton(w.x, w.y); if (i >= 0) sel = i; }
 });
 // paste a room code
@@ -2255,6 +2263,9 @@ const ABILITIES = {
 // you. REFLECT is a bubble around you that turns spells around, so they fly back at whoever fired them (up to 3 times each)
 const DUEL = { dashD: 170, dashIF: 0.25, dashCd: 3.5, reflR: 30, reflDur: 0.7, reflCd: 7 };
 const DUEL_DASH = { name: 'DASH', cd: [DUEL.dashCd, DUEL.dashCd] };
+// duel cover: posts that stop spells (yours and your rival's, reflected or not). The layout changes every round
+const DUEL_COVERS = [[[0.22, 0.46], [0.5, 0.52], [0.78, 0.46]], [[0.34, 0.6], [0.66, 0.6]], [[0.5, 0.4]]];
+const duelCover = () => run?.pvp ? DUEL_COVERS[((run.pvpRound || 1) - 1) % DUEL_COVERS.length].map(([fx, fy]) => ({ x: W * fx - 34, y: H * fy - 14, w: 68, h: 28 })) : [];
 const duelCdTxt = c => (c || 0) > 0 ? Math.ceil(c) + 's' : 'READY';
 const touchRefl = () => ({ x: W - 150, y: H - 96, r: 34 }); // (the duel's REFLECT button, beside DASH's)
 const touchReflHit = (x, y) => { const b = touchRefl(); return Math.hypot(x - b.x, y - b.y) < b.r + 12; };
@@ -6971,9 +6982,11 @@ function updateBoss(b, dt) {
     particles.push({ x: b.x + Math.cos(a) * d, y: b.y + Math.sin(a) * d, vx: -Math.cos(a) * d * 2.4, vy: -Math.sin(a) * d * 2.4,
       life: 0.4, max: 0.4, color: Math.random() < 0.3 ? '#ffffff' : b.color, size: 2.5 });
   }
+  // ATTACK WARNING: the windup of a big attack says so, once, in the boss's color
+  if (b.bigAtk && !b.charge && b.entered && b.atkT > 0 && b.atkT < 0.45 && !b._warned) { b._warned = true; fxText('INCOMING!', b.x, b.y - b.r - 42, b.color, 24, 0.9); }
   if (b.atkT > 0 || b.charge || gim === 'quiet' || fury === 'quiet') return;
   const atk = b.patterns[b.pattern];
-  BOSS_ATTACKS[atk](b, enraged, rate, tgt);
+  BOSS_ATTACKS[atk](b, enraged, rate, tgt); b._warned = false;
   if (b.special?.k === 'mirror' && MIRRORED.includes(atk)) BOSS_ATTACKS[atk]({ ...b, x: W - b.x }, enraged, rate, tgt); // ECHO's mirror image fires too
   GIMMICKS[b.gimmick]?.afterAttack?.(b, enraged);
   // recoil: big attacks punch outward with a shockwave, rapid-fire ones just twitch
@@ -7145,7 +7158,8 @@ function controlsFor(p) {
     if (keys.KeyJ || keys.Numpad4) dx--; if (keys.KeyL || keys.Numpad6) dx++;
     if (keys.KeyI || keys.Numpad8) dy--; if (keys.KeyK || keys.Numpad5 || keys.Numpad2) dy++;
   }
-  const usePointer = scheme.includes('mouse');
+  const keyT = Math.max(0, ...scheme.filter(c => c !== 'mouse').map(c => schemeKeyT[c] || 0));
+  const usePointer = scheme.includes('mouse') && pointerT > keyT; // (the newest input wins: WASD or the arrows hand the ship back from the mouse)
   const pad = padState[k];
   if (pad && (pad.x || pad.y)) { dx = pad.x; dy = pad.y; }
   if (glitchFlip()) dx = -dx; // (GLITCH SECTOR: INPUT ERROR)
@@ -7439,6 +7453,7 @@ function update(dt) {
       if (Math.random() < 0.3) burst(b.x, b.y, bo.color, 3, 120);
       if (bossAlive(bo) && Math.random() < 0.15) beep(1200, 0.02, 'square', 0.01);
     }
+    if (run.pvp && !b.dead && duelCover().some(c => b.x > c.x - b.size && b.x < c.x + c.w + b.size && b.y > c.y - b.size && b.y < c.y + c.h + b.size)) { b.dead = true; burst(b.x, b.y, b.color || '#ffffff', 5, 90); }
     if (run.pvp && !b.dead) for (const q of players) { // a duel: your spells hurt your rival (never you), unless a DASH slips past or a REFLECT turns them around
       if (q.id === b.owner || !q.alive || q.gone || q.dashT > 0) continue;
       const dd = distToSeg(q.x, q.y, b.px, b.py, b.x, b.y);
@@ -11463,6 +11478,7 @@ function drawWorld() {
   drawLinks();
   for (const p of players) drawTrail(p);
   for (const p of players) if (p.alive && (p.inv <= 0 || Math.floor(p.inv * 12) % 2 === 0)) drawShip(p);
+  if (run.pvp) for (const c of duelCover()) { ctx.save(); ctx.fillStyle = '#0d1430'; ctx.strokeStyle = '#7df9ff'; ctx.lineWidth = 2; glow('#7df9ff', 10); ctx.fillRect(c.x, c.y, c.w, c.h); ctx.strokeRect(c.x, c.y, c.w, c.h); ctx.restore(); } // (cover: posts that stop spells)
   if (run.pvp) for (const p of living()) { // a duel: the core that can be hit, the REFLECT bubble, and a ring while you're dashing
     if (p.reflectT > 0) { ctx.save(); ctx.globalAlpha = 0.4 + 0.25 * Math.sin(time * 40); ctx.strokeStyle = p.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(p.x, p.y, DUEL.reflR, 0, TAU); ctx.stroke(); ctx.restore(); }
     if (p.dashT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, p.dashT / DUEL.dashIF) * 0.6; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, TAU); ctx.stroke(); ctx.restore(); }
@@ -11472,6 +11488,9 @@ function drawWorld() {
     const last = run.pvpLast >= 0 ? `${pname(players.find(p => p.id === run.pvpLast))} took round ${(run.pvpRound || 2) - 1}` : `round ${(run.pvpRound || 2) - 1} was a draw`;
     title(`ROUND ${run.pvpRound || 1}`, H * 0.4, '#ffd23d', 46);
     fitText(`${last}  ·  ${players.map(p => run.pvpWins?.[p.id] || 0).join(' – ')}`, H * 0.4 + 42, 16, '#dfe8ff', 'bold');
+    const leaders = players.filter(p => (run.pvpWins?.[p.id] || 0) === 1);
+    if (leaders.length === 1) fitText(`MATCH POINT: ${pname(leaders[0])}`, H * 0.4 + 70, 18, '#ff5a70', 'bold');
+    else if (leaders.length === 2) fitText('DECIDER', H * 0.4 + 70, 18, '#ff5a70', 'bold');
   }
   for (const p of players) drawPet(p);
   drawTeamUi();
@@ -12261,6 +12280,7 @@ const CONTROL_NAMES = { wasd: 'WASD', arrows: 'Arrow keys', mouse: 'Mouse', ijkl
 function drawShips() {
   const sp = shipPick, pl = sp.player, pc = P_COLORS[sp.online ? net.mine[sp.k || 0] ?? 0 : pl];
   const mobile = W < 600;
+  const leftCol = !mobile && W >= 1000; // (wide screens: an UNLOCK MORE panel and a big RETURN down the left)
   const mySkin = sp.online || pl === 0 ? meta.cos.eq.skin : null; // (your skin shows on P1's picks)
   if (sel < SHIPS.length) sp.view = sel;
   const base = SHIPS[sp.view ?? 0], tier = pickTier(base), two = tier > 0, owned2 = tierOwned(base, tier);
@@ -12375,6 +12395,29 @@ function drawShips() {
   wrap(ab.desc, tw).slice(0, 2).forEach((l, j) => ctx.fillText(l, tx, ay + 16 + j * 13));
   }
 
+  if (leftCol) { // UNLOCK MORE: the two trophies closest to done, and a big RETURN
+    const ux = 14, uw = 206, uy = ry0 + Math.ceil(SHIPS.length / rcols) * (rh + 6) + 12, uh = 214; // (just under the ship rows, clear of the details panel)
+    const unlockable = ACHIEVEMENTS.filter(a => !meta.ach[a.id] && a.progress).map(a => {
+      let pr = [0, 1]; try { pr = a.progress(); } catch (e) {}
+      return { a, have: pr[0] || 0, need: pr[1] || 1 };
+    }).sort((x, y) => y.have / y.need - x.have / x.need).slice(0, 2);
+    panel(ux, uy, uw, uh, '#7df9ff', false);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#e8f0ff'; ctx.font = 'italic 600 19px Georgia, "Times New Roman", serif'; ctx.fillText('Unlock more!', ux + 14, uy + 12);
+    if (!unlockable.length) { ctx.fillStyle = '#9ab'; ctx.font = '12px system-ui'; ctx.fillText('Every trophy is yours!', ux + 14, uy + 48); }
+    unlockable.forEach((u, j) => {
+      const y = uy + 44 + j * 84, fw = uw - 28, frac = Math.min(1, u.have / u.need);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.fillText(u.a.name, ux + 14, y);
+      ctx.fillStyle = '#b8c0d8'; ctx.font = '11px system-ui';
+      wrap(u.a.desc, fw).slice(0, 2).forEach((l, k) => ctx.fillText(l, ux + 14, y + 17 + k * 13));
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(ux + 14, y + 52, fw, 6);
+      ctx.fillStyle = '#7df9ff'; ctx.fillRect(ux + 14, y + 52, fw * frac, 6);
+      ctx.fillStyle = '#9ab'; ctx.font = '10px system-ui'; ctx.textAlign = 'right';
+      ctx.fillText(`${Math.min(u.have, u.need)} / ${u.need}  ·  ◆ ${u.a.reward}`, ux + uw - 14, y + 62);
+      ctx.textAlign = 'left';
+    });
+    button(sp.online ? 'BACK TO LOBBY' : pl > 0 ? `BACK TO P${pl}` : 'RETURN  [Esc]', ux, H - 96, uw, 60, '#9ab', shipSelectBack);
+  }
   // MK I to MK V switch (V cycles through them; 🔒 = not bought yet)
   const bw = Math.min(440, W - (mobile ? 24 : 32)), bx = (W - bw) / 2, hw = (bw - 24) / 5, ty = py + ph + (mobile ? 7 : 10), buttonH = mobile ? 28 : 34;
   [0, 1, 2, 3, 4].forEach(k => button(`${tier === k ? '● ' : ''}${TIER_NAME[k]}${tierOwned(base, k) ? '' : ' 🔒'}`, bx + k * (hw + 6), ty, hw, buttonH,
@@ -12386,7 +12429,7 @@ function drawShips() {
   const label = locked ? (needs2 ? `BUY THE ${TIER_NAME[tier - 1]} FIRST` : afford ? `BUY ${TIER_NAME[tier]}  ◆ ${cost}` : `${TIER_NAME[tier]} — NEED ◆ ${cost}`)
     : sp.online ? `FLY THE ${view.name}` : pl < sp.mode - 1 ? `PICK ${view.name}  ›  P${pl + 2}` : `LAUNCH AS ${view.name}`;
   button(label, bx, by, bw, mobile ? 38 : 44, locked ? (afford ? TIER_COLOR[tier] : '#667') : accent, () => pickShip(sp.view ?? 0));
-  button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + (mobile ? 44 : 52), bw, mobile ? 32 : 38, '#9ab', shipSelectBack);
+  if (!leftCol) button(sp.online ? 'BACK TO LOBBY  [Esc]' : pl > 0 ? `BACK TO P${pl}  [Esc]` : 'BACK  [Esc]', bx, by + (mobile ? 44 : 52), bw, mobile ? 32 : 38, '#9ab', shipSelectBack);
 }
 
 function drawUpgrade() {
@@ -13047,7 +13090,7 @@ function enterZone(id, quiet) {
   // a golden shard might be hiding in this zone (if it hasn't been found yet): it drifts past once, some time in
   run.goldT = !run.rush && !run.practice && GOLD_ZONES().includes(id) && !meta.goldShards[id] && Math.random() < GOLD_CHANCE ? 12 + Math.random() * 40 : 0;
   if (!run.rush) assignZoneBosses(z);
-  showZoneCard(id, run.route.length);
+  if (!run.pvp) showZoneCard(id, run.route.length); // (a duel has its own round banners: no zone card over them)
   if (z.hint) hint = { text: z.hint, life: 7 };
   const el = zoneElite(id);
   if (el) hint = { text: `ELITE ZONE — ${el.name}: ${el.desc}!${z.hazard ? ` (on top of its ${z.hazard.toLowerCase()})` : ''}`, life: 7 };
@@ -14844,7 +14887,7 @@ function dragPointer(e, down) {
 // everything else, plus a list of effects/sounds to replay. Guests draw the host's world scaled
 // to fit their window.
 // ======================================================================================
-const BUILD = '2026.10.15.1';
+const BUILD = '2026.10.19.1';
 // (kept the same from now on, so a newer game can still join an older host: new online features only ADD message fields,
 // which older games ignore. A host turns away guests older than itself instead: see onHello)
 const PEER_PREFIX = 'neondrift-v7-';
