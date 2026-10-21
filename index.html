@@ -1880,7 +1880,7 @@ const BOSSES = [
     hint: 'THE REFRACTOR: four crystals turn on its rim, and its body is shielded until they\'re broken. Shoot the crystals (blasts won\'t reach them)!',
     patterns: ['refract', 'ring', 'refract', 'spiral'] },
   // the final boss: a pitch-black horror with ten tentacles, three phases, and darkness that swallows the screen
-  { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 1.5, final: true, gimmick: 'abyss', ink: true,
+  { name: 'THE ABYSS',   style: 'abyss',   color: '#ff1f3d', sides: 12, r: 70, hpMult: 2, final: true, gimmick: 'abyss', ink: true,
     hint: 'THE ABYSS has found you. Dodge its tentacles, watch the ground for eruptions — and when the lights go out, stay in your light.',
     patterns: ['lash', 'ink', 'eruption', 'lash', 'maw', 'spiral', 'lash', 'eruption'] },
 ];
@@ -4037,7 +4037,9 @@ function spawnEncounter() {
     const def = BOSSES[e.single];
     encounter = { kind: 'single', name: def.name, final: def.final };
     // the curve above, or enough to survive your team's actual firepower for a while — whichever is bigger
-    bosses = [makeBoss(def, W / 2, Math.max(baseHp * (def.hpMult || 1), firepowerHp(def.final ? FINAL_MIN_SECS : BOSS_MIN_SECS)), loop, 0)];
+    // THE ABYSS (final): its multiplier applies to the whole of that, so it's always tougher, however much firepower you have
+    const hp = def.final ? Math.max(baseHp, firepowerHp(FINAL_MIN_SECS)) * (def.hpMult || 1) : Math.max(baseHp * (def.hpMult || 1), firepowerHp(BOSS_MIN_SECS));
+    bosses = [makeBoss(def, W / 2, hp, loop, 0)];
     if (def.hint && !def.final) hint = { text: def.hint, life: 6 }; // (THE ABYSS's comes after its entrance)
   } else {
     const team = TEAMS[e.team], n = team.members.length;
@@ -12727,7 +12729,8 @@ function galleryBoss(def, i, rage, form = 0) { // a stand-in boss to draw (kept,
 function drawGallery() {
   title('BOSS GALLERY', 52, '#ff8d5d', 40);
   const list = galleryEntries(), log = meta.bossLog, beaten = list.filter(e => log[e.name]?.beat).length;
-  fitText(`${beaten} / ${list.length} beaten  ·  [R] ${galleryRage ? 'normal forms' : 'rage & super forms'}`, 90, 14, '#ffb08d', 'bold');
+  const hardN = list.filter(e => log[e.name]?.hard).length; // (beaten on HARD: a ☠ count, so the work to get them shows)
+  fitText(`${beaten} / ${list.length} beaten${hardN ? `  ·  ☠ ${hardN} on HARD` : ''}  ·  [R] ${galleryRage ? 'normal forms' : 'rage & super forms'}`, 90, 14, '#ffb08d', 'bold');
   if (galleryPick < 0) buttons.push({ x: W / 2 - 160, y: 78, w: 320, h: 26, action: () => { galleryRage = !galleryRage; } }); // (tap the line to switch, too)
   const viewH = Math.min(H, window.innerHeight);
   const cols = W >= 900 ? 7 : W >= 640 ? 5 : W >= 440 ? 3 : 2, gap = 8, rows = Math.ceil(list.length / cols);
@@ -12781,7 +12784,8 @@ function drawGallery() {
 // a boss's own page: big, with its record, its story (THE ABYSS and ZERO only) and the practice buttons
 function drawBossPage(e, rec, t) {
   ctx.fillStyle = 'rgba(3,3,12,0.82)'; ctx.fillRect(0, 0, W, H);
-  const lore = LORE[e.name], pw = Math.min(560, W - 24), ph = Math.min(H - 20, lore ? (W < 560 ? 620 : 520) : (W < 560 ? 420 : 360)), px = (W - pw) / 2, py = (H - ph) / 2;
+  const lore = LORE[e.name], hints = !lore && rec.met ? e.defs.filter(d => d.hint).map(d => d.hint) : []; // (a boss you've met shows its own hint, unless it has a story)
+  const pw = Math.min(560, W - 24), ph = Math.min(H - 20, lore ? (W < 560 ? 620 : 520) : hints.length ? (W < 560 ? 540 : 460) : (W < 560 ? 420 : 360)), px = (W - pw) / 2, py = (H - ph) / 2;
   panel(px, py, pw, ph, rec.hard ? '#ff3d5a' : '#ff8d5d', false);
   title(e.name, py + 34, '#ff8d5d', 28);
   // the boss itself (its rage or super form when R is on)
@@ -12805,6 +12809,12 @@ function drawBossPage(e, rec, t) {
       }
       y += 7;
     });
+  } else if (hints.length) { // its hint: what the fight is about
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '13px system-ui'; ctx.fillStyle = '#9ab';
+    for (const h of hints) {
+      for (const l of wrap(h, pw - 48)) { ctx.fillText(l, px + 24, y); y += 17; }
+      y += 7;
+    }
   }
   const narrow = W < 560, canPractice = !!rec.beat || !!meta.galleryCheat, actionHeight = narrow ? (canPractice ? 88 : 70) : 42;
   const by = py + ph - actionHeight - 12, bw2 = (pw - 48) / 3, fullW = pw - 32;
