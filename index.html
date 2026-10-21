@@ -2985,7 +2985,7 @@ const ELITES = {
   splitting:{ name: 'SPLITTING', color: '#ff5dc8', desc: 'splits in two when destroyed' },
 };
 const ELITE_LIST = Object.keys(ELITES);
-const eliteChance = () => run.moh ? Math.min(0.8, 0.25 + level * 0.04) : Math.min(0.2, 0.025 + (level - 3) * 0.012); // (MOH: lots more elites)
+const eliteChance = () => run.moh ? Math.min(0.45, 0.15 + level * 0.025) : Math.min(0.2, 0.025 + (level - 3) * 0.012); // (MOH: lots more elites)
 function makeElite(e) {
   const pool = ELITE_LIST.filter(k => k !== 'splitting' || e.r < 22); // (no splitting tanks or carriers)
   const k = pool[Math.floor(Math.random() * pool.length)];
@@ -6098,7 +6098,7 @@ function updateMohHands(dt) {
   if (!cand.length) { run.handT = 0.4; return; }
   const p = randomOf(cand);
   run.hands.push([Math.round(p.x), Math.round(p.y), p.x < W / 2 ? 1 : -1, 0, p.id]);
-  run.handT = Math.max(1.2, 4.2 - level * 0.4) * (bosses.length ? 1.2 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.7 + Math.random() * 0.5);
+  run.handT = Math.max(1.2, 4.2 - level * 0.4) * 1.5 * (bosses.length ? 1.2 : 1) / Math.min(2, Math.sqrt(ps.length)) * (0.7 + Math.random() * 0.5); // (MOH, fairer: hands come a lot less often)
   beep(48, 1.1, 'sawtooth', 0.08, 25);
 }
 function drawMohHands() {
@@ -7149,7 +7149,7 @@ function hurt(p) {
     if (run.s.angel) for (let i = 0; i < 18; i++) fire(p.x, p.y, i / 18 * Math.PI * 2, '#7df9ff', undefined, p); // Guardian Angel evolution
     return true;
   }
-  p.lives--; p.inv = (run.moh ? 0.9 : run.pvp ? 0.8 : 2) + run.s.invBonus; // (a duel's invincibility is short: a rival can't just hide behind it) p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
+  p.lives--; p.inv = (run.moh ? 1.6 : run.pvp ? 0.8 : 2) + run.s.invBonus; // (a duel's invincibility is short: a rival can't just hide behind it) p.power = 0; shake = 18; combo = 1; flashHurt(p, 1);
   burst(p.x, p.y, '#ffffff', 50, 400);
   beep(120, 0.4, 'sawtooth', 0.1, -80);
   if (run.s.bloodpact) run.pactN = (run.pactN || 0) + 1; // (Blood Pact)
