@@ -6261,6 +6261,7 @@ function drawMohDark() {
 // and tentacles on their bodies, and a deeper red. (See abyssalBack / abyssalFront for how they look)
 const ABYSSAL_ADD = ['stare', 'grasp', 'deluge'];
 function makeAbyssal(b) {
+  if (b.abyssal) return; // (once: a MOH boss may be corrupted when it spawns and again by a gallery form)
   b.abyssal = true; b.voidEyes = []; b.hands = []; b.deluge = null; b.phase = 1;
   b.title = 'ABYSSAL ' + (b.name || '').replace(/^THE /, '');
   const toHex = (a, k) => '#' + mixHex(a, '#ff1f3d', k).match(/\d+/g).map(v => (+v).toString(16).padStart(2, '0')).join(''); // (the game wants #rrggbb colors here, mixHex gives rgb())
@@ -12673,7 +12674,9 @@ function startPractice(i, hard) {
   const e = galleryEntries()[i];
   const cheatPreview = !!e && !meta.bossLog[e.name]?.beat && meta.galleryCheat;
   if (!e || (!meta.bossLog[e.name]?.beat && !cheatPreview) || net.role) return;
-  const keep = runType; runType = 'standard';
+  // (the ABYSSAL form fights by MOH's rules, as it does in MOH; every other form by standard rules)
+  const fo = bossForms(e.defs[0]), abyssal = fo[galleryForm % fo.length]?.[0] === 'ABYSSAL';
+  const keep = runType; runType = abyssal ? 'moh' : 'standard';
   start(1, [lastShips[0]]);
   runType = keep;
   const n = e.defs[0].final ? 8 : PRACTICE_AT;
@@ -12707,6 +12710,8 @@ function bossForms(d) {
   if (d.gimmick === 'zero') f.splice(1, 1, ['NULL', b => { b.zform = 2; }], ['FATAL ERROR', b => { b.zform = 3; rage(b); }]);
   if (d.gimmick === 'dawnny') f.push(['SUSPECT', b => { b.sus = { t: 1e9, knifeT: 1e9 }; }], ['THE BEAST', b => { b.beast = { t: 1e9, age: 0 }; b.color = '#ff3d3d'; }]);
   if (d.gimmick !== 'zero') f.push(['GLITCH', b => makeGlitch(b, state === 'gallery')]); // (practice it, and it's the real thing)
+  // the MOH version: every boss is corrupted by THE ABYSS in MOH (except the final one and the secret ones)
+  if (!d.final && d.gimmick !== 'doki' && d.gimmick !== 'zero') f.push(['ABYSSAL', b => makeAbyssal(b)]);
   return f;
 }
 function galleryBoss(def, i, rage, form = 0) { // a stand-in boss to draw (kept, so it animates)
