@@ -3694,7 +3694,7 @@ function killEnemy(e, src) {
   if (Math.random() < drop) {
     const someoneDown = players.some(p => !p.alive);
     let kind = someoneDown && Math.random() < 0.5 ? 'life' : ['power', 'shield', 'life'][Math.floor(Math.random() * 3)];
-    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.92) kind = 'power'; // (MOH: hearts are rarer)
+    if (run.moh && kind === 'life' && !someoneDown && Math.random() < 0.6) kind = 'power'; // (MOH: hearts are rarer)
     pickups.push({ x: e.x, y: e.y, kind, t: 0 });
   }
   if (s.pickpocket) run.coins += s.pickpocket; // (Pickpocket)
@@ -7417,9 +7417,9 @@ function update(dt) {
   if (run.calmT > 0) run.calmT -= dt; // (a moment to get your bearings in a new GLITCH SECTOR)
   if (spawnT <= 0 && !bossActive && !(run.calmT > 0) && !run.pvp) {
     const seq0 = enemyIdSeq; spawnEnemy();
-    if (run.moh) for (let k = 0, extra = Math.random() < Math.min(1, 0.7 + level * 0.05) ? 1 + (Math.random() < 0.7 ? 1 : 0) + (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in big packs)
+    if (run.moh) for (let k = 0, extra = Math.random() < Math.min(0.8, 0.4 + level * 0.03) ? 1 + (Math.random() < 0.7 ? 1 : 0) + (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0) : 0; k < extra; k++) spawnEnemy(); // (MOH: they come in big packs)
     if (glitchWorld()) for (const e of enemies) if (e.id > seq0) glitchEnemyInit(e); // (GLITCH variants of every enemy)
-    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (run.moh ? 0.45 : 1) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
+    spawnT = Math.max(0.18, 0.9 - level * 0.07) * (run.moh ? 0.55 : 1) * (0.6 + Math.random() * 0.8) * [1, 1, 0.7, 0.55, 0.45, 0.4, 0.36, 0.33, 0.3][Math.min(mode, 8)] * (mode > 8 ? 8 / mode * 1.6 : 1) / (1 + 0.3 * mut('frenzy'))
       / (curse('horde') ? 1.4 : 1) // (HORDE curse)
       * (run.zone === 'glitch' ? (mode === 1 && !net.playing ? 2 : 1.6) : 1); // (the GLITCH SECTOR sends fewer enemies: its glitches are the danger)
   }
