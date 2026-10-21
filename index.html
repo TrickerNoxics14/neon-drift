@@ -2259,7 +2259,8 @@ function makePlayer(id, x, shipId, cos) {
   // a duel is fair: every ship flies with the same plain stats (no ship perks, MK bonuses or extra lives). Its look stays
   if (runType === 'pvp') ship = { ...ship, mod: {}, mk: 0, mk2: false };
   const m = ship.mod;
-  const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1) * (run?.moh ? 0.7 : 1), inv: 2, // (MOH: a smaller hitbox, 70% of the usual) power: 0, shield: m.aegis ? 1 : 0, alive: true,
+  const p = { id, x, y: H - 100, r: 14 * (m.hitbox || 1) * (run?.moh ? 0.7 : 1), // (MOH: a smaller hitbox, 70% of the usual)
+    inv: 2, power: 0, shield: m.aegis ? 1 : 0, alive: true,
     shotT: 0, droneT: 0, aegisT: 0, healT: 0, color: P_COLORS[id], ship, cos: cos || COS_DEFAULT,
     kills: 0, dmg: 0, revives: 0 }; // (what this player did this run: shown on the results screen in co-op)
   p.lives = maxLivesOf(p);
